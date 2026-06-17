@@ -4705,6 +4705,16 @@ function processImportRows(rows) {
     if (t.includes('OBRADOR') || t.includes('BANO QUIMICO')) return 'obrador';
     if (t.includes('LIMPIEZA') && t.includes('TERRENO')) return 'limpieza';
 
+    // ══ HERRERÍA METÁLICA — antes de estructura para evitar falsos positivos ══
+    if (t.includes('UPN') || t.includes('IPN') || t.includes('HEB') || t.includes('HEA')) {
+      if (t.includes('VIGA') || t.includes('NB') || t.match(/\bIPN\b/) || t.match(/\bHEB\b/)) return 'herreria_viga';
+      return 'herreria_col'; // UPN sin viga → columna metálica
+    }
+    if (t.match(/\bCM\d*\s*[-–]/) || t.match(/\bCM\b.*UPN/)) return 'herreria_col';
+    if (t.includes('COLUMNA') && t.includes('METALIC')) return 'herreria_col';
+    if (t.includes('VIGA') && t.includes('METALIC')) return 'herreria_viga';
+    if (t.includes('PERGOLA') || t.includes('PERGOLA METALICA')) return 'pergola';
+
     // ══ FUNDACIONES — bases, zapatas ══
     if (t.includes('BASE AISLADA') || t.includes('ZAPATA AISLADA') || t.includes('ZAPATA PUNTUAL') || t.match(/\bBASE\s+B\d/)) return 'zapata_puntual';
     if (t.includes('ZAPATA CORRIDA') || t.includes('BASE CORRIDA')) return 'zapata_corrida';
@@ -4713,7 +4723,7 @@ function processImportRows(rows) {
     if (t.includes('POZO ROMANO') || t.includes('PILOTE')) return 'pozo_romano';
     if (t.includes('CABEZAL')) return 'cabezal';
 
-    // ══ ESTRUCTURA — columnas (detectar por patron Cn - ) ══
+    // ══ ESTRUCTURA — columnas (detectar por patron Cn - , excluir CM- metálicas) ══
     if (t.match(/\bC\d+\s*[-–]/) || (t.includes('COLUMNA') && !t.includes('METALIC'))) return 'columna_elab';
 
     // ══ ESTRUCTURA — encadenado vertical (Ce, Ce1, Ce2) ══
@@ -4770,13 +4780,14 @@ function processImportRows(rows) {
     if (t.includes('ENGROSADO') && t.includes('ENLUCIDO')) return 'yeso';
 
     // ══ PISOS ══
+    if (t.includes('ZOCALO') || t.includes('ZÓCALO')) return 'zocalo'; // antes de porcelanato
     if (t.includes('PORCELANATO') && !t.includes('REVESTIM')) {
       if (t.includes('60X120') || t.includes('60 X 120')) return 'piso_porcelanato_60x120';
       return 'piso_porcelanato';
     }
     if (t.includes('CERAMICO') && !t.includes('REVESTIM') && !t.includes('LADRILLO')) return 'piso_ceramico';
+    if (t.includes('ADOQUIN')) return 'piso_adoquin'; // antes de laja para evitar confusión
     if (t.includes('LAJA') || t.includes('PIEDRA NATURAL')) return 'piso_laja';
-    if (t.includes('ADOQUIN')) return 'piso_adoquin';
     if (t.includes('DURMIENTE')) return 'piso_durmiente';
     if (t.includes('DECK') || t.includes('ENTABLONADO') || t.includes('PVC') && t.includes('SIMIL MADERA')) return 'piso_deck';
     if (t.includes('PIEDRA BOLA') || t.includes('GRANZA')) return 'piso_laja';
@@ -4824,7 +4835,7 @@ function processImportRows(rows) {
     if (t.includes('COLUMNA') && t.includes('METALIC')) return 'herreria_col';
     if (t.includes('VIGA') && t.includes('METALIC')) return 'herreria_viga';
     if (t.includes('IPN') || t.includes('UPN') || t.includes('PERFIL')) return 'herreria_col';
-    if (t.includes('PERGOLA')) return 'pergola';
+    if (t.includes('PERGOLA')) return 'pergola'; // ya cubierto arriba pero por si acaso
     if (t.includes('CONDUCTO') && t.includes('VENTILACION')) return 'conducto';
     if (t.includes('CHAPA') && t.includes('COLOR')) return 'cubierta_chapa';
 
@@ -4869,6 +4880,7 @@ function processImportRows(rows) {
     if (t.includes('PILETA') || t.includes('PISCINA')) return 'pileta';
     if (t.includes('VEREDA') || t.includes('SENDERO')) return 'vereda';
     if (t.includes('CANTERO') || t.includes('MURO BAJO')) return 'cantero';
+    if (t.includes('TIRA LED') || t.includes('TIRAS LED') || t.includes('TIRA DE LED') || (t.includes('TIRA') && t.includes('LED'))) return 'inst_electrica';
     if (t.includes('BANQUINA') || t.includes('MESADA') || t.includes('BAJO COCINA') || t.includes('BAJO LAVADERO') || t.includes('BAJO ISLA')) return 'banquina';
 
     return '';
@@ -4877,7 +4889,9 @@ function processImportRows(rows) {
   let colMap={nItem:0,desc:1,cant:2,un:3,contratista:4,costoUnit:5}, headerFound=false;
   for(let i=0;i<Math.min(rows.length,25);i++){const row=rows[i];if(!row)continue;const rowStr=row.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('DESIGNAC')||rowStr.includes('CANT')){for(let j=0;j<row.length;j++){const h=String(row[j]||'').toUpperCase().trim();if(h.includes('ITEM')||h.includes('N°'))colMap.nItem=j;if(h.includes('DESIGNAC')||h.includes('DESCRIPCI'))colMap.desc=j;if(h==='CANT.'||h==='CANT'||h==='CANTIDAD')colMap.cant=j;if(h==='UN.'||h==='UN'||h==='UNIDAD')colMap.un=j;if(h.includes('CONTRATISTA'))colMap.contratista=j;if(h.includes('COSTO UNIT'))colMap.costoUnit=j;}headerFound=true;break;}}
   let debugRows=[];
-  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=String(row[colMap.nItem]||'').trim(),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const u=detectUbic(col1);if(u)currentUbicacion=u;const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=/^\d+[\.,]\d+$/.test(col0);if(col1.length>2&&cantVal>0){importData.push({nItem:hasNum?col0:(importData.length+1).toString(),desc:col1,cant:cantVal,unidad:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:currentUbicacion,subtipo:detectSubtipo(col1),incluir:true});}}
+  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=String(row[colMap.nItem]||'').trim(),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const u=detectUbic(col1);if(u)currentUbicacion=u;const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=/^\d+[\.,]\d+$/.test(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
+    const esMetadato = /^\[0\.\d+\]/.test(col1) || /^0\.\d+$/.test(col0);
+    if(col1.length>2&&cantVal>0&&!esMetadato){importData.push({nItem:hasNum?col0:(importData.length+1).toString(),desc:col1,cant:cantVal,unidad:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:currentUbicacion,subtipo:detectSubtipo(col1),incluir:true});}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
   renderImportPreview();
 }
