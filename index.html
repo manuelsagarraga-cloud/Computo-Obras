@@ -5137,64 +5137,61 @@ async function saveImport() {
     // 3. Buscar coeficiente genérico por rubro para cada item
     function findCoefForItem(item) {
       const mapSubtipo = {
-        // Fundaciones
+        // Fundaciones (3.x — sin cambios)
         'zapata_puntual': '3.15', 'zapata_corrida': '3.9', 'viga_fund': '3.8',
         'platea': '3.10', 'pozo_romano': '3.11', 'cabezal': '3.5',
-        // Estructura — default elaborado
+        // Estructura — H21 elaborado (4.x — sin cambios)
         'columna_elab': '4.7', 'viga_elab': '4.8', 'tabique_hormigon': '4.12',
         'encadenado_vert': '4.7', 'encadenado_horiz': '4.8',
         'losa_maciza': '4.6', 'losa_vigueta': '4.9',
-        // Mampostería por espesor
-        'mamp_12': '6.3', 'mamp_18': '6.4',
-        // Aislamientos
-        'aislacion_h': '3.12', 'aislacion_v': '3.13',
-        // Contrapiso / Carpeta
-        'contrapiso': '5.6', 'carpeta': '5.3',
-        // Revoques
-        'rev_grueso_ext': '8.12', 'rev_grueso_int': '8.9',
-        'rev_fino_ext': '8.5', 'rev_fino_int': '8.2',
-        'yeso': '8.13',
-        // Cielorrasos
-        'cielorraso_yeso': '13.1', 'cielorraso_susp': '13.3', 'cielorraso_madera': '13.5', 'cielorraso_lona': '13.6',
-        // Revoques adicionales
-        'rev_azotado': '8.7', 'rev_fino_ext': '8.5',
-        // Aislamientos
-        'membrana_piso': '7.2', 'aislacion_termica': '7.3',
-        // Cubiertas
-        'impermeabilizacion': '12.1', 'impermeabilizacion_alu': '12.2',
-        'ho_pendiente': '12.6', 'cubierta_chapa': '12.5', 'cubierta_teja': '12.4',
-        // Pisos
-        'piso_porcelanato': '10.2', 'piso_porcelanato_60x120': '10.2',
-        'piso_ceramico': '10.1', 'piso_cemento': '5.5',
-        'piso_durmiente': '10.7', 'piso_deck': '10.8',
-        'piso_laja': '10.9', 'piso_adoquin': '10.6',
-        'piso_loseta': '10.5', 'piso_cemento': '5.5',
-        'zocalo': '10.4', 'banquina': '19.6',
-        // Revestimientos
-        'rev_piedra': '9.4', 'rev_refractario': '9.5', 'rev_venecita': '9.3',
-        'rev_porcelanato': '9.1', 'rev_ceramico': '9.2', 'rev_wpc': '9.1',
-        // Pintura
-        'latex_int': '11.2', 'latex_ext': '11.1', 'latex_cielorraso': '11.3',
-        'rev_plastico': '11.6', 'esmalte': '11.4', 'barniz': '11.5',
-        // Carpintería
-        'puerta': '14.1', 'ventana': '14.3', 'baranda': '18.4',
-        // Herrería
-        'herreria_col': '18.1', 'pergola': '18.4', 'conducto': '18.5',
-        // Varios
-        'escalera': '19.1', 'asador': '19.3', 'cantero': '19.7',
-        'vereda': '19.5', 'pileta': '19.4', 'bombeo': '19.8',
-        // Preliminares
+        // Mampostería (5.x — antes 6.x)
+        'mamp_12': '5.3', 'mamp_18': '5.4',
+        // Aislaciones (6.x — rubro nuevo)
+        'aislacion_h': '6.1', 'aislacion_v': '6.2',
+        'membrana_piso': '6.5', 'aislacion_termica': '6.3',
+        // Revoques (7.x — antes 8.x)
+        'rev_grueso_ext': '7.12', 'rev_grueso_int': '7.9',
+        'rev_fino_ext': '7.5', 'rev_fino_int': '7.2',
+        'yeso': '7.13', 'rev_azotado': '7.7',
+        // Contrapiso / Carpeta (8.x — antes 5.x)
+        'contrapiso': '8.6', 'carpeta': '8.3',
+        // Cubiertas (9.x — antes 12.x)
+        'impermeabilizacion': '9.1', 'impermeabilizacion_alu': '9.2',
+        'ho_pendiente': '9.6', 'cubierta_chapa': '9.5', 'cubierta_teja': '9.4',
+        // Cielorrasos (10.x — antes 13.x)
+        'cielorraso_yeso': '10.1', 'cielorraso_susp': '10.3',
+        'cielorraso_madera': '10.5', 'cielorraso_lona': '10.6',
+        // Pisos (11.x — antes 10.x)
+        'piso_porcelanato': '11.2', 'piso_porcelanato_60x120': '11.2',
+        'piso_ceramico': '11.1', 'piso_cemento': '8.5',
+        'piso_durmiente': '11.7', 'piso_deck': '11.8',
+        'piso_laja': '11.9', 'piso_adoquin': '11.6',
+        'piso_loseta': '11.5', 'zocalo': '11.4',
+        // Revestimientos (12.x — antes 9.x)
+        'rev_piedra': '12.4', 'rev_refractario': '12.5', 'rev_venecita': '12.3',
+        'rev_porcelanato': '12.1', 'rev_ceramico': '12.2', 'rev_wpc': '12.1',
+        // Pintura (13.x — antes 11.x)
+        'latex_int': '13.2', 'latex_ext': '13.1', 'latex_cielorraso': '13.3',
+        'rev_plastico': '13.5', 'esmalte': '13.4', 'barniz': '13.4',
+        // Carpintería (14.x — nuevo)
+        'puerta': '14.1', 'ventana': '14.3', 'baranda': '14.4',
+        // Herrería (15.x — nuevo)
+        'herreria_col': '15.1', 'herreria_viga': '15.5',
+        'pergola': '15.8', 'conducto': '15.9',
+        // Instalaciones (16.x — nuevo)
+        'inst_sanitaria': '16.1', 'inst_pluvial': '16.2', 'inst_cloacal': '16.3',
+        'inst_agua': '16.4', 'inst_bomba': '16.5',
+        'inst_electrica': '16.6', 'inst_aa': '16.7', 'inst_calef': '16.8',
+        'inst_gas': '16.9',
+        // Varios (17.x — nuevo)
+        'escalera': '17.1', 'pileta': '17.2', 'asador': '17.3',
+        'vereda': '17.4', 'cantero': '17.5', 'banquina': '17.6', 'bombeo': '17.7',
+        // Preliminares (1.x — sin cambios)
         'estudio_suelos': '1.4', 'calc_estructural': '1.5',
         'cerco': '1.1', 'replanteo': '1.7', 'pilar_tablero': '1.6',
         'obrador': '1.3', 'limpieza': '1.2',
+        // Movimiento de suelos (2.x — sin cambios)
         'excavacion': '2.1', 'relleno': '2.4', 'retiro_tierra': '2.6',
-        // Instalaciones
-        'inst_sanitaria': '15.1', 'inst_pluvial': '15.2', 'inst_cloacal': '15.3',
-        'inst_agua': '15.4', 'inst_gas': '17.1', 'inst_bomba': '15.5',
-        'inst_aa': '16.2', 'inst_calef': '16.3',
-        'inst_electrica': '16.1',
-        // Herrería adicional
-        'herreria_viga': '18.2',
         // Hº genéricos
         'armadura': '4.7', 'hormigon_llenado': '4.7'
       };
@@ -5286,9 +5283,11 @@ async function saveImport() {
     closeModal('m-import');
     renderObras();
     popSelects();
-    hideBusy();
     notif(`Obra "${nombre}" importada: ${items.length} ítems + certificado base ✓`);
   });
+  hideBusy();
+  const btn2 = document.getElementById('btn-import-save');
+  if (btn2) { btn2.disabled = false; btn2.textContent = 'Importar obra'; }
 }
 
 // =====================================================================
