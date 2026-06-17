@@ -3230,6 +3230,62 @@ function calcEditDims() {
   }
 }
 
+
+function extractDimsFromDesc(desc) {
+  // Normalizar: comas → puntos, quitar tildes
+  const t = (desc || '').replace(/,/g, '.').toUpperCase();
+
+  // Patrón A: tres valores en un paréntesis (100x70x35) o (1.00x0.70x0.35)
+  const matchA = t.match(/\((\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\)/);
+  if (matchA) {
+    let la = parseFloat(matchA[1]);
+    let lb = parseFloat(matchA[2]);
+    let ml = parseFloat(matchA[3]);
+    // Si los valores son > 5 probablemente están en cm → convertir a m
+    if (la > 5) la = +(la / 100).toFixed(4);
+    if (lb > 5) lb = +(lb / 100).toFixed(4);
+    if (ml > 5) ml = +(ml / 100).toFixed(4);
+    // Cantidad: buscar "N unid" o similar
+    const cantM = t.match(/(\d+)\s*UNID/);
+    const cant = cantM ? parseInt(cantM[1]) : 1;
+    return { la, lb, ml, cant };
+  }
+
+  // Patrón B: sección en un paréntesis + altura en otro
+  // Ej: (0.18x0.30) ... (2.8 M DE ALTURA) o (2.80 MTS)
+  const matchSec = t.match(/\((\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\)/);
+  const matchAlt = t.match(/\((\d+\.?\d*)\s*(?:M\s*DE\s*ALTURA|MTS?\s*DE\s*LARGO|MTS?\s*DE\s*ALTURA|ML|M\b)/);
+  if (matchSec && matchAlt) {
+    let la = parseFloat(matchSec[1]);
+    let lb = parseFloat(matchSec[2]);
+    let ml = parseFloat(matchAlt[1]);
+    // Convertir cm a m si necesario
+    if (la > 5) la = +(la / 100).toFixed(4);
+    if (lb > 5) lb = +(lb / 100).toFixed(4);
+    if (ml > 5) ml = +(ml / 100).toFixed(4);
+    const cantM = t.match(/(\d+)\s*UNID/);
+    const cant = cantM ? parseInt(cantM[1]) : 1;
+    return { la, lb, ml, cant };
+  }
+
+  // Patrón C: solo sección (columnas con altura en texto libre)
+  // Ej: C1 - (0,18x0,30) - 3 unid - (2,8 m de altura)
+  if (matchSec) {
+    let la = parseFloat(matchSec[1]);
+    let lb = parseFloat(matchSec[2]);
+    if (la > 5) la = +(la / 100).toFixed(4);
+    if (lb > 5) lb = +(lb / 100).toFixed(4);
+    // Buscar altura suelta: número seguido de M o metros
+    const altM = t.match(/(\d+\.?\d*)\s*M\s*DE\s*ALTURA/);
+    const ml = altM ? parseFloat(altM[1]) : 0;
+    const cantM = t.match(/(\d+)\s*UNID/);
+    const cant = cantM ? parseInt(cantM[1]) : 1;
+    return { la, lb, ml, cant };
+  }
+
+  return null;
+}
+
 function openEditMed(medId) {
   const med = meds.find(m => m.id === medId);
   if (!med) return;
@@ -3262,7 +3318,21 @@ function openEditMed(medId) {
   // Cargar widget de dimensiones si la tarea es estructural
   const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
   const wrap = document.getElementById('edit-med-dims-wrap');
-  if (coef) _buildEditDimsWrap(coef, wrap);
+  if (coef) {
+    _buildEditDimsWrap(coef, wrap);
+    // Pre-cargar dimensiones desde la descripción
+    const desc = med.desc || med.descripcion || '';
+    const dims = extractDimsFromDesc(desc);
+    if (dims) {
+      setTimeout(() => {
+        if (document.getElementById('e-dim-la')) document.getElementById('e-dim-la').value = dims.la || '';
+        if (document.getElementById('e-dim-lb')) document.getElementById('e-dim-lb').value = dims.lb || '';
+        if (document.getElementById('e-dim-ml')) document.getElementById('e-dim-ml').value = dims.ml || '';
+        if (document.getElementById('e-dim-cant-elem')) document.getElementById('e-dim-cant-elem').value = dims.cant || 1;
+        calcEditDims();
+      }, 50);
+    }
+  }
 
   openModal('m-edit-med');
 }
@@ -5145,16 +5215,35 @@ async function saveImport() {
     }
 
     // 4. Crear mediciones (batch)
-    const medBatch = items.map(item => ({
-      obra_id: obraId,
-      coef_id: findCoefForItem(item),
-      descripcion: `[${item.nItem}] ${item.desc}`,
-      cantidad: item.cant,
-      fecha: new Date().toLocaleDateString('es-AR'),
-      ubicacion: item.ubicacion,
-      revision: 'Rev00',
-      _item: item   // referencia temporal, no se envía a Supabase (se limpia abajo)
-    }));
+    const medBatch = items.map(item => {
+      const descCompleta = `[${item.nItem}] ${item.desc}`;
+      // Intentar extraer cantidad desde dimensiones en el texto
+      const coef = coefs.find(c => c.id === findCoefForItem(item));
+      const tipo = coef ? tipoEstructural(coef.cod) : '';
+      let cantidad = item.cant;
+      if (tipo) {
+        const dims = extractDimsFromDesc(item.desc);
+        if (dims && dims.la && dims.lb) {
+          // m³ por elemento individual
+          const m3Unit = dims.la * dims.lb * (dims.ml || 1);
+          // Si el texto ya trae "N unid", usamos ese multiplicador
+          // Si no, usamos la cantidad del Excel (que representa unidades)
+          const mult = dims.cant > 1 ? dims.cant : item.cant;
+          const calc = m3Unit * mult;
+          if (calc > 0) cantidad = +calc.toFixed(4);
+        }
+      }
+      return {
+        obra_id: obraId,
+        coef_id: findCoefForItem(item),
+        descripcion: descCompleta,
+        cantidad,
+        fecha: new Date().toLocaleDateString('es-AR'),
+        ubicacion: item.ubicacion,
+        revision: 'Rev00',
+        _item: item   // referencia temporal, no se envía a Supabase (se limpia abajo)
+      };
+    });
     // Limpiar campo auxiliar antes de enviar
     const medPayload = medBatch.map(({ _item, ...rest }) => rest);
     const medRes = await sbPost('mediciones', medPayload);
