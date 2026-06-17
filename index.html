@@ -5006,24 +5006,25 @@ async function saveImport() {
       return varios ? varios.id : coefs[0]?.id;
     }
 
-    // 4. Crear mediciones
-    const mediciones = [];
-    for (const item of items) {
-      const coefId = findCoefForItem(item);
-      const medData = {
-        obra_id: obraId,
-        coef_id: coefId,
-        descripcion: `[${item.nItem}] ${item.desc}`,
-        cantidad: item.cant,
-        fecha: new Date().toLocaleDateString('es-AR'),
-        ubicacion: item.ubicacion,
-        revision: 'Rev00'
-      };
-      const medRes = await sbPost('mediciones', medData);
-      const med = medRes[0] || medData;
-      mediciones.push({...med, item});
-      meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion});
-    }
+    // 4. Crear mediciones (batch)
+    const medBatch = items.map(item => ({
+      obra_id: obraId,
+      coef_id: findCoefForItem(item),
+      descripcion: `[${item.nItem}] ${item.desc}`,
+      cantidad: item.cant,
+      fecha: new Date().toLocaleDateString('es-AR'),
+      ubicacion: item.ubicacion,
+      revision: 'Rev00',
+      _item: item   // referencia temporal, no se envía a Supabase (se limpia abajo)
+    }));
+    // Limpiar campo auxiliar antes de enviar
+    const medPayload = medBatch.map(({ _item, ...rest }) => rest);
+    const medRes = await sbPost('mediciones', medPayload);
+    const mediciones = (medRes || []).map((med, i) => ({
+      ...med,
+      item: medBatch[i]._item
+    }));
+    mediciones.forEach(med => meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion}));
 
     // 5. Crear certificado base (periodo 0)
     const certData = {
@@ -5038,21 +5039,21 @@ async function saveImport() {
     const cert = certRes[0] || certData;
     certs.push(cert);
 
-    // 6. Crear cert_items con contratista y costo
-    for (const med of mediciones) {
-      if (med.item.costoUnit > 0 || med.item.contratista) {
-        const ciData = {
-          cert_id: cert.id,
-          med_id: med.id,
-          contratista: med.item.contratista,
-          costo_unit: med.item.costoUnit,
-          pct_actual: 0,
-          economia_demasia: 0,
-          pct_ed: 0
-        };
-        await sbPost('cert_items', ciData);
-        certItems.push(ciData);
-      }
+    // 6. Crear cert_items con contratista y costo (batch)
+    const ciBatch = mediciones
+      .filter(med => med.item.costoUnit > 0 || med.item.contratista)
+      .map(med => ({
+        cert_id: cert.id,
+        med_id: med.id,
+        contratista: med.item.contratista,
+        costo_unit: med.item.costoUnit,
+        pct_actual: 0,
+        economia_demasia: 0,
+        pct_ed: 0
+      }));
+    if (ciBatch.length > 0) {
+      const ciRes = await sbPost('cert_items', ciBatch);
+      (ciRes || ciBatch).forEach(ci => certItems.push(ci));
     }
 
     closeModal('m-import');
