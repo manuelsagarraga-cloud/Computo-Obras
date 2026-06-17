@@ -4899,6 +4899,14 @@ function processImportRows(rows) {
     if (t.includes('OBRADOR') || t.includes('BANO QUIMICO')) return 'obrador';
     if (t.includes('LIMPIEZA') && t.includes('TERRENO')) return 'limpieza';
 
+    // ══ MOVIMIENTO DE SUELOS — antes que todo para evitar confusión con relleno ══
+    if (t.includes('EXCAVACION') || t.includes('EXCAVAC')) return 'excavacion';
+    if (t.includes('RETIRO') && t.includes('TIERRA')) return 'retiro_tierra';
+    if (t.includes('RELLENO') && !t.includes('HORMIGON') && !t.includes('CONTRAPISO')) return 'relleno';
+
+    // ══ LOSA TANQUE — detectar antes de herrería ══
+    if ((t.includes('LOSA') && t.includes('TANQUE'))) return 'losa_maciza';
+
     // ══ HERRERÍA METÁLICA — antes de estructura para evitar falsos positivos ══
     if (t.includes('UPN') || t.includes('IPN') || t.includes('HEB') || t.includes('HEA')) {
       if (t.includes('VIGA') || t.includes('NB') || t.match(/\bIPN\b/) || t.match(/\bHEB\b/)) return 'herreria_viga';
@@ -4907,7 +4915,7 @@ function processImportRows(rows) {
     if (t.match(/\bCM\d*\s*[-–]/) || t.match(/\bCM\b.*UPN/)) return 'herreria_col';
     if (t.includes('COLUMNA') && t.includes('METALIC')) return 'herreria_col';
     if (t.includes('VIGA') && t.includes('METALIC')) return 'herreria_viga';
-    if (t.includes('PERGOLA') || t.includes('PERGOLA METALICA')) return 'pergola';
+    if ((t.includes('PERGOLA') || t.includes('PERGOLA METALICA')) && !t.includes('ESMALTE') && !t.includes('SINTETICO')) return 'pergola';
 
     // ══ FUNDACIONES — bases, zapatas ══
     if (t.includes('BASE AISLADA') || t.includes('ZAPATA AISLADA') || t.includes('ZAPATA PUNTUAL') || t.match(/\bBASE\s+B\d/)) return 'zapata_puntual';
@@ -4917,11 +4925,11 @@ function processImportRows(rows) {
     if (t.includes('POZO ROMANO') || t.includes('PILOTE')) return 'pozo_romano';
     if (t.includes('CABEZAL')) return 'cabezal';
 
-    // ══ ESTRUCTURA — columnas (detectar por patron Cn - , excluir CM- metálicas) ══
-    if (t.match(/\bC\d+\s*[-–]/) || (t.includes('COLUMNA') && !t.includes('METALIC'))) return 'columna_elab';
-
-    // ══ ESTRUCTURA — encadenado vertical (Ce, Ce1, Ce2) ══
+    // ══ ESTRUCTURA — encadenado vertical (Ce, Ce1, Ce2) — ANTES de columnas Cn ══
     if (t.match(/\bCE\d*\s*[-–]/) || (t.includes('ENCADENADO') && t.includes('VERTICAL'))) return 'encadenado_vert';
+
+    // ══ ESTRUCTURA — columnas Hº elaborado (default H17) ══
+    if (t.match(/\bC\d+\s*[-–]/) || (t.includes('COLUMNA') && !t.includes('METALIC'))) return 'columna_elab';
 
     // ══ ESTRUCTURA — encadenado horizontal (EH, EH1) ══
     if (t.match(/\bEH\d*\s*[-–]/) || (t.includes('ENCADENADO') && (t.includes('HORIZONTAL') || t.includes('HORIZ')))) return 'encadenado_horiz';
@@ -4930,7 +4938,7 @@ function processImportRows(rows) {
     if (t.match(/^\s*V\s*[-–]/) || t.match(/\bNB\d*\s*[-–]/) || (t.includes('VIGA') && !t.includes('METALIC') && !t.includes('FUND') && !t.includes('RIOSTRA'))) return 'viga_elab';
 
     // ══ ESTRUCTURA — losas ══
-    if (t.includes('LOSA MACIZA') || (t.includes('LOSA') && t.includes('MACIZA'))) return 'losa_maciza';
+    if (t.includes('LOSA MACIZA') || (t.includes('LOSA') && t.includes('MACIZA')) || t.includes('LOSA TANQUE')) return 'losa_maciza';
     if (t.match(/\bL\d+\s*[-–]/) || t.includes('NERVURADA') || t.includes('VIGUETA') || t.includes('BOVEDILLA')) return 'losa_vigueta';
 
     // ══ AISLAMIENTOS (antes de mampostería para no confundir "Capa Aisladora...Mampostería") ══
@@ -4940,7 +4948,8 @@ function processImportRows(rows) {
     if (t.includes('LANA DE VIDRIO') || t.includes('AISLACION TERMICA')) return 'aislacion_termica';
 
     // ══ MAMPOSTERIA ══
-    if (t.includes('MURO ARMADO') || (t.includes('BLOQUE') && t.includes('HORMIGON'))) return 'mamp_18';
+    if (t.includes('BLOQUE') && (t.includes('CEMENTICIO') || t.includes('CEMENTO'))) return 'mamp_cementicio';
+    if (t.includes('MURO ARMADO') || (t.includes('BLOQUE') && t.includes('HORMIGON')) || t.includes('MURO DE CONTENCION')) return 'mamp_18';
     if (t.includes('MAMPOST')) {
       if (t.includes('12X18') || t.includes('12X19') || t.includes('12 X 18') || t.match(/PORTANTE\s+12/)) return 'mamp_12';
       if (t.includes('18X18') || t.includes('18X19') || t.includes('18 X 18') || t.match(/PORTANTE\s+18/)) return 'mamp_18';
@@ -4949,9 +4958,13 @@ function processImportRows(rows) {
     }
 
     // ══ CONTRAPISO / CARPETA ══
+    if (t.includes('CONTRAPISO') && (t.includes('ELABORADO') || t.includes('HORMIGON') || t.includes('HOR'))) return 'contrapiso_elab';
     if (t.includes('CONTRAPISO')) return 'contrapiso';
-    if (t.includes('CARPETA') || t.includes('NIVELACION')) return 'carpeta';
+    if (t.includes('CARPETA') && (t.includes('ELABORADA') || t.includes('HORMIGON'))) return 'carpeta_elab';
+    if (t.includes('CARPETA') || t.includes('NIVELACION') || t.includes('NIVELAC')) return 'carpeta';
     if (t.includes('PENDIENTE') && t.includes('LOSA')) return 'ho_pendiente';
+    if (t.includes('ALISADO') && (t.includes('CEMENTO') || t.includes('HELICOPTERO'))) return 'piso_cemento';
+    if (t.includes('HORMIGON') && t.includes('ALISADO')) return 'piso_cemento';
 
     // ══ REVOQUES ══
     if (t.includes('AZOTADO') && (t.includes('HIDRO') || t.includes('CEMENTICIO') || t.includes('CEMENTICEO'))) return 'rev_azotado';
@@ -4992,11 +5005,13 @@ function processImportRows(rows) {
     // ══ REVESTIMIENTOS ══
     if (t.includes('REVESTIM') || t.includes('REVESTM')) {
       if (t.includes('PORCELANATO')) return 'rev_porcelanato';
-      if (t.includes('CERAMICO')) return 'rev_ceramico';
+      if (t.includes('CERAMICO') || t.includes('SIMIL ROCA') || t.includes('HORMIGON VISTO')) return 'rev_ceramico';
       if (t.includes('PIEDRA') || t.includes('LAJA')) return 'rev_piedra';
       if (t.includes('VENECITA')) return 'rev_venecita';
       if (t.includes('LADRILLO') && t.includes('REFRACTARIO')) return 'rev_refractario';
-      if (t.includes('WPC') || t.includes('SIMIL MADERA')) return 'rev_wpc';
+      if (t.includes('WPC') || t.includes('SIMIL MADERA') || t.includes('ALISTONADO')) return 'rev_wpc';
+      if (t.includes('PLASTICO') || t.includes('REVEAR')) return 'rev_plastico';
+      if (t.includes('MICROCEMENTO')) return 'rev_microcemento';
       return 'rev_ceramico'; // default
     }
 
@@ -5012,10 +5027,11 @@ function processImportRows(rows) {
 
     // ══ CUBIERTAS ══
     if (t.includes('MEMBRANA ASFALT')) return t.includes('ALUMINIO') ? 'impermeabilizacion_alu' : 'impermeabilizacion';
-    if (t.includes('IMPERMEABILIZ')) return 'impermeabilizacion';
+    if (t.includes('IMPERMEABILIZ') || (t.includes('MEMBRANA') && t.includes('CUBIERTA'))) return 'impermeabilizacion';
     if (t.includes('CUBIERTA') && t.includes('CHAPA')) return 'cubierta_chapa';
     if (t.includes('TEJA')) return 'cubierta_teja';
     if (t.includes('HORMIGON') && t.includes('PENDIENTE')) return 'ho_pendiente';
+    if (t.includes('CUBIERTA') && t.includes('LOSA')) return 'ho_pendiente';
 
     // ══ CARPINTERIA ══
     if (t.includes('PREMARCO')) return 'puerta';
@@ -5070,12 +5086,13 @@ function processImportRows(rows) {
 
     // ══ VARIOS ══
     if (t.includes('ESCALERA')) return 'escalera';
-    if (t.includes('ASADOR') || t.includes('PARRILLA') || t.includes('FOGONERO')) return 'asador';
-    if (t.includes('PILETA') || t.includes('PISCINA')) return 'pileta';
+    if (t.includes('ASADOR') || t.includes('PARRILLA') || (t.includes('FOGONERO') && !t.includes('PISO'))) return 'asador';
+    if (t.includes('PILETA') || t.includes('PISCINA') || t.includes('PISCINA')) return 'pileta';
     if (t.includes('VEREDA') || t.includes('SENDERO')) return 'vereda';
-    if (t.includes('CANTERO') || t.includes('MURO BAJO')) return 'cantero';
+    if (t.includes('CANTERO')) return 'cantero';
     if (t.includes('TIRA LED') || t.includes('TIRAS LED') || t.includes('TIRA DE LED') || (t.includes('TIRA') && t.includes('LED'))) return 'inst_electrica';
-    if (t.includes('BANQUINA') || t.includes('MESADA') || t.includes('BAJO COCINA') || t.includes('BAJO LAVADERO') || t.includes('BAJO ISLA')) return 'banquina';
+    if (t.includes('BANQUINA') || t.includes('BAJO COCINA') || t.includes('BAJO LAVADERO') || t.includes('BAJO ISLA') || (t.includes('BAJO') && t.includes('MESADA'))) return 'banquina';
+    if (t.includes('BOMBEO') || (t.includes('SISTEMA') && t.includes('BOMBEO'))) return 'bombeo';
 
     return '';
   }
@@ -5140,12 +5157,12 @@ async function saveImport() {
         // Fundaciones (3.x — sin cambios)
         'zapata_puntual': '3.15', 'zapata_corrida': '3.9', 'viga_fund': '3.8',
         'platea': '3.10', 'pozo_romano': '3.11', 'cabezal': '3.5',
-        // Estructura — H21 elaborado (4.x — sin cambios)
-        'columna_elab': '4.7', 'viga_elab': '4.8', 'tabique_hormigon': '4.12',
+        // Estructura — H17 elaborado por default (4.x)
+        'columna_elab': '4.14', 'viga_elab': '4.15', 'tabique_hormigon': '4.12',
         'encadenado_vert': '4.7', 'encadenado_horiz': '4.8',
         'losa_maciza': '4.6', 'losa_vigueta': '4.9',
         // Mampostería (5.x — antes 6.x)
-        'mamp_12': '5.3', 'mamp_18': '5.4',
+        'mamp_12': '5.3', 'mamp_18': '5.4', 'mamp_cementicio': '5.9', 'mamp_comun': '5.5',
         // Aislaciones (6.x — rubro nuevo)
         'aislacion_h': '6.1', 'aislacion_v': '6.2',
         'membrana_piso': '6.5', 'aislacion_termica': '6.3',
@@ -5154,7 +5171,7 @@ async function saveImport() {
         'rev_fino_ext': '7.5', 'rev_fino_int': '7.2',
         'yeso': '7.13', 'rev_azotado': '7.7',
         // Contrapiso / Carpeta (8.x — antes 5.x)
-        'contrapiso': '8.6', 'carpeta': '8.3',
+        'contrapiso': '8.1', 'contrapiso_elab': '8.6', 'carpeta': '8.3', 'carpeta_elab': '8.7', 'piso_cemento': '8.5',
         // Cubiertas (9.x — antes 12.x)
         'impermeabilizacion': '9.1', 'impermeabilizacion_alu': '9.2',
         'ho_pendiente': '9.6', 'cubierta_chapa': '9.5', 'cubierta_teja': '9.4',
@@ -5169,7 +5186,8 @@ async function saveImport() {
         'piso_loseta': '11.5', 'zocalo': '11.4',
         // Revestimientos (12.x — antes 9.x)
         'rev_piedra': '12.4', 'rev_refractario': '12.5', 'rev_venecita': '12.3',
-        'rev_porcelanato': '12.1', 'rev_ceramico': '12.2', 'rev_wpc': '12.1',
+        'rev_porcelanato': '12.1', 'rev_ceramico': '12.2', 'rev_wpc': '12.6',
+        'rev_plastico': '13.5', 'rev_microcemento': '12.7',
         // Pintura (13.x — antes 11.x)
         'latex_int': '13.2', 'latex_ext': '13.1', 'latex_cielorraso': '13.3',
         'rev_plastico': '13.5', 'esmalte': '13.4', 'barniz': '13.4',
