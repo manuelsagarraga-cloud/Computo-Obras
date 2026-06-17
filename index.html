@@ -559,11 +559,12 @@ textarea{resize:vertical;min-height:55px;}
   <div class="modal" style="width:600px;">
     <div class="modal-title">Editar medición <button class="modal-close" onclick="closeModal('m-edit-med')">✕</button></div>
     <div class="form-grid">
-      <div class="fg"><label>Tarea</label><select id="edit-med-tarea"></select></div>
+      <div class="fg"><label>Tarea</label><select id="edit-med-tarea" onchange="onEditTareaChange()"></select></div>
       <div class="fg"><label>Ubicación</label><select id="edit-med-ubic"><option value="Global">Global</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:8px;"><label>Descripción</label><input id="edit-med-desc"></div>
-    <div class="form-grid">
+    <div id="edit-med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
+    <div class="form-grid" style="margin-top:8px;">
       <div class="fg"><label>Cantidad</label><input id="edit-med-cant" type="number" step="0.001"></div>
       <div class="fg"><label>Revisión actual</label><input id="edit-med-rev" readonly style="background:var(--bg);color:var(--tx3);"></div>
     </div>
@@ -3111,6 +3112,124 @@ async function dupMed(medId) {
 
 let editingMedId = null;
 
+function onEditTareaChange() {
+  const sel = document.getElementById('edit-med-tarea');
+  const coef = coefs.find(c => c.id === sel.value);
+  if (!coef) return;
+  const wrap = document.getElementById('edit-med-dims-wrap');
+  const tipo = tipoEstructural(coef.cod);
+  // Reusar la misma lógica de onTareaChange pero apuntando al wrap de edición
+  // y sincronizando el resultado con edit-med-cant
+  if (!tipo) { wrap.innerHTML = ''; return; }
+  // Temporalmente swapear el wrap para reusar onTareaChange
+  const realWrap = document.getElementById('med-dims-wrap');
+  const cantInput = document.getElementById('dim-res');
+  // Clonar el wrap de nueva medición al de edición
+  const savedSel = document.getElementById('med-tarea-sel');
+  if (savedSel) savedSel._savedVal = savedSel.value;
+  // Generar el HTML del widget directamente
+  _buildEditDimsWrap(coef, wrap);
+}
+
+function _buildEditDimsWrap(coef, wrap) {
+  const tipo = tipoEstructural(coef.cod);
+  if (!tipo) { wrap.innerHTML = ''; return; }
+  // Función ig local para edit (usa calcEditDims en lugar de calcDimEstructural)
+  function ige(id, label, placeholder='0.00', step='0.01') {
+    return `<div class="ig-item"><div class="ig-label">${label}</div><input class="ig-input" id="e-${id}" type="number" placeholder="${placeholder}" step="${step}" oninput="calcEditDims()"></div>`;
+  }
+  if (tipo === 'zapata_puntual') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Zapata puntual aislada · Ancho × Largo × Alto · Recubrimiento: 2.5cm
+      </div>
+      ${ige('dim-la','Ancho (m)')}
+      ${ige('dim-lb','Largo (m)')}
+      ${ige('dim-ml','Alto (m)')}
+      ${ige('dim-cant-elem','Cantidad de zapatas','1','1')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">M³ calculado → actualiza cantidad</div>
+        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
+      </div>`;
+  } else if (tipo === 'columna') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Columna · Lado A × Lado B × Altura libre
+      </div>
+      ${ige('dim-la','Lado A — ancho (m)')}
+      ${ige('dim-lb','Lado B — largo (m)')}
+      ${ige('dim-ml','Altura libre (m)')}
+      ${ige('dim-cant-elem','Cantidad de columnas','1','1')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">M³ calculado → actualiza cantidad</div>
+        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
+      </div>`;
+  } else if (tipo === 'viga') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Viga · Base × Altura × Longitud
+      </div>
+      ${ige('dim-la','Base — Lado A (m)')}
+      ${ige('dim-lb','Altura — Lado B (m)')}
+      ${ige('dim-ml','Longitud libre (m)')}
+      ${ige('dim-cant-elem','Cantidad de vigas','1','1')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">M³ calculado → actualiza cantidad</div>
+        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
+      </div>`;
+  } else if (tipo === 'zapata') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Zapata corrida · Ancho × Altura × Metros lineales
+      </div>
+      ${ige('dim-la','Ancho base (m)')}
+      ${ige('dim-lb','Altura (m)')}
+      ${ige('dim-ml','Metros lineales (m)')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">M³ calculado → actualiza cantidad</div>
+        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
+      </div>`;
+  } else if (tipo === 'losa') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Losa · Superficie × Espesor
+      </div>
+      ${ige('dim-la','Superficie (m²)')}
+      ${ige('dim-lb','Espesor (m)','0.15')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">M³ calculado → actualiza cantidad</div>
+        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
+      </div>`;
+  } else {
+    wrap.innerHTML = '';
+  }
+}
+
+function calcEditDims() {
+  const la = parseFloat(document.getElementById('e-dim-la')?.value) || 0;
+  const lb = parseFloat(document.getElementById('e-dim-lb')?.value) || 0;
+  const ml = parseFloat(document.getElementById('e-dim-ml')?.value) || 0;
+  const cant = parseFloat(document.getElementById('e-dim-cant-elem')?.value) || 1;
+  const preview = document.getElementById('e-dim-preview');
+  if (!preview) return;
+  let m3 = 0;
+  const sel = document.getElementById('edit-med-tarea');
+  const coef = coefs.find(c => c.id === sel?.value);
+  const tipo = tipoEstructural(coef?.cod || '');
+  if (tipo === 'losa') {
+    m3 = la * lb; // superficie × espesor
+  } else {
+    m3 = la * lb * (ml || 1) * cant;
+  }
+  m3 = +m3.toFixed(4);
+  if (m3 > 0) {
+    preview.textContent = `${la} × ${lb}${ml ? ' × ' + ml : ''} × ${cant} = ${m3} m³`;
+    document.getElementById('edit-med-cant').value = m3;
+  } else {
+    preview.textContent = '';
+  }
+}
+
 function openEditMed(medId) {
   const med = meds.find(m => m.id === medId);
   if (!med) return;
@@ -3139,6 +3258,11 @@ function openEditMed(medId) {
   document.getElementById('edit-med-cant').value = num(med.cantidad);
   document.getElementById('edit-med-rev').value = med.revision || 'Rev00';
   document.getElementById('edit-med-rev-nota').value = '';
+
+  // Cargar widget de dimensiones si la tarea es estructural
+  const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
+  const wrap = document.getElementById('edit-med-dims-wrap');
+  if (coef) _buildEditDimsWrap(coef, wrap);
 
   openModal('m-edit-med');
 }
