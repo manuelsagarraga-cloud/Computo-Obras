@@ -2332,8 +2332,8 @@ function tipoEstructural(cod) {
   if (['4.1','4.7'].includes(c)) return 'columna';
   if (['4.2','4.3','4.4','4.5','4.6','4.8'].includes(c)) return 'viga';
   if (['4.11','4.12','4.13'].includes(c)) return 'tabique_hormigon';
-  if (['3.2','3.6','3.7','3.8'].includes(c)) return 'zapata';
-  if (['3.14','3.15'].includes(c)) return 'zapata_puntual';
+  if (['3.2','3.6','3.7','3.8','3.16'].includes(c)) return 'zapata';
+  if (['3.14','3.15','3.18'].includes(c)) return 'zapata_puntual';
   if (['3.4','3.10','3.11'].includes(c)) return 'pozo';
   if (['4.6b','4.9b'].includes(c)) return 'losa_maciza';
   if (['3.3','3.9'].includes(c)) return 'platea';
@@ -5155,7 +5155,7 @@ async function saveImport() {
     function findCoefForItem(item) {
       const mapSubtipo = {
         // Fundaciones (3.x — sin cambios)
-        'zapata_puntual': '3.15', 'zapata_corrida': '3.9', 'viga_fund': '3.8',
+        'zapata_puntual': '3.18', 'zapata_corrida': '3.9', 'viga_fund': '3.16',
         'platea': '3.10', 'pozo_romano': '3.11', 'cabezal': '3.5',
         // Estructura — H17 elaborado por default (4.x)
         'columna_elab': '4.14', 'viga_elab': '4.15', 'tabique_hormigon': '4.12',
