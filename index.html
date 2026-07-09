@@ -4520,6 +4520,9 @@ async function renderCertDetalle(certId) {
 
   // Agrupar mediciones por rubro para el cert
   const rubrosComp = computeObra(obraId);
+  // Precios MO de la obra: fuente por defecto para costo_unit (backlog #3)
+  await loadMOPreciosCache(obraId);
+  const preciosMOCert = getMOPrecios(obraId);
   const obraMeds = meds.filter(m => (m.obraId || m.obra_id) === obraId);
 
   let totalCostoActual = 0, totalCostoAcum = 0, totalPrecioActual = 0;
@@ -4534,7 +4537,12 @@ async function renderCertDetalle(certId) {
       const medId = med.id;
       // Buscar o crear item en cert
       let cItem = certItems.find(i => i.cert_id === certId && i.med_id === medId);
-      const costoUnit = cItem ? num(cItem.costo_unit) : num(compItem.totalMO) / (num(med.cantidad)||1);
+      // Default de costo unitario: 1) precio ya guardado en el cert, 2) Precios MO de la obra, 3) referencia UOCRA
+      const pMOc = preciosMOCert[compItem.coef.id + '_' + medId] || {};
+      const defCostoUnit = pMOc.global > 0 ? pMOc.global / (num(med.cantidad)||1)
+        : pMOc.unit > 0 ? pMOc.unit
+        : num(compItem.totalMO) / (num(med.cantidad)||1);
+      const costoUnit = cItem ? num(cItem.costo_unit) : defCostoUnit;
       const pctAct = cItem ? num(cItem.pct_actual) : 0;
       const ed = cItem ? num(cItem.economia_demasia) : 0;
       const pctED = cItem ? num(cItem.pct_ed) : 0;
@@ -4665,6 +4673,28 @@ async function applyContrRubro(certId, rubro, contratista, obraId) {
   renderCertDetalle(certId);
 }
 
+// Costo unitario default para un ítem de certificado:
+// 1) Precios MO de la obra (global prorrateado o unitario), 2) referencia UOCRA
+function defaultCostoUnitCert(obraId, medId) {
+  const med = meds.find(m => m.id === medId);
+  if (!med) return 0;
+  const cant = num(med.cantidad) || 1;
+  const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
+  if (coef) {
+    const p = getMOPrecios(obraId)[coef.id + '_' + medId] || {};
+    if (p.global > 0) return p.global / cant;
+    if (p.unit > 0) return p.unit;
+  }
+  // Último recurso: referencia UOCRA calculada por computeObra
+  const rubros = computeObra(obraId);
+  for (const data of Object.values(rubros)) {
+    for (const it of data.items) {
+      if (it.med.id === medId) return num(it.totalMO) / cant;
+    }
+  }
+  return 0;
+}
+
 async function updateCertItem(certId, medId, campo, valor, obraId) {
   await withSync(async () => {
     let item = certItems.find(i => i.cert_id === certId && i.med_id === medId);
@@ -4674,6 +4704,9 @@ async function updateCertItem(certId, medId, campo, valor, obraId) {
     } else {
       const newItem = { cert_id: certId, med_id: medId, contratista: '', costo_unit: 0, pct_actual: 0, economia_demasia: 0, pct_ed: 0 };
       newItem[campo] = campo === 'contratista' ? valor : num(valor);
+      // Prefill del costo unitario con el default (Precios MO → UOCRA) para que
+      // no se pierda al crear el ítem tocando otro campo (ej. % actual)
+      if (campo !== 'costo_unit') newItem.costo_unit = defaultCostoUnitCert(obraId, medId);
       const r = await sbPost('cert_items', newItem);
       certItems.push(r[0] || newItem);
     }
