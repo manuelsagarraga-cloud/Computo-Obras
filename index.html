@@ -5720,25 +5720,59 @@ function exportMediciones() {
   const obraId = document.getElementById('sel-obra-med')?.value;
   if (!obraId) { notif('Seleccioná una obra'); return; }
   const obra = obras.find(o => o.id === obraId);
-  const obsMeds = meds.filter(m => (m.obraId||m.obra_id) === obraId);
+  let obsMeds = meds.filter(m => (m.obraId||m.obra_id) === obraId);
   if (!obsMeds.length) { notif('Sin mediciones para exportar'); return; }
-  const rows = [['Código','Tarea','Rubro','Cantidad','Unidad','Ubicación','Descripción','Revisión']];
+
+  // Respetar los filtros activos de la pantalla (rubro y ubicación)
+  const filRubro = document.getElementById('fil-rubro-med')?.value || '';
+  const filPiso  = document.getElementById('fil-piso-med')?.value  || '';
+  if (filRubro) obsMeds = obsMeds.filter(m => { const c=coefs.find(x=>x.id===(m.coefId||m.coef_id)); return (c?.rubro||'Sin rubro')===filRubro; });
+  if (filPiso)  obsMeds = obsMeds.filter(m => (m.ubicacion||'Global')===filPiso);
+  if (!obsMeds.length) { notif('Sin mediciones para ese filtro'); return; }
+
+  // Agrupar por rubro y ordenar igual que la pantalla
+  const byRubro = {};
   obsMeds.forEach(m => {
     const c = coefs.find(x => x.id === (m.coefId||m.coef_id));
-    rows.push([
-      c?.cod||'', c?.nombre||'', c?.rubro||'',
-      m.cantidad, c?.unidad||'',
-      m.ubicacion||'Global',
-      m.desc||m.descripcion||'',
-      m.revision||'Rev00'
-    ]);
+    const r = c ? c.rubro : 'Sin rubro';
+    (byRubro[r] = byRubro[r] || []).push({ med: m, coef: c });
   });
+  Object.values(byRubro).forEach(items => items.sort((a,b) => sortByCod(a.coef||{cod:'999'}, b.coef||{cod:'999'})));
+  const rubrosOrden = ordenRubros(Object.keys(byRubro));
+
+  // Cabecera de obra
+  const emp = empresas.find(e => e.id === currentEmpresa);
+  const rows = [
+    ['PLANILLA DE MEDICIONES'],
+    ['Obra:', obra?.nombre || '', '', 'Cliente:', obra?.cliente || ''],
+    ['Ubicación:', obra?.ubic || '', '', 'Superficie:', obra?.sup ? obra.sup + ' m²' : ''],
+    ['Empresa:', emp?.nombre || '', '', 'Fecha:', new Date().toLocaleDateString('es-AR')],
+    filRubro || filPiso ? ['Filtros:', [filRubro, filPiso].filter(Boolean).join(' · ')] : [],
+    [],
+    ['Código','Tarea','Cantidad','Unidad','Ubicación','Revisión','Descripción']
+  ];
+
+  rubrosOrden.forEach(rubro => {
+    rows.push([rubro.toUpperCase()]);
+    byRubro[rubro].forEach(({med: m, coef: c}) => {
+      rows.push([
+        c?.cod||'', c?.nombre||'',
+        num(m.cantidad), c?.unidad||'',
+        m.ubicacion||'Global',
+        m.revision||'Rev00',
+        formatArmDesc(m.desc||m.descripcion||'')
+      ]);
+    });
+    rows.push([]);
+  });
+
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:8},{wch:35},{wch:18},{wch:10},{wch:6},{wch:14},{wch:25},{wch:8}];
+  ws['!cols'] = [{wch:8},{wch:42},{wch:10},{wch:6},{wch:14},{wch:8},{wch:50}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Mediciones');
-  XLSX.writeFile(wb, 'Mediciones_' + (obra?.nombre||'obra').replace(/\s/g,'_') + '.xlsx');
-  notif('Mediciones exportadas ✓');
+  const hoy = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Mediciones_${(obra?.nombre||'obra').replace(/\s/g,'_')}_${hoy}.xlsx`);
+  notif('Mediciones exportadas ✓' + (filRubro||filPiso ? ' (con filtros aplicados)' : ''));
 }
 
 // =====================================================================
