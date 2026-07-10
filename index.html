@@ -251,7 +251,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;">build 2026-07-09.3</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;">build 2026-07-09.4</span></span>
     </div>
   </div>
 
@@ -1047,7 +1047,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-09.3';
+const APP_BUILD = '2026-07-09.4';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -5251,7 +5251,7 @@ function detectSubtipo(t) {
   if (t.includes('VIGA') && t.includes('METALIC')) return 'herreria_viga';
   if (t.includes('IPN') || t.includes('UPN') || t.includes('PERFIL')) return 'herreria_col';
   if (t.includes('PERGOLA')) return 'pergola'; // ya cubierto arriba pero por si acaso
-  if (t.includes('CONDUCTO') && t.includes('VENTILACION')) return 'conducto';
+  if (t.includes('CONDUCTO') && t.includes('VENTILACION') && !t.includes('GAS')) return 'conducto';
   if (t.includes('CHAPA') && t.includes('COLOR')) return 'cubierta_chapa';
 
   // ══ INSTALACIONES ══
@@ -5452,6 +5452,8 @@ const TEST_CASES_LECTOR = [
   ['Ventana corrediza aluminio 1,50x1,10', 'ventana'],
   ['Baranda de vidrio en balcón', 'baranda'],
   ['Instalación de gas natural completa', 'inst_gas'],
+  ['Ventilaciones para gas. Conductos y rejillas.', 'inst_gas'],
+  ['Colocación de conducto de ventilacion 3,00m - 30 diam.', 'conducto'],
   ['Bomba hidroneumática', 'inst_bomba'],
   ['Instalación eléctrica: bocas de iluminación', 'inst_electrica'],
   ['Desagüe cloacal PVC 110', 'inst_cloacal'],
@@ -5577,9 +5579,10 @@ async function saveImport() {
         if (dims && dims.la && dims.lb) {
           // m³ por elemento individual
           const m3Unit = dims.la * dims.lb * (dims.ml || 1);
-          // Si el texto ya trae "N unid", usamos ese multiplicador
-          // Si no, usamos la cantidad del Excel (que representa unidades o ml según el caso)
-          const mult = dims.cant > 1 ? dims.cant : item.cant;
+          // Si el texto trae "N unid" (aunque sea 1), ESE es el multiplicador.
+          // Si no lo trae, la cantidad del Excel representa unidades o ml según el caso.
+          const tieneUnid = /\d+\s*UNID/i.test(item.desc || '');
+          const mult = tieneUnid ? (dims.cant || 1) : (dims.cant > 1 ? dims.cant : item.cant);
           const calc = m3Unit * mult;
           if (calc > 0) {
             cantidad = +calc.toFixed(4);
