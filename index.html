@@ -231,7 +231,7 @@ textarea{resize:vertical;min-height:55px;}
   <div class="nav-sec">Bases</div>
   <div class="nav-item" onclick="nav('materiales')"><span>◉</span> Materiales</div>
   <div class="nav-item" onclick="nav('manoobra')"><span>▤</span> Mano de obra</div>
-  <div class="nav-item" onclick="nav('coeficientes')"><span>∑</span> Coeficientes</div>
+  <div class="nav-item" onclick="nav('coeficientes')"><span>∑</span> Consumos</div>
   <div class="nav-item" onclick="nav('indices')"><span>📈</span> Índices CAC</div>
   <div class="nav-sec">Obra</div>
   <div class="nav-item" onclick="nav('archivos')"><span>⬚</span> Archivos</div>
@@ -251,7 +251,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;">build 2026-07-09.4</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;">build 2026-07-10.1</span></span>
     </div>
   </div>
 
@@ -365,7 +365,7 @@ textarea{resize:vertical;min-height:55px;}
       <div class="card" style="margin-bottom:12px;">
         <div class="card-header" style="margin-bottom:0;">
           <div>
-            <div class="card-title">Coeficientes de consumo por tarea</div>
+            <div class="card-title">Consumos de materiales por tarea</div>
             <div style="font-size:10px;color:var(--tx3);margin-top:3px;">Referencia técnica — hacé clic en una tarea para ver sus materiales y coeficientes</div>
           </div>
           <button class="btn btn-primary" onclick="openModalCoef()">+ Nueva tarea</button>
@@ -624,7 +624,7 @@ textarea{resize:vertical;min-height:55px;}
       <div class="fg"><label>Rendimiento MO (unid/día)</label><input id="cf-mo-rend" type="number"></div>
     </div>
     <hr class="sep">
-    <div style="font-size:12px;font-weight:500;margin-bottom:10px;">Coeficientes de materiales</div>
+    <div style="font-size:12px;font-weight:500;margin-bottom:10px;">Consumos de materiales</div>
     <div id="coef-mats-editor"></div>
     <button class="btn btn-sm" style="margin-top:6px;" onclick="addCoefMatRow()">+ Agregar material</button>
     <div class="modal-footer"><button class="btn" onclick="closeModal('m-coef')">Cancelar</button><button class="btn btn-primary" onclick="saveCoef()">Guardar tarea</button></div>
@@ -715,6 +715,21 @@ textarea{resize:vertical;min-height:55px;}
           <div style="font-size:11px;opacity:.5;">Cómputo y Certificación de Obras &mdash; Manuel Sagarraga</div>
         </div>
         <div style="text-align:right;font-size:10px;opacity:.5;line-height:1.8;">Metro Obra Mayo 2026<br>UOCRA Zona A Mayo 2026</div>
+      </div>
+
+      <!-- NOVEDADES -->
+      <div class="card" style="margin-bottom:14px;border-left:3px solid var(--gr);">
+        <div class="card-title" style="margin-bottom:10px;">Novedades — Julio 2026</div>
+        <div style="font-size:11px;color:var(--tx2);line-height:1.9;">
+          <b>Import de Excel más inteligente:</b> convierte m² a m³ usando el espesor de la descripción (ej. "e=10cm"), pasa ml de capa aisladora a m² (ancho de muro 0,20 m, anotado en la descripción), calcula m³ de estructuras desde las dimensiones del texto respetando "N unid", y cuando un ítem lista varias secciones distintas (ej. vigas "(30x35),(35x40)…") conserva la cantidad del Excel y lo marca para validación manual. Todo cálculo queda anotado en la descripción del ítem.<br>
+          <b>Precios de mano de obra automáticos:</b> si el Excel trae costo unitario por ítem, el import lo carga solo en "Precios MO" de la obra (como monto global, conservando el total del contratista aunque cambie la unidad) y el certificado base nace con esos precios. La referencia UOCRA queda solo como valor base cuando no hay precio cargado.<br>
+          <b>Hormigón elaborado H21 por defecto:</b> salvo que el ítem diga "in situ", las tareas de hormigón se asignan a su versión con Hº elaborado H21. Todas las tareas tienen ahora sus tres variantes (in situ / H17 / H21).<br>
+          <b>Botón "✓ Revisar" en Mediciones:</b> audita todos los ítems estructurales de la obra y lista los que tienen incoherencia entre las dimensiones del texto y la cantidad cargada — sin revisar uno por uno.<br>
+          <b>Export a Excel mejorado:</b> respeta los filtros activos, agrupa por rubro en orden de obra y agrega cabecera con los datos de la obra.<br>
+          <b>Datos por empresa:</b> cada usuario ve las obras, precios y certificados de su empresa. La base de consumos y materiales es compartida (solo lectura); solo el administrador la edita. Los archivos de obra son privados por empresa.<br>
+          <b>"Coeficientes" ahora se llama "Consumos"</b> — misma pestaña, mismo contenido.<br>
+          <b>Versión visible:</b> la barra superior muestra el build (ej. "build 2026-07-10.1"). Si tras una actualización no coincide, recargá con Ctrl+Shift+R.
+        </div>
       </div>
 
       <!-- INDICE -->
@@ -937,7 +952,7 @@ textarea{resize:vertical;min-height:55px;}
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Presupuesto</td><td style="padding:7px 8px;color:var(--tx2);">Costo total por rubro con materiales y MO</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales</td><td style="padding:7px 8px;color:var(--tx2);">Base de precios, exportar e importar Excel</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mano de obra</td><td style="padding:7px 8px;color:var(--tx2);">Categorias UOCRA con jornal de referencia</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Coeficientes</td><td style="padding:7px 8px;color:var(--tx2);">Recetas de cada tarea, agrupadas por rubro</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Consumos</td><td style="padding:7px 8px;color:var(--tx2);">Consumos de materiales de cada tarea (recetas), agrupados por rubro</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Indices CAC</td><td style="padding:7px 8px;color:var(--tx2);">Indice mensual para congelado de precios</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Archivos</td><td style="padding:7px 8px;color:var(--tx2);">Fotos y planos por obra</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Lista de compras</td><td style="padding:7px 8px;color:var(--tx2);">Materiales consolidados para comprar</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
@@ -1047,7 +1062,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-09.4';
+const APP_BUILD = '2026-07-10.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -1329,7 +1344,7 @@ async function uploadArchivos(input) {
         method: 'POST',
         headers: {
           'apikey': SB_KEY,
-          'Authorization': `Bearer ${SB_KEY}`,
+          'Authorization': `Bearer ${authToken || SB_KEY}`,
           'Content-Type': file.type || 'application/octet-stream',
           'x-upsert': 'true'
         },
@@ -1392,7 +1407,19 @@ async function loadArchivos() {
     const pdfs = files.filter(f => /\.pdf$/i.test(f.name));
     const otros = files.filter(f => !/\.(jpg|jpeg|png|gif|webp|pdf)$/i.test(f.name));
 
-    const getUrl = (f) => `${SB_URL}/storage/v1/object/public/${BUCKET}/${obraId}/${f.name}`;
+    // Bucket privado: firmar URLs en lote (válidas 1 hora)
+    const urlMap = {};
+    try {
+      const signRes = await fetch(`${SB_URL}/storage/v1/object/sign/${BUCKET}`, {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${authToken || SB_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresIn: 3600, paths: files.map(f => `${obraId}/${f.name}`) })
+      });
+      if (signRes.ok) {
+        (await signRes.json()).forEach(s => { if (s.signedURL) urlMap[s.path] = `${SB_URL}/storage/v1${s.signedURL}`; });
+      }
+    } catch(e) { console.error('Firma de URLs:', e); }
+    const getUrl = (f) => urlMap[`${obraId}/${f.name}`] || '';
 
     // Construir array global para lightbox
     _lbFiles = [...imgs.map(f=>({...f,type:'img',url:getUrl(f)})), ...pdfs.map(f=>({...f,type:'pdf',url:getUrl(f)}))];
@@ -2085,7 +2112,7 @@ function nav(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Coeficientes de consumo', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Lista de compras', 'mo-precios':'Precios mano de obra', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
+  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Consumos de materiales', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Lista de compras', 'mo-precios':'Precios mano de obra', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
   document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
   const renders = {
@@ -6149,16 +6176,24 @@ function exportComprasPDF() {
 // =====================================================================
 // PUNTO 5 — CARTERA (comparación multi-obra por m²)
 // =====================================================================
-function renderCartera() {
+async function renderCartera() {
   const oe = obrasEmpresa();
   const body = document.getElementById('cartera-body');
   const rubrosDiv = document.getElementById('cartera-rubros');
   if (!oe.length) { body.innerHTML = '<div class="empty">Sin obras cargadas.</div>'; return; }
 
+  // Cargar los precios MO reales de cada obra (misma prioridad que presupuesto/certificados)
+  for (const o of oe) { try { await loadMOPreciosCache(o.id); } catch(e) {} }
+
   const rows = oe.map(o => {
     const r = computeObra(o.id);
+    const precios = getMOPrecios(o.id);
     const tMat = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.totalMats, 0), 0);
-    const tMO  = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.totalMO, 0), 0);
+    const tMO  = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => {
+      const p = precios[i.coef.id + '_' + i.med.id] || {};
+      const mo = p.global > 0 ? p.global : p.unit > 0 ? p.unit * num(i.med.cantidad) : num(i.totalMO);
+      return ss + mo;
+    }, 0), 0);
     const total = tMat + tMO;
     const sup = num(o.sup) || 0;
     return { o, tMat, tMO, total, sup,
