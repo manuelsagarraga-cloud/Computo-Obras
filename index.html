@@ -251,7 +251,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A</span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;">build 2026-07-09.3</span></span>
     </div>
   </div>
 
@@ -1047,6 +1047,13 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
+const APP_BUILD = '2026-07-09.3';
+console.log('Cómputo de Obras — build', APP_BUILD);
+// Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
+window.addEventListener('unhandledrejection', e => {
+  hideBusy();
+  console.error('Error no capturado:', e && e.reason);
+});
 const SB_URL = 'https://beuzmwrhqlmjoplsillf.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJldXptd3JocWxtam9wbHNpbGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0ODc1NDcsImV4cCI6MjA5NTA2MzU0N30.Rw82cnyzp2S2Alc6lWiBCDxVL8u_8wAfCTConDGpYFE';
 
@@ -3237,9 +3244,27 @@ function calcEditDims() {
 }
 
 
+// Extrae el espesor de la descripción: "e=10cm", "e=0.10", "espesor 12 cm" → metros
+function extractEspesorFromDesc(desc) {
+  const t = (desc || '').replace(/,/g, '.').toUpperCase();
+  const m = t.match(/E\s*=\s*(\d+\.?\d*)\s*(CM|MM|M\b)?/) || t.match(/ESPESOR\s*:?\s*(\d+\.?\d*)\s*(CM|MM|M\b)?/)
+    || t.match(/[-–]\s*(\d+\.?\d*)\s*(CM)\b/); // ej: "Losa Maciza - 15 cm"
+  if (!m) return 0;
+  let v = parseFloat(m[1]);
+  const u = m[2] || '';
+  if (u === 'MM') v = v / 1000;
+  else if (u === 'CM' || (!u && v > 1)) v = v / 100;
+  return +v.toFixed(4);
+}
+
 function extractDimsFromDesc(desc) {
   // Normalizar: comas → puntos, quitar tildes
   const t = (desc || '').replace(/,/g, '.').toUpperCase();
+
+  // Varias secciones listadas (ej: "V - (30x35),(35x40),(40x60)") → no hay UNA sección,
+  // calcular desde la primera daría cualquier cosa. No tocar la cantidad del Excel.
+  const seccionesMulti = t.match(/\(\d+\.?\d*\s*[Xx×]\s*\d+\.?\d*\)/g) || [];
+  if (seccionesMulti.length >= 2) return null;
 
   // Patrón A: tres valores en un paréntesis (100x70x35) o (1.00x0.70x0.35)
   const matchA = t.match(/\((\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\)/);
@@ -3336,7 +3361,12 @@ function openEditMed(medId) {
       // ml = m³ / (ancho × alto × cant). Ej: 27.975 / (0.6 × 0.25 × 1) = 186.5 ml
       if (dims.la > 0 && dims.lb > 0 && !(dims.ml > 0)) {
         const seccion = dims.la * dims.lb * (dims.cant || 1);
-        if (cantMed > 0 && seccion > 0) dims.ml = +(cantMed / seccion).toFixed(3);
+        if (cantMed > 0 && seccion > 0) {
+          const mlCalc = +(cantMed / seccion).toFixed(3);
+          // Solo aceptar largos razonables (0.1 a 500 m); si no, no recalcular
+          if (mlCalc >= 0.1 && mlCalc <= 500) dims.ml = mlCalc;
+          else skipCalcPrefill = true;
+        }
       }
       // Si están las 3 dimensiones pero el m³ unitario no explica la medición,
       // despejar la cantidad de elementos. Ej: 0.49 / (1×0.7×0.35) = 2 zapatas
@@ -3387,6 +3417,14 @@ function revisarMediciones() {
     const coef = coefs.find(c => c.id === (m.coefId||m.coef_id));
     if (!coef || !tipoEstructural(coef.cod)) return; // solo ítems estructurales
     const desc = m.desc || m.descripcion || '';
+    // Varias secciones listadas → el cálculo automático no es confiable, marcar para revisión manual
+    const seccMulti = ((desc || '').replace(/,/g, '.').match(/\(\d+\.?\d*\s*[Xx×]\s*\d+\.?\d*\)/g) || []);
+    if (seccMulti.length >= 2) {
+      revisadas++;
+      problemas.push({ cod: coef.cod, tarea: coef.nombre, desc, cant: num(m.cantidad),
+        detalle: `${seccMulti.length} secciones distintas en el texto (${seccMulti.join(', ')}) — validar cantidad manualmente` });
+      return;
+    }
     const dims = extractDimsFromDesc(desc);
     if (!dims || !(dims.la > 0) || !(dims.lb > 0)) return; // sin dimensiones en el texto
     revisadas++;
@@ -5108,8 +5146,8 @@ function detectSubtipo(t) {
   if ((t.includes('REVESTIM') || t.includes('REVESTM')) && (t.includes('PIEDRA') || t.includes('LAJA'))) return 'rev_piedra';
 
   // ══ MAMPOSTERIA ══
-  if (t.includes('BLOQUE') && (t.includes('CEMENTICIO') || t.includes('CEMENTO'))) return 'mamp_cementicio';
-  if (t.includes('MURO ARMADO') || (t.includes('BLOQUE') && t.includes('HORMIGON')) || t.includes('MURO DE CONTENCION')) return 'mamp_18';
+  if (t.includes('BLOQUE') && (t.includes('CEMENTICIO') || t.includes('CEMENTO') || t.includes('HORMIGON'))) return 'mamp_cementicio';
+  if (t.includes('MURO ARMADO') || t.includes('MURO DE CONTENCION')) return 'mamp_18';
   if (t.includes('MAMPOST')) {
     if (t.includes('12X18') || t.includes('12X19') || t.includes('12 X 18') || t.match(/PORTANTE\s+12/)) return 'mamp_12';
     if (t.includes('18X18') || t.includes('18X19') || t.includes('18 X 18') || t.match(/PORTANTE\s+18/)) return 'mamp_18';
@@ -5266,12 +5304,12 @@ function detectSubtipo(t) {
 
 const MAP_SUBTIPO = {
   // Fundaciones (3.x — sin cambios)
-  'zapata_puntual': '3.18', 'zapata_corrida': '3.9', 'viga_fund': '3.16',
-  'platea': '3.10', 'pozo_romano': '3.11', 'cabezal': '3.5',
-  // Estructura — H17 elaborado por default (4.x)
-  'columna_elab': '4.14', 'viga_elab': '4.15', 'tabique_hormigon': '4.28',
-  'encadenado_vert': '4.7', 'encadenado_horiz': '4.8',
-  'losa_maciza': '4.19', 'losa_vigueta': '4.9',
+  'zapata_puntual': '3.15', 'zapata_corrida': '3.9', 'viga_fund': '3.13',
+  'platea': '3.10', 'pozo_romano': '3.11', 'cabezal': '3.20',
+  // Estructura — Hº elaborado H21 por default salvo 'in situ' explícito (4.x)
+  'columna_elab': '4.7', 'viga_elab': '4.8', 'tabique_hormigon': '4.12',
+  'encadenado_vert': '4.7', 'encadenado_horiz': '4.21',
+  'losa_maciza': '4.20', 'losa_vigueta': '4.32',
   // Mampostería (5.x — antes 6.x)
   'mamp_12': '5.3', 'mamp_18': '5.4', 'mamp_cementicio': '5.9', 'mamp_comun': '5.5',
   // Aislaciones (6.x — rubro nuevo)
@@ -5317,7 +5355,7 @@ const MAP_SUBTIPO = {
   'inst_electrica': '16.6', 'inst_aa': '16.7', 'inst_calef': '16.8',
   'inst_gas': '16.9',
   // Varios (17.x — nuevo)
-  'escalera': '17.1', 'pileta': '17.2', 'asador': '17.3',
+  'escalera': '4.27', 'pileta': '17.2', 'asador': '17.3',
   'vereda': '17.4', 'cantero': '17.5', 'banquina': '17.6', 'bombeo': '17.7',
   // Preliminares (1.x — sin cambios)
   'estudio_suelos': '1.4', 'calc_estructural': '1.5',
@@ -5350,6 +5388,8 @@ const TEST_CASES_LECTOR = [
   ['Esmalte sintético en conducto metálico', 'esmalte'],
   ['REVESTIMIENTO DE PIEDRA EN MURO DE CONTENCIÓN', 'rev_piedra'],
   ['Muro de contención Hº', 'mamp_18'],
+  ['Muro Armado con bloque de hormigón (llenado y armado) 19x19x39', 'mamp_cementicio'],
+  ['Muro de contencion de bloque de hormigón según detalle muro armado - PSS', 'mamp_cementicio'],
   // Encadenados vs columnas (Ce antes que C)
   ['Ce1- Encadenado vertical 15x15', 'encadenado_vert'],
   ['C3- Columna 20x20 (0,20x0,20) - 2 unid - (2,8 m de altura)', 'columna_elab'],
@@ -5556,6 +5596,24 @@ async function saveImport() {
           }
         }
       }
+      // Conversiones de unidad Excel → coeficiente
+      const coefU = (coef?.unidad || '').toLowerCase();
+      const itemU = (item.unidad || '').toLowerCase().replace('²','2').replace('³','3');
+      if (!notaDims && cantidad === item.cant) {
+        // m² del Excel → m³ nuestro, usando el espesor de la descripción (contrapisos, carpetas, plateas)
+        if (coefU.startsWith('m3') && itemU.startsWith('m2')) {
+          const esp = extractEspesorFromDesc(item.desc);
+          if (esp > 0) {
+            cantidad = +(item.cant * esp).toFixed(4);
+            notaDims = ` (${item.cant} m² × e=${esp}m)`;
+          }
+        }
+        // ml del Excel → m² nuestro (capa aisladora sobre muro): ancho de muro 0.20 por defecto
+        else if (coefU.startsWith('m2') && (itemU === 'ml' || itemU === 'm' || itemU === 'mts')) {
+          cantidad = +(item.cant * 0.20).toFixed(4);
+          notaDims = ` (${item.cant} ml × 0.20 ancho muro)`;
+        }
+      }
       const descFinal = descCompleta + notaDims;
       return {
         obra_id: obraId,
@@ -5591,20 +5649,45 @@ async function saveImport() {
     certs.push(cert);
 
     // 6. Crear cert_items con contratista y costo (batch)
+    // El costo unitario se re-expresa en NUESTRA unidad manteniendo el total del Excel:
+    // total = costoUnit_excel × cant_excel → costo_unit = total / cantidad_nuestra
     const ciBatch = mediciones
       .filter(med => med.item.costoUnit > 0 || med.item.contratista)
-      .map(med => ({
-        cert_id: cert.id,
-        med_id: med.id,
-        contratista: med.item.contratista,
-        costo_unit: med.item.costoUnit,
-        pct_actual: 0,
-        economia_demasia: 0,
-        pct_ed: 0
-      }));
+      .map(med => {
+        const totalExcel = med.item.costoUnit * med.item.cant;
+        const cantNuestra = num(med.cantidad);
+        const costoUnit = (med.item.costoUnit > 0 && cantNuestra > 0)
+          ? +(totalExcel / cantNuestra).toFixed(2)
+          : med.item.costoUnit;
+        return {
+          cert_id: cert.id,
+          med_id: med.id,
+          contratista: med.item.contratista,
+          costo_unit: costoUnit,
+          pct_actual: 0,
+          economia_demasia: 0,
+          pct_ed: 0
+        };
+      });
     if (ciBatch.length > 0) {
       const ciRes = await sbPost('cert_items', ciBatch);
       (ciRes || ciBatch).forEach(ci => certItems.push(ci));
+    }
+
+    // 6b. Trasladar los precios de MO del Excel a "Precios MO" de la obra.
+    // Se guarda como monto GLOBAL por ítem (costoUnit × cant del Excel): el total queda
+    // idéntico aunque la unidad haya cambiado (ej: Excel en m², nuestro cómputo en m³).
+    const moBatch = mediciones
+      .filter(med => med.item.costoUnit > 0)
+      .map(med => ({
+        obra_id: obraId,
+        coef_id: med.coef_id + '_' + med.id,
+        tipo: 'global',
+        precio: +(med.item.costoUnit * med.item.cant).toFixed(2)
+      }));
+    if (moBatch.length > 0) {
+      await sbPost('mo_precios', moBatch);
+      delete _moPreciosCache[obraId]; // forzar recarga
     }
 
     closeModal('m-import');
