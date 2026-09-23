@@ -1062,7 +1062,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-10.1';
+const APP_BUILD = '2026-07-10.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -2244,6 +2244,44 @@ function openEditObra(id) {
   openModal('m-obra');
 }
 
+async function saveObra() {
+  const cod    = document.getElementById('o-cod').value.trim();
+  const nombre = document.getElementById('o-nombre').value.trim();
+  if (!cod)    { notif('Ingresá el código de la obra (ej: OBR-001)'); throw new Error('sin cod'); }
+  if (!nombre) { notif('Ingresá el nombre de la obra'); throw new Error('sin nombre'); }
+  const data = {
+    cod, nombre,
+    cliente:    document.getElementById('o-cliente').value.trim(),
+    ubic:       document.getElementById('o-ubic').value.trim(),
+    dir:        (document.getElementById('o-dir')?.value || '').trim(),
+    sup:        num(document.getElementById('o-sup').value) || null,
+    estado:     document.getElementById('o-estado').value || 'Presupuesto',
+    notas:      document.getElementById('o-notas').value.trim(),
+    subsuelos:  parseInt(document.getElementById('o-subsuelos').value) || 0,
+    plantas:    parseInt(document.getElementById('o-plantas').value) || 1,
+    empresa:    currentEmpresa,
+  };
+  await withSync(async () => {
+    if (editingObraId) {
+      // Editar obra existente
+      await sbPatch('obras', editingObraId, data);
+      const o = obras.find(x => x.id === editingObraId);
+      if (o) Object.assign(o, data);
+      notif('Obra actualizada ✓');
+    } else {
+      // Nueva obra
+      const r = await sbPost('obras', data);
+      const nueva = r?.[0] || { ...data, id: crypto.randomUUID() };
+      obras.push(nueva);
+      notif(`Obra "${nombre}" creada ✓`);
+    }
+    closeModal('m-obra');
+    renderObras();
+    renderDash();
+    popSelects();
+  });
+}
+
 async function delObra(id) {
   if (!confirm('¿Eliminar esta obra y todo lo asociado (mediciones, certificados)?')) return;
   await withSync(async () => {
@@ -3287,6 +3325,10 @@ function extractEspesorFromDesc(desc) {
 function extractDimsFromDesc(desc) {
   // Normalizar: comas → puntos, quitar tildes
   const t = (desc || '').replace(/,/g, '.').toUpperCase();
+
+  // Varias secciones distintas → no calcular (ej: "V - (30x35),(35x40),(35x50)")
+  const secciones = t.match(/\(\d+\.?\d*\s*[Xx×]\s*\d+\.?\d*\)/g) || [];
+  if (secciones.length >= 2) return null;
 
   // Varias secciones listadas (ej: "V - (30x35),(35x40),(40x60)") → no hay UNA sección,
   // calcular desde la primera daría cualquier cosa. No tocar la cantidad del Excel.
