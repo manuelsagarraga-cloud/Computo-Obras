@@ -1146,7 +1146,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-10.6';
+const APP_BUILD = '2026-07-10.7';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -6287,7 +6287,7 @@ function abrirVentanaPDF(html, titulo) {
       <div id="chat-dot"></div>
       <div>
         <div id="chat-title">Asistente de obra</div>
-        <div id="chat-subtitle">Gemini Flash · Gratuito</div>
+        <div id="chat-subtitle">Gemini 2.0 Flash · Gratuito</div>
       </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
@@ -6586,7 +6586,7 @@ function toggleFaq(i) {
 // =====================================================================
 // ASISTENTE IA — Google Gemini Flash (free tier)
 // =====================================================================
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 let chatHistory = []; // {role:'user'|'model', parts:[{text}]}
 let chatOpen = false;
@@ -6799,7 +6799,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="chat-dot"></div>
       <div>
         <div id="chat-title">Asistente de obra</div>
-        <div id="chat-subtitle">Gemini Flash · Gratuito</div>
+        <div id="chat-subtitle">Gemini 2.0 Flash · Gratuito</div>
       </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
