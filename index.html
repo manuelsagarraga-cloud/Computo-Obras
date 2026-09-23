@@ -6,6 +6,90 @@
 <title>Cómputo Obras — Córdoba</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700&display=swap" rel="stylesheet">
 <style>
+
+/* ═══ CHAT ASISTENTE IA ═══ */
+#chat-fab {
+  position:fixed; bottom:24px; right:24px; z-index:400;
+  width:52px; height:52px; border-radius:50%;
+  background:var(--gr); color:#fff; border:none; cursor:pointer;
+  font-size:22px; box-shadow:0 3px 12px rgba(0,0,0,.25);
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .15s, box-shadow .15s;
+}
+#chat-fab:hover { transform:scale(1.08); box-shadow:0 5px 16px rgba(0,0,0,.3); }
+#chat-fab-badge {
+  position:absolute; top:-3px; right:-3px;
+  width:18px; height:18px; border-radius:50%;
+  background:#d94f4f; color:#fff; font-size:9px; font-weight:700;
+  display:none; align-items:center; justify-content:center;
+  font-family:var(--mono);
+}
+#chat-panel {
+  position:fixed; bottom:86px; right:24px; z-index:400;
+  width:360px; height:520px; max-height:80vh;
+  background:var(--surf); border:1px solid var(--border);
+  border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.18);
+  display:none; flex-direction:column; overflow:hidden;
+}
+#chat-panel.open { display:flex; }
+#chat-header {
+  padding:12px 14px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--surf2); flex-shrink:0;
+}
+#chat-header-info { display:flex; align-items:center; gap:8px; }
+#chat-dot { width:8px; height:8px; border-radius:50%; background:#aaa; flex-shrink:0; }
+#chat-dot.ok { background:#4a7; }
+#chat-title { font-size:12px; font-weight:600; color:var(--tx); }
+#chat-subtitle { font-size:10px; color:var(--tx2); margin-top:1px; }
+#chat-close { background:none; border:none; cursor:pointer; color:var(--tx2); font-size:16px; padding:2px 4px; }
+#chat-messages {
+  flex:1; overflow-y:auto; padding:12px; display:flex;
+  flex-direction:column; gap:8px;
+}
+.chat-msg { max-width:88%; font-size:11px; line-height:1.55; }
+.chat-msg.user {
+  align-self:flex-end; background:var(--gr); color:#fff;
+  padding:7px 11px; border-radius:10px 10px 2px 10px;
+}
+.chat-msg.assistant {
+  align-self:flex-start; background:var(--surf2); color:var(--tx);
+  padding:7px 11px; border-radius:10px 10px 10px 2px;
+  border:1px solid var(--border);
+}
+.chat-msg.system-msg {
+  align-self:center; background:none; color:var(--tx3);
+  font-size:10px; font-style:italic; border:none; max-width:100%;
+}
+.chat-msg.typing { color:var(--tx3); font-style:italic; }
+#chat-input-row {
+  padding:10px; border-top:1px solid var(--border);
+  display:flex; gap:6px; flex-shrink:0; background:var(--surf);
+}
+#chat-input {
+  flex:1; font-size:11px; padding:7px 10px;
+  border:1px solid var(--border); border-radius:6px;
+  background:var(--surf2); color:var(--tx); resize:none;
+  font-family:var(--sans); outline:none;
+}
+#chat-input:focus { border-color:var(--gr); }
+#chat-send {
+  background:var(--gr); color:#fff; border:none; border-radius:6px;
+  padding:7px 12px; cursor:pointer; font-size:12px; flex-shrink:0;
+}
+#chat-send:disabled { opacity:.4; cursor:default; }
+#chat-key-setup {
+  padding:16px; display:flex; flex-direction:column; gap:10px;
+}
+#chat-key-setup p { font-size:11px; color:var(--tx2); line-height:1.5; margin:0; }
+#chat-key-input {
+  font-size:11px; padding:7px 10px; border:1px solid var(--border);
+  border-radius:6px; background:var(--surf2); color:var(--tx);
+  font-family:var(--mono); width:100%; box-sizing:border-box;
+}
+/* Badge revisión sidebar */
+#badge-revisar { line-height: 14px; font-family: var(--mono); }
+
 :root{
   --bg:#F5F2EC;--surf:#FDFBF7;--surf2:#EDE9E1;--border:#D4CFC4;--border-s:#B8B0A2;
   --tx:#1A1714;--tx2:#5C5650;--tx3:#8C867E;
@@ -225,7 +309,7 @@ textarea{resize:vertical;min-height:55px;}
   <div class="nav-item active" onclick="nav('dashboard')"><span>◈</span> Dashboard</div>
   <div class="nav-item" onclick="nav('obras')"><span>⬡</span> Obras</div>
   <div class="nav-sec">Cómputo</div>
-  <div class="nav-item" onclick="nav('mediciones')"><span>≡</span> Mediciones</div>
+  <div class="nav-item" onclick="nav('mediciones')" style="display:flex;justify-content:space-between;align-items:center;"><span><span>≡</span> Mediciones</span><span id="badge-revisar" style="display:none;background:#d94f4f;color:#fff;border-radius:10px;font-size:9px;font-weight:700;padding:1px 6px;min-width:16px;text-align:center;line-height:16px;"></span></div>
   <div class="nav-item" onclick="nav('computo')"><span>▦</span> Cómputo automático</div>
   <div class="nav-item" onclick="nav('presupuesto')"><span>◻</span> Presupuesto</div>
   <div class="nav-sec">Bases</div>
@@ -1062,7 +1146,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-10.2';
+const APP_BUILD = '2026-07-10.5';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -3095,6 +3179,7 @@ async function saveMedicion(keepOpen) {
 }
 
 function loadMediciones() {
+  setTimeout(actualizarBadgeRevisar, 150);
   const obraId = document.getElementById('sel-obra-med')?.value;
   const body = document.getElementById('med-body');
   if (!obraId) { body.innerHTML = '<div class="empty">Seleccioná una obra.</div>'; return; }
@@ -3322,6 +3407,22 @@ function extractEspesorFromDesc(desc) {
   return +v.toFixed(4);
 }
 
+// Extrae el identificador del elemento desde la descripción del Excel
+// Ej: "C1 - (0,18x0,30)..." → "C1"  |  "Base Aislada B2..." → "B2"
+//     "Ce - Encadenado..." → "Ce"    |  "NB2 - Viga 20x40" → "NB2"
+function extractEtiquetaFromDesc(desc) {
+  if (!desc) return '';
+  const t = desc.trim();
+  // Patrón 1: código al inicio separado por guión/espacio → "C1 -", "Ce -", "NB2 -"
+  const m1 = t.match(/^([A-Za-z]{1,3}\d{0,2})\s*[-–\s]/);
+  if (m1 && m1[1].length <= 4) return m1[1];
+  // Patrón 2: "Base Aislada B2", "Zapata B6" — código mayúscula+dígito tras tipo
+  const m2 = t.match(/(?:Base|Zapata|Pilar|Viga|Columna|Losa|Encadenado|Muro)\s+\w+\s+([A-Z]\d{1,2})\b/i)
+           || t.match(/(?:Base|Zapata|Pilar|Viga|Columna|Losa|Encadenado|Muro)\s+([A-Z]\d{1,2})\b/i);
+  if (m2) return m2[1];
+  return '';
+}
+
 function extractDimsFromDesc(desc) {
   // Normalizar: comas → puntos, quitar tildes
   const t = (desc || '').replace(/,/g, '.').toUpperCase();
@@ -3467,6 +3568,43 @@ function openEditMed(medId) {
   }
 
   openModal('m-edit-med');
+}
+
+// =====================================================================
+// BADGE DE REVISIÓN — cuenta ítems que necesitan atención
+// =====================================================================
+function actualizarBadgeRevisar() {
+  const badge = document.getElementById('badge-revisar');
+  if (!badge) return;
+  if (!meds || !meds.length) { badge.style.display = 'none'; return; }
+  const obraId = document.getElementById('sel-obra-med')?.value;
+  const obsMeds = obraId ? meds.filter(m => (m.obraId||m.obra_id) === obraId) : meds;
+  let count = 0;
+  // 1) Mediciones sin coeficiente reconocido
+  obsMeds.forEach(m => { if (!coefs.find(c => c.id === (m.coefId||m.coef_id))) count++; });
+  // 2) Estructurales con dims que no explican la cantidad
+  obsMeds.forEach(m => {
+    const coef = coefs.find(c => c.id === (m.coefId||m.coef_id));
+    if (!coef || !tipoEstructural(coef.cod)) return;
+    const dims = extractDimsFromDesc(m.desc || m.descripcion || '');
+    if (!dims || !(dims.la > 0) || !(dims.lb > 0)) return;
+    const cantMed = num(m.cantidad);
+    if (!(cantMed > 0)) { count++; return; }
+    if (dims.ml > 0) {
+      const ratio = cantMed / (dims.la * dims.lb * dims.ml);
+      const entero = Math.round(ratio);
+      if (!(entero >= 1 && Math.abs(ratio - entero) <= 0.02 * entero)) count++;
+    } else {
+      const ml = cantMed / (dims.la * dims.lb * (dims.cant || 1));
+      if (ml < 0.1 || ml > 500) count++;
+    }
+  });
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 // =====================================================================
@@ -3645,7 +3783,7 @@ function loadComputo() {
         <div class="med-item">
           <div class="med-hdr" onclick="toggleBody('mb-${rubro.replace(/\s/g,'-')}-${idx}')">
             <div>
-              <div class="med-name">${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' — <span style="color:var(--tx3);">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>':''}</div>
+              <div class="med-name">${item.med.etiqueta ? '<span style="font-family:var(--mono);font-size:10px;background:var(--surf2);padding:1px 5px;border-radius:3px;margin-right:5px;color:var(--tx2);">'+item.med.etiqueta+'</span>' : ''}${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' — <span style="color:var(--tx3);">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>':''}</div>
               <div class="med-meta"><span>${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:3})} ${item.coef.unidad}</span><span style="color:var(--am);">+${desperdicio}% → ${item.cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</span><span style="color:var(--tx3);">▾ ver detalle</span></div>
             </div>
             <div style="text-align:right;"><div style="font-size:12px;font-weight:500;">${$p(item.total)}</div><div style="font-size:9px;color:var(--tx3);margin-top:2px;">mat+MO</div></div>
@@ -5687,10 +5825,12 @@ async function saveImport() {
         }
       }
       const descFinal = descCompleta + notaDims;
+      const etiqueta = extractEtiquetaFromDesc(item.desc || '');
       return {
         obra_id: obraId,
         coef_id: findCoefForItem(item),
         descripcion: descFinal,
+        etiqueta: etiqueta || null,
         cantidad,
         fecha: new Date().toLocaleDateString('es-AR'),
         ubicacion: item.ubicacion,
@@ -5766,6 +5906,21 @@ async function saveImport() {
     renderObras();
     popSelects();
     notif(`Obra "${nombre}" importada: ${items.length} ítems + certificado base ✓`);
+    // Ir a Mediciones y abrir el revisor automáticamente si hay puntos a revisar
+    setTimeout(() => {
+      actualizarBadgeRevisar();
+      const badge = document.getElementById('badge-revisar');
+      if (badge && badge.style.display !== 'none' && parseInt(badge.textContent) > 0) {
+        nav('mediciones');
+        // Seleccionar la obra recién importada
+        const selMed = document.getElementById('sel-obra-med');
+        if (selMed) {
+          selMed.value = obraId;
+          loadMediciones();
+        }
+        setTimeout(() => revisarMediciones(), 600);
+      }
+    }, 700);
   });
   } catch(e) {
     // withSync ya notificó el error; acá solo evitamos que quede el spinner colgado
@@ -6119,7 +6274,35 @@ function abrirVentanaPDF(html, titulo) {
   </head><body>
     <button class="btn-print" onclick="window.print()">⎙ Imprimir / Guardar como PDF</button>
     ${html}
-  </body></html>`);
+  
+<!-- ═══ CHAT ASISTENTE IA ═══ -->
+<button id="chat-fab" onclick="toggleChat()" title="Asistente IA">
+  💬
+  <span id="chat-fab-badge"></span>
+</button>
+
+<div id="chat-panel">
+  <div id="chat-header">
+    <div id="chat-header-info">
+      <div id="chat-dot"></div>
+      <div>
+        <div id="chat-title">Asistente de obra</div>
+        <div id="chat-subtitle">Gemini Flash · Gratuito</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button onclick="clearChat()" title="Nueva conversación" style="background:none;border:none;cursor:pointer;color:var(--tx3);font-size:12px;">↺</button>
+      <button id="chat-close" onclick="toggleChat()">✕</button>
+    </div>
+  </div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-row">
+    <textarea id="chat-input" placeholder="Preguntá sobre la obra…" rows="1" onkeydown="chatKeyDown(event)"></textarea>
+    <button id="chat-send" onclick="chatSend()">↑</button>
+  </div>
+</div>
+
+</body></html>`);
   win.document.close();
 }
 
@@ -6399,10 +6582,237 @@ function toggleFaq(i) {
   if (icon) icon.textContent = open ? '▾' : '▴';
 }
 
+
+// =====================================================================
+// ASISTENTE IA — Google Gemini Flash (free tier)
+// =====================================================================
+const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+let chatHistory = []; // {role:'user'|'model', parts:[{text}]}
+let chatOpen = false;
+let geminiKey = localStorage.getItem('gemini_key') || '';
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  const panel = document.getElementById('chat-panel');
+  panel.classList.toggle('open', chatOpen);
+  if (chatOpen) {
+    if (!geminiKey) { showKeySetup(); return; }
+    if (chatHistory.length === 0) chatWelcome();
+    setTimeout(() => document.getElementById('chat-input')?.focus(), 100);
+  }
+}
+
+function showKeySetup() {
+  const msgs = document.getElementById('chat-messages');
+  const row = document.getElementById('chat-input-row');
+  msgs.innerHTML = `<div id="chat-key-setup">
+    <p><b>Configurá tu API key de Gemini</b> (gratuita)</p>
+    <p>1. Entrá a <a href="https://aistudio.google.com" target="_blank" style="color:var(--gr);">aistudio.google.com</a><br>
+    2. "Get API key" → "Create API key"<br>
+    3. Pegala abajo y guardá</p>
+    <input id="chat-key-input" type="password" placeholder="AIza...">
+    <button class="btn btn-primary" onclick="saveGeminiKey()" style="font-size:11px;padding:6px 14px;">Guardar y conectar</button>
+    <p style="font-size:10px;color:var(--tx3);">La key se guarda solo en este dispositivo (localStorage).</p>
+  </div>`;
+  row.style.display = 'none';
+}
+
+function saveGeminiKey() {
+  const key = document.getElementById('chat-key-input')?.value.trim();
+  if (!key || !key.startsWith('AIza')) { notif('Key inválida — debe empezar con AIza'); return; }
+  geminiKey = key;
+  localStorage.setItem('gemini_key', key);
+  document.getElementById('chat-input-row').style.display = 'flex';
+  chatWelcome();
+  testGeminiKey();
+}
+
+async function testGeminiKey() {
+  const dot = document.getElementById('chat-dot');
+  try {
+    const r = await callGemini([{role:'user', parts:[{text:'hola'}]}], 'Respondé solo "ok".');
+    if (r) { dot.className = 'ok'; }
+  } catch(e) { dot.className = ''; notif('Error al verificar key: ' + e.message); }
+}
+
+function chatWelcome() {
+  const msgs = document.getElementById('chat-messages');
+  document.getElementById('chat-input-row').style.display = 'flex';
+  msgs.innerHTML = '';
+  chatHistory = [];
+  addChatMsg('assistant', '👋 Hola. Soy tu asistente de obra. Preguntame sobre materiales, cantidades, presupuesto o certificados de la obra activa.');
+}
+
+function clearChat() { chatWelcome(); }
+
+function buildObraContext() {
+  // Obra activa: buscar en los selectores visibles
+  const selIds = ['sel-obra-med','sel-obra-pres','sel-obra-cert','sel-obra-comp','sel-obra-compras','sel-obra-mo','sel-obra-arch','sel-obra-hist'];
+  let obraId = null;
+  for (const id of selIds) {
+    const el = document.getElementById(id);
+    if (el && el.value) { obraId = el.value; break; }
+  }
+  if (!obraId && obras.length === 1) obraId = obras[0].id;
+  if (!obraId) return '(Sin obra activa seleccionada en la app. El usuario puede seleccionar una obra en cualquier vista.)';
+
+  const obra = obras.find(o => o.id === obraId);
+  if (!obra) return '';
+  const r = computeObra(obraId);
+  let tMat = 0, tMO = 0, itemCount = 0;
+  const rubrosResumen = [];
+  const rubrosOrden = ordenRubros(Object.keys(r));
+  rubrosOrden.forEach(rubro => {
+    const data = r[rubro];
+    const rMat = data.items.reduce((s,i) => s + (i.totalMats||0), 0);
+    const rMO  = data.items.reduce((s,i) => s + (i.totalMO||0), 0);
+    tMat += rMat; tMO += rMO; itemCount += data.items.length;
+    if (rMat + rMO > 0) rubrosResumen.push(`  • ${rubro}: mat $${Math.round(rMat).toLocaleString('es-AR')} + MO $${Math.round(rMO).toLocaleString('es-AR')}`);
+  });
+  const emp = empresas.find(e => e.id === currentEmpresa);
+  const badgeCount = parseInt(document.getElementById('badge-revisar')?.textContent || '0') || 0;
+  return `EMPRESA: ${emp?.nombre || currentEmpresa}
+OBRA ACTIVA: ${obra.cod} — ${obra.nombre}
+Cliente: ${obra.cliente || '—'}
+Ubicación: ${obra.ubic || '—'}
+Estado: ${obra.estado || '—'}
+Superficie: ${obra.sup ? obra.sup + ' m²' : '—'}
+
+PRESUPUESTO (precios ${new Date().toLocaleDateString('es-AR')}):
+  Materiales: $${Math.round(tMat).toLocaleString('es-AR')}
+  Mano de obra: $${Math.round(tMO).toLocaleString('es-AR')}
+  Total directo: $${Math.round(tMat+tMO).toLocaleString('es-AR')}
+  ${obra.sup > 0 ? 'Costo/m²: $' + Math.round((tMat+tMO)/obra.sup).toLocaleString('es-AR') : ''}
+
+DISTRIBUCIÓN POR RUBRO (${itemCount} ítems):
+${rubrosResumen.join('\n')}
+${badgeCount > 0 ? '\n⚠ Hay ' + badgeCount + ' ítem(s) pendientes de revisión en Mediciones.' : ''}`;
+}
+
+function buildSystemPrompt() {
+  return `Sos un asistente especializado en cómputo de obras de construcción en Argentina. Trabajás con la app "Cómputo de Obras" de Bauvek Construcciones.
+Tenés acceso a los datos de la obra activa y respondés preguntas sobre materiales, cantidades, costos, presupuesto, certificados y planificación de obra.
+Usá pesos argentinos ($) con puntos de miles, metros y unidades del sistema métrico. Respondé en español rioplatense, de forma concisa y profesional.
+No inventés datos — si algo no está en el contexto, decíselo al usuario.
+Cuando hables de costos, aclará que son estimaciones basadas en los precios cargados en la app.
+
+CONTEXTO ACTUAL DE LA APP:
+${buildObraContext()}`;
+}
+
+async function callGemini(history, systemOverride) {
+  if (!geminiKey) { showKeySetup(); throw new Error('Sin key'); }
+  const resp = await fetch(`${GEMINI_ENDPOINT}?key=${geminiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemOverride || buildSystemPrompt() }] },
+      contents: history,
+      generationConfig: { maxOutputTokens: 800, temperature: 0.3 }
+    })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    const msg = err?.error?.message || resp.statusText;
+    if (msg.includes('API_KEY')) { geminiKey = ''; localStorage.removeItem('gemini_key'); showKeySetup(); }
+    throw new Error(msg);
+  }
+  const data = await resp.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+function addChatMsg(role, text) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+  // Formatear markdown básico
+  div.innerHTML = text
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\n/g, '<br>');
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function chatKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chatSend(); }
+}
+
+async function chatSend() {
+  const input = document.getElementById('chat-input');
+  const send = document.getElementById('chat-send');
+  const text = input.value.trim();
+  if (!text || send.disabled) return;
+  input.value = ''; input.style.height = '';
+  addChatMsg('user', text);
+  chatHistory.push({ role: 'user', parts: [{ text }] });
+  send.disabled = true;
+  const typing = addChatMsg('typing', '…');
+  try {
+    const reply = await callGemini([...chatHistory]);
+    typing.remove();
+    addChatMsg('assistant', reply);
+    chatHistory.push({ role: 'model', parts: [{ text: reply }] });
+    // Badge del FAB para conversaciones no leídas
+    if (!chatOpen) {
+      const fab = document.getElementById('chat-fab-badge');
+      if (fab) { fab.style.display = 'flex'; fab.textContent = (parseInt(fab.textContent||'0')||0)+1; }
+    }
+  } catch(e) {
+    typing.remove();
+    addChatMsg('system-msg', '⚠ Error: ' + e.message);
+  }
+  send.disabled = false;
+  input.focus();
+}
+
+// Auto-resize del textarea
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('chat-input');
+  if (inp) inp.addEventListener('input', () => {
+    inp.style.height = ''; inp.style.height = Math.min(inp.scrollHeight, 80) + 'px';
+  });
+  // Limpiar badge del FAB al abrir
+  const fab = document.getElementById('chat-fab');
+  if (fab) fab.addEventListener('click', () => {
+    const b = document.getElementById('chat-fab-badge');
+    if (b) b.style.display = 'none';
+  });
+});
+
 // =====================================================================
 // ARRANQUE
 // =====================================================================
 // init() se llama desde boot() después de autenticación
 </script>
+
+<!-- ═══ CHAT ASISTENTE IA ═══ -->
+<button id="chat-fab" onclick="toggleChat()" title="Asistente IA">
+  💬
+  <span id="chat-fab-badge"></span>
+</button>
+
+<div id="chat-panel">
+  <div id="chat-header">
+    <div id="chat-header-info">
+      <div id="chat-dot"></div>
+      <div>
+        <div id="chat-title">Asistente de obra</div>
+        <div id="chat-subtitle">Gemini Flash · Gratuito</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button onclick="clearChat()" title="Nueva conversación" style="background:none;border:none;cursor:pointer;color:var(--tx3);font-size:12px;">↺</button>
+      <button id="chat-close" onclick="toggleChat()">✕</button>
+    </div>
+  </div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-row">
+    <textarea id="chat-input" placeholder="Preguntá sobre la obra…" rows="1" onkeydown="chatKeyDown(event)"></textarea>
+    <button id="chat-send" onclick="chatSend()">↑</button>
+  </div>
+</div>
+
 </body>
 </html>
