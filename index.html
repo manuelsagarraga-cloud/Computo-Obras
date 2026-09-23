@@ -1146,7 +1146,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-10.5';
+const APP_BUILD = '2026-07-10.6';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -6611,7 +6611,7 @@ function showKeySetup() {
     <p>1. Entrá a <a href="https://aistudio.google.com" target="_blank" style="color:var(--gr);">aistudio.google.com</a><br>
     2. "Get API key" → "Create API key"<br>
     3. Pegala abajo y guardá</p>
-    <input id="chat-key-input" type="password" placeholder="AIza...">
+    <input id="chat-key-input" type="password" placeholder="Pegá tu API key de Google AI Studio">
     <button class="btn btn-primary" onclick="saveGeminiKey()" style="font-size:11px;padding:6px 14px;">Guardar y conectar</button>
     <p style="font-size:10px;color:var(--tx3);">La key se guarda solo en este dispositivo (localStorage).</p>
   </div>`;
@@ -6620,7 +6620,7 @@ function showKeySetup() {
 
 function saveGeminiKey() {
   const key = document.getElementById('chat-key-input')?.value.trim();
-  if (!key || !key.startsWith('AIza')) { notif('Key inválida — debe empezar con AIza'); return; }
+  if (!key || key.length < 20) { notif('Key inválida — pegá la clave completa de Google AI Studio'); return; }
   geminiKey = key;
   localStorage.setItem('gemini_key', key);
   document.getElementById('chat-input-row').style.display = 'flex';
