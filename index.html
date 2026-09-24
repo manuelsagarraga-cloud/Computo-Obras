@@ -1146,7 +1146,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-10.9';
+const APP_BUILD = '2026-07-10.10';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -1171,8 +1171,13 @@ async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-pass').value;
   const errEl = document.getElementById('login-error');
+  const btn = document.querySelector('.login-box button[onclick*="doLogin"], .login-box button:last-of-type');
   errEl.textContent = '';
-  if (!email || !pass) { errEl.textContent = 'Ingresá email y contraseña'; return; }
+  errEl.style.color = 'var(--re)';
+  if (!email || !pass) { errEl.textContent = 'Ingresá email y contraseña.'; return; }
+  // Estado de carga
+  if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
+  errEl.textContent = '';
   try {
     const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
@@ -1181,7 +1186,16 @@ async function doLogin() {
     });
     const data = await r.json();
     if (!r.ok) {
-      errEl.textContent = data.error_description || data.msg || 'Credenciales inválidas';
+      const msg = data.error_description || data.msg || data.error || 'Credenciales incorrectas';
+      // Mensajes más claros para errores comunes
+      if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('credentials')) {
+        errEl.textContent = 'Email o contraseña incorrectos.';
+      } else if (msg.toLowerCase().includes('email') && msg.toLowerCase().includes('confirm')) {
+        errEl.textContent = 'Necesitás confirmar tu email antes de ingresar.';
+      } else {
+        errEl.textContent = msg;
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
       return;
     }
     // Guardar token y usuario
@@ -1195,7 +1209,9 @@ async function doLogin() {
     updateUserBadge();
     init();
   } catch(err) {
-    errEl.textContent = 'Error de conexión: ' + err.message;
+    errEl.textContent = 'Error de conexión. Verificá tu internet e intentá de nuevo.';
+    console.error('Login error:', err);
+    if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
   }
 }
 
@@ -3889,25 +3905,95 @@ function exportPres() {
   if (!obraId) { notif('Seleccioná una obra'); return; }
   const obra = obras.find(o => o.id === obraId);
   const rubros = computeObra(obraId);
-  const pctGG = num(document.getElementById('pct-gg').value)/100;
-  const pctUtil = num(document.getElementById('pct-util').value)/100;
-  let txt = `PRESUPUESTO — ${obra.nombre}\n${'='.repeat(60)}\nCliente: ${obra.cliente||'—'}\nUbicación: ${obra.ubic||'—'}\nFecha: ${new Date().toLocaleDateString('es-AR')}\n\n`;
-  let cosMats=0, cosMO=0, n=1;
-  const rubrosOrdenExp = ordenRubros(Object.keys(rubros));
-  rubrosOrdenExp.forEach(rubro => {
+  const pctGG = num(document.getElementById('pct-gg').value) / 100;
+  const pctUtil = num(document.getElementById('pct-util').value) / 100;
+  const emp = empresas.find(e => e.id === currentEmpresa);
+  const hoy = new Date().toLocaleDateString('es-AR');
+
+  // ── Armar filas del Excel ──
+  const rows = [];
+  // Encabezado principal
+  rows.push([obra.cod + ' — ' + obra.nombre]);
+  rows.push(['Empresa:', emp?.nombre || '']);
+  rows.push(['Cliente:', obra.cliente || '—']);
+  rows.push(['Ubicación:', obra.ubic || '—']);
+  rows.push(['Superficie:', obra.sup ? obra.sup + ' m²' : '—']);
+  rows.push(['Fecha:', hoy]);
+  rows.push([]);
+  // Encabezado de columnas
+  rows.push(['N°', 'Código', 'Tarea', 'Und.', 'Cantidad', 'Materiales ($)', 'MO ($)', 'Total ($)']);
+
+  let cosMats = 0, cosMO = 0, n = 1;
+  const rubrosOrden = ordenRubros(Object.keys(rubros));
+
+  rubrosOrden.forEach(rubro => {
     const data = rubros[rubro];
-    txt += `\n${rubro.toUpperCase()}\n${'-'.repeat(45)}\n`;
+    if (!data.items.length) return;
+    // Fila de rubro
+    rows.push([rubro.toUpperCase()]);
     data.items.forEach(item => {
-      txt += `  ${n++}. ${(item.coef.nombre).padEnd(40)} ${item.cantidad.toFixed(2)} ${item.coef.unidad.padEnd(5)} Mat: ${$p(item.totalMats).padEnd(16)} MO: ${$p(item.totalMO)}\n`;
-      cosMats += item.totalMats; cosMO += item.totalMO;
+      rows.push([
+        n++,
+        item.coef.cod || '',
+        item.coef.nombre,
+        item.coef.unidad,
+        +num(item.cantidad).toFixed(3),
+        +Math.round(item.totalMats),
+        +Math.round(item.totalMO),
+        +Math.round(item.totalMats + item.totalMO)
+      ]);
+      cosMats += item.totalMats;
+      cosMO += item.totalMO;
     });
+    rows.push([]);
   });
-  const cd=cosMats+cosMO, gg=cd*pctGG, util=(cd+gg)*pctUtil;
-  txt += `\n${'='.repeat(60)}\nMateriales:   ${$p(cosMats)}\nMano de obra: ${$p(cosMO)}\nCosto directo:${$p(cd)}\nGastos gral:  ${$p(gg)}\nUtilidad:     ${$p(util)}\nTOTAL:        ${$p(cd+gg+util)}\n`;
-  const blob = new Blob([txt],{type:'text/plain;charset=utf-8'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `Presupuesto_${obra.cod}_${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.txt`;
-  a.click(); notif('Exportado ✓');
+
+  // Totales
+  const cd = cosMats + cosMO;
+  const gg = cd * pctGG;
+  const util = (cd + gg) * pctUtil;
+  const total = cd + gg + util;
+  rows.push(['RESUMEN']);
+  rows.push(['', '', 'Materiales', '', '', Math.round(cosMats), '', Math.round(cosMats)]);
+  rows.push(['', '', 'Mano de obra', '', '', '', Math.round(cosMO), Math.round(cosMO)]);
+  rows.push(['', '', 'Costo directo', '', '', '', '', Math.round(cd)]);
+  if (pctGG > 0) rows.push(['', '', 'Gastos generales (' + (pctGG*100).toFixed(0) + '%)', '', '', '', '', Math.round(gg)]);
+  if (pctUtil > 0) rows.push(['', '', 'Utilidad (' + (pctUtil*100).toFixed(0) + '%)', '', '', '', '', Math.round(util)]);
+  rows.push(['', '', 'TOTAL', '', '', '', '', Math.round(total)]);
+  if (obra.sup > 0) rows.push(['', '', 'Costo/m²', '', '', '', '', Math.round(total / obra.sup)]);
+
+  // ── Crear workbook con estilos ──
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // Anchos de columna
+  ws['!cols'] = [{wch:4},{wch:8},{wch:45},{wch:6},{wch:10},{wch:16},{wch:16},{wch:16}];
+  // Combinar celdas del título y rubros (A1 a H1)
+  ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:7} }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto');
+
+  // Segunda hoja: resumen ejecutivo
+  const ws2 = XLSX.utils.aoa_to_sheet([
+    ['RESUMEN EJECUTIVO — ' + obra.nombre],
+    [],
+    ['CONCEPTO', 'IMPORTE ($)', '% DEL TOTAL'],
+    ['Materiales', Math.round(cosMats), +(cosMats/total*100).toFixed(1)],
+    ['Mano de obra', Math.round(cosMO), +(cosMO/total*100).toFixed(1)],
+    ['Costo directo', Math.round(cd), +(cd/total*100).toFixed(1)],
+    ...(pctGG > 0 ? [['Gastos generales', Math.round(gg), +(gg/total*100).toFixed(1)]] : []),
+    ...(pctUtil > 0 ? [['Utilidad', Math.round(util), +(util/total*100).toFixed(1)]] : []),
+    ['TOTAL', Math.round(total), 100],
+    ...(obra.sup > 0 ? [[], ['Costo/m²', Math.round(total/obra.sup), '']] : []),
+    [],
+    ['Fecha:', hoy, ''],
+    ['Precios:', emp?.precio_base || 'Metro Obra ' + hoy, ''],
+  ]);
+  ws2['!cols'] = [{wch:28},{wch:18},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Resumen');
+
+  const hoyISO = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, 'Presupuesto_' + (obra.cod||obra.nombre).replace(/\s/g,'_') + '_' + hoyISO + '.xlsx');
+  notif('Presupuesto exportado a Excel ✓');
 }
 
 // =====================================================================
