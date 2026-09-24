@@ -353,7 +353,7 @@ textarea{resize:vertical;min-height:55px;}
     <!-- OBRAS -->
     <div id="page-obras" class="page">
       <div class="card">
-        <div class="card-header"><div class="card-title">Obras</div><div style="display:flex;gap:8px;"><button class="btn" onclick="openModal('m-import')">↑ Importar desde certificado</button><button class="btn btn-primary" onclick="editingObraId=null;document.getElementById('modal-obra-title').textContent='Nueva obra';['o-cod','o-nombre','o-cliente','o-ubic','o-sup','o-notas'].forEach(id=>document.getElementById(id).value='');document.getElementById('o-subsuelos').value='0';document.getElementById('o-plantas').value='1';openModal('m-obra')">+ Nueva obra</button></div></div>
+        <div class="card-header"><div class="card-title">Obras</div><div style="display:flex;gap:8px;"><button class="btn" onclick="openImportNuevaObra()">↑ Importar desde certificado</button><button class="btn btn-primary" onclick="editingObraId=null;document.getElementById('modal-obra-title').textContent='Nueva obra';['o-cod','o-nombre','o-cliente','o-ubic','o-sup','o-notas'].forEach(id=>document.getElementById(id).value='');document.getElementById('o-subsuelos').value='0';document.getElementById('o-plantas').value='1';openModal('m-obra')">+ Nueva obra</button></div></div>
         <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Obra</th><th>Cliente</th><th>Ubicación</th><th>Sup.</th><th>Estado</th><th>Total</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-obras"></tbody></table></div>
       </div>
     </div>
@@ -387,6 +387,7 @@ textarea{resize:vertical;min-height:55px;}
             </select>
           </div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
+            <button class="btn" onclick="openImportEnObra()" title="Importar ítems desde Excel a esta obra" style="white-space:nowrap;">↑ Importar</button>
             <button class="btn" onclick="revisarMediciones()" title="Revisar coherencia dimensiones vs cantidad en ítems estructurales" style="white-space:nowrap;">✓ Revisar</button>
             <button class="btn" onclick="exportMediciones()" title="Exportar mediciones a Excel" style="white-space:nowrap;">↓ Excel</button>
             <button class="btn btn-primary" onclick="openModalMedicion()" style="white-space:nowrap;">+ Agregar</button>
@@ -734,8 +735,23 @@ textarea{resize:vertical;min-height:55px;}
 <!-- MODAL IMPORTAR OBRA DESDE CERTIFICADO -->
 <div class="modal-overlay" id="m-import">
   <div class="modal" style="width:95%;max-width:1100px;max-height:90vh;overflow-y:auto;">
-    <div class="modal-title">Importar obra desde certificado <button class="modal-close" onclick="closeModal('m-import')">✕</button></div>
+    <div class="modal-title"><span id="imp-title">Importar obra desde certificado</span> <button class="modal-close" onclick="closeModal('m-import')">✕</button></div>
+    <div id="imp-target-banner" style="display:none;margin-bottom:10px;">
+      <div class="form-grid" style="grid-template-columns:2fr 1fr;margin-bottom:6px;">
+        <div class="fg"><label>Obra destino</label><div id="imp-target-nombre" style="padding:8px 10px;background:var(--surf2);border-radius:6px;font-weight:600;"></div></div>
+        <div class="fg"><label>Cargar en revisión</label>
+          <select id="imp-rev" style="font-family:var(--mono);">
+            <option value="Rev00">Rev00 — Original</option>
+            <option value="Rev01">Rev01 — Adicional 1</option>
+            <option value="Rev02">Rev02 — Adicional 2</option>
+            <option value="Rev03">Rev03 — Adicional 3</option>
+          </select>
+        </div>
+      </div>
+      <div id="imp-target-info" style="font-size:11px;color:var(--tx2);padding:6px 8px;background:var(--surf2);border-radius:4px;"></div>
+    </div>
     <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+    <div id="imp-obra-fields">
       <div class="fg"><label>Código obra</label><input id="imp-cod" placeholder="OBR-002"></div>
       <div class="fg"><label>Nombre obra</label><input id="imp-nombre" placeholder="Vivienda JS"></div>
       <div class="fg"><label>Cliente</label><input id="imp-cliente" placeholder="Juan Pérez"></div>
@@ -747,6 +763,7 @@ textarea{resize:vertical;min-height:55px;}
       <div class="fg"><label>Subsuelos</label><input id="imp-sub" type="number" min="0" value="0"></div>
       <div class="fg"><label>Plantas</label><input id="imp-pl" type="number" min="1" value="2"></div>
     </div>
+    </div><!-- /imp-obra-fields -->
     <div class="fg" style="margin-top:8px;">
       <label>Archivo Excel (.xlsx)</label>
       <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" onchange="parseImportFile()" style="padding:8px;border:2px dashed var(--border);border-radius:6px;width:100%;">
@@ -1146,7 +1163,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-10.10';
+const APP_BUILD = '2026-07-10.11';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -3587,6 +3604,68 @@ function openEditMed(medId) {
 }
 
 // =====================================================================
+// IMPORT EN OBRA EXISTENTE
+// =====================================================================
+let importTargetObraId = null;
+
+function _resetImportModal() {
+  importData = [];
+  const f = document.getElementById('imp-file'); if (f) f.value = '';
+  document.getElementById('imp-preview').innerHTML = '';
+  document.getElementById('imp-stats').innerHTML = '';
+  const btn = document.getElementById('btn-import-save');
+  if (btn) { btn.disabled = true; btn.textContent = importTargetObraId ? 'Importar a esta obra' : 'Importar obra'; }
+}
+function openImportNuevaObra() {
+  importTargetObraId = null;
+  document.getElementById('imp-title').textContent = 'Importar obra desde certificado';
+  document.getElementById('imp-obra-fields').style.display = '';
+  document.getElementById('imp-target-banner').style.display = 'none';
+  _resetImportModal();
+  openModal('m-import');
+}
+function openImportEnObra() {
+  const obraId = document.getElementById('sel-obra-med')?.value;
+  if (!obraId) { notif('Seleccioná primero la obra en Mediciones'); return; }
+  const obra = obras.find(o => o.id === obraId);
+  importTargetObraId = obraId;
+  document.getElementById('imp-title').textContent = 'Importar ítems a obra existente';
+  document.getElementById('imp-obra-fields').style.display = 'none';
+  document.getElementById('imp-target-banner').style.display = '';
+  document.getElementById('imp-target-nombre').textContent = (obra?.cod ? obra.cod + ' · ' : '') + (obra?.nombre || '');
+  const revActual = document.getElementById('sel-revision')?.value || 'Rev00';
+  const selRev = document.getElementById('imp-rev');
+  if (selRev) {
+    selRev.value = revActual;
+    selRev.onchange = () => { _actualizarInfoTarget(); if (importData.length) { marcarImportDuplicados(); renderImportPreview(); } };
+  }
+  _actualizarInfoTarget();
+  _resetImportModal();
+  openModal('m-import');
+}
+function _actualizarInfoTarget() {
+  if (!importTargetObraId) return;
+  const rev = document.getElementById('imp-rev')?.value || 'Rev00';
+  const n = meds.filter(m => (m.obraId||m.obra_id) === importTargetObraId && (m.revision||'Rev00') === rev).length;
+  document.getElementById('imp-target-info').innerHTML = n
+    ? `La obra ya tiene <b>${n}</b> mediciones en ${rev}. Los que ya existan aparecen marcados y destildados.`
+    : `Sin mediciones en ${rev}. Los ítems se agregan en esa revisión.`;
+}
+function marcarImportDuplicados() {
+  if (!importTargetObraId) { importData.forEach(i => { i.existe = false; }); return; }
+  const rev = document.getElementById('imp-rev')?.value || 'Rev00';
+  const norm = t => String(t||'').toUpperCase().replace(/\s+/g,' ').trim();
+  const existentes = meds
+    .filter(m => (m.obraId||m.obra_id) === importTargetObraId && (m.revision||'Rev00') === rev)
+    .map(m => norm(m.desc || m.descripcion));
+  importData.forEach(item => {
+    const clave = norm('[' + item.nItem + '] ' + item.desc);
+    item.existe = existentes.some(d => d === clave || d.startsWith(clave + ' (') || d.startsWith(clave + ' - '));
+    item.incluir = !item.existe;
+  });
+}
+
+// =====================================================================
 // BADGE DE REVISIÓN — cuenta ítems que necesitan atención
 // =====================================================================
 function actualizarBadgeRevisar() {
@@ -5791,6 +5870,7 @@ function processImportRows(rows) {
     const esMetadato = /^\[0\.\d+\]/.test(col1) || /^0\.\d+$/.test(col0);
     if(col1.length>2&&cantVal>0&&!esMetadato){importData.push({nItem:hasNum?col0:(importData.length+1).toString(),desc:col1,cant:cantVal,unidad:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:currentUbicacion,subtipo:detectSubtipo(col1),incluir:true});}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
+  marcarImportDuplicados();
   renderImportPreview();
 }
 
@@ -5800,7 +5880,7 @@ function renderImportPreview() {
   btn.disabled=false;
   const byRubro={};importData.forEach((item,idx)=>{if(!byRubro[item.rubro])byRubro[item.rubro]=[];byRubro[item.rubro].push({...item,idx});});
   let totalCosto=0;importData.filter(i=>i.costoUnit>0).forEach(i=>totalCosto+=i.costoUnit*i.cant);
-  preview.innerHTML=Object.entries(byRubro).map(([rubro,items])=>`<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${rubro||'Sin rubro'}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body" style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:250px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>Contratista</th><th>Costo</th><th>✓</th></tr></thead><tbody>${items.map(item=>`<tr style="${item.costoUnit>0?'':'opacity:0.5;'}"><td>${item.nItem}</td><td>${item.desc}</td><td class="num">${item.cant}</td><td>${item.unidad}</td><td style="font-size:10px;color:var(--bl);">${item.ubicacion}</td><td style="font-size:10px;">${item.contratista}</td><td class="num">${item.costoUnit?$p(item.costoUnit):'—'}</td><td><input type="checkbox" ${item.incluir?'checked':''} onchange="importData[${item.idx}].incluir=this.checked"></td></tr>`).join('')}</tbody></table></div></div>`).join('');
+  preview.innerHTML=Object.entries(byRubro).map(([rubro,items])=>`<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${rubro||'Sin rubro'}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body" style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:250px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>Contratista</th><th>Costo</th><th>✓</th></tr></thead><tbody>${items.map(item=>`<tr style="${item.costoUnit>0?'':'opacity:0.5;'}"><td>${item.nItem}</td><td>${item.existe ? '<span style="font-size:9px;background:#fff3cd;color:#8a6d00;padding:1px 5px;border-radius:4px;margin-right:4px;">ya existe</span>' : ''}${item.desc}</td><td class="num">${item.cant}</td><td>${item.unidad}</td><td style="font-size:10px;color:var(--bl);">${item.ubicacion}</td><td style="font-size:10px;">${item.contratista}</td><td class="num">${item.costoUnit?$p(item.costoUnit):'—'}</td><td><input type="checkbox" ${item.incluir?'checked':''} onchange="importData[${item.idx}].incluir=this.checked"></td></tr>`).join('')}</tbody></table></div></div>`).join('');
   stats.innerHTML=`<div class="stats-grid"><div class="stat"><div class="stat-label">Ítems</div><div class="stat-value">${importData.length}</div></div><div class="stat"><div class="stat-label">Con precio</div><div class="stat-value">${importData.filter(i=>i.costoUnit>0).length}</div></div><div class="stat"><div class="stat-label">Costo total</div><div class="stat-value">${$p(totalCosto)}</div></div><div class="stat"><div class="stat-label">Rubros</div><div class="stat-value">${Object.keys(byRubro).length}</div></div></div>`;
 }
 
@@ -5808,16 +5888,24 @@ async function saveImport() {
   const btn = document.getElementById('btn-import-save');
   if (btn.disabled) return;
   // Validaciones ANTES de mostrar el spinner (si no, un return temprano lo deja colgado)
-  const nombre = document.getElementById('imp-nombre').value.trim();
+  const enObra = !!importTargetObraId;
+  const obraDestino = enObra ? obras.find(o => o.id === importTargetObraId) : null;
+  if (enObra && !obraDestino) { notif('No se encontró la obra destino'); return; }
+  const nombre = enObra ? obraDestino.nombre : document.getElementById('imp-nombre').value.trim();
   if (!nombre) { notif('Ingresá el nombre de la obra'); return; }
   const items = importData.filter(i => i.incluir);
   if (!items.length) { notif('No hay ítems para importar'); return; }
+  const revision = enObra ? (document.getElementById('imp-rev')?.value || 'Rev00') : 'Rev00';
   btn.disabled = true;
   btn.textContent = 'Importando...';
-  showBusy('Importando obra...');
+  showBusy(enObra ? 'Importando ítems a la obra...' : 'Importando obra...');
 
   try {
   await withSync(async () => {
+    let obraId;
+    if (enObra) {
+      obraId = obraDestino.id;
+    } else {
     // 1. Crear obra
     const obraData = {
       cod: document.getElementById('imp-cod').value.trim() || 'IMP-' + Date.now().toString(36),
@@ -5833,12 +5921,13 @@ async function saveImport() {
     };
     const obraRes = await sbPost('obras', obraData);
     const obra = obraRes[0] || obraData;
-    const obraId = obra.id;
+    obraId = obra.id;
     obras.push(obra);
 
     // 2. Config K
     const k = num(document.getElementById('imp-k').value) || 1.10;
     await sbPost('cert_config', { obra_id: obraId, k });
+    } // fin obra nueva
 
     // 3. Buscar coeficiente genérico por rubro para cada item
     function findCoefForItem(item) {
@@ -5920,7 +6009,7 @@ async function saveImport() {
         cantidad,
         fecha: new Date().toLocaleDateString('es-AR'),
         ubicacion: item.ubicacion,
-        revision: 'Rev00',
+        revision,
         _item: item   // referencia temporal, no se envía a Supabase (se limpia abajo)
       };
     });
@@ -5933,7 +6022,8 @@ async function saveImport() {
     }));
     mediciones.forEach(med => meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion}));
 
-    // 5. Crear certificado base (periodo 0)
+    let cert = enObra ? certs.find(c => c.obra_id === obraId && num(c.numero) === 0) : null;
+    if (!cert) {
     const certData = {
       obra_id: obraId,
       numero: 0,
@@ -5943,8 +6033,9 @@ async function saveImport() {
       notas: 'Certificado base importado desde Excel'
     };
     const certRes = await sbPost('certificados', certData);
-    const cert = certRes[0] || certData;
+    cert = certRes[0] || certData;
     certs.push(cert);
+    }
 
     // 6. Crear cert_items con contratista y costo (batch)
     // El costo unitario se re-expresa en NUESTRA unidad manteniendo el total del Excel:
@@ -5991,6 +6082,21 @@ async function saveImport() {
     closeModal('m-import');
     renderObras();
     popSelects();
+    if (enObra) {
+      notif(`${items.length} ítems importados a "${nombre}" (${revision}) ✓`);
+      const selMed = document.getElementById('sel-obra-med');
+      if (selMed) selMed.value = obraId;
+      const selRevM = document.getElementById('sel-revision');
+      if (selRevM) selRevM.value = revision;
+      loadMediciones();
+      importTargetObraId = null;
+      setTimeout(() => {
+        actualizarBadgeRevisar();
+        const badge = document.getElementById('badge-revisar');
+        if (badge && badge.style.display !== 'none' && parseInt(badge.textContent) > 0) revisarMediciones();
+      }, 700);
+      return;
+    }
     notif(`Obra "${nombre}" importada: ${items.length} ítems + certificado base ✓`);
     // Ir a Mediciones y abrir el revisor automáticamente si hay puntos a revisar
     setTimeout(() => {
