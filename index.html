@@ -2523,7 +2523,7 @@ function sortByCod(a, b) {
 function medItemCod(med) {
   if (!med) return '';
   if (med.item_cod) return String(med.item_cod);
-  const m = (med.desc || med.descripcion || '').match(/^\s*\[(\d+(?:[.,]\d+)*)\]/);
+  const m = (med.desc || med.descripcion || '').match(/^\s*\[(\d+(?:[.,]\d+)+)\]/);
   return m ? m[1].replace(',', '.') : '';
 }
 function stripItemCod(txt) { return (txt || '').replace(/^\s*\[\d+(?:[.,]\d+)*\]\s*/, ''); }
@@ -6042,7 +6042,7 @@ async function saveImport() {
     // 4. Crear mediciones (batch)
     const medBatch = items.map(item => {
       // El N° de ítem va a su propia columna (item_cod); la descripción queda limpia
-      const descCompleta = item.itemCod ? item.desc : `[${item.nItem}] ${item.desc}`;
+      const descCompleta = item.desc;
       // Intentar extraer cantidad desde dimensiones en el texto
       const coef = coefs.find(c => c.id === findCoefForItem(item));
       const tipo = coef ? tipoEstructural(coef.cod) : '';
