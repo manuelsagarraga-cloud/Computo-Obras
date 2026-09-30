@@ -634,7 +634,10 @@ textarea{resize:vertical;min-height:55px;}
         <select id="med-tarea-sel" onchange="onTareaChange()" size="6" style="width:100%;font-size:11px;"></select></div>
       <div class="fg"><label>Ubicación</label><select id="med-ubicacion"><option value="Global">Global (sin planta específica)</option></select></div>
     </div>
-    <div class="fg" style="margin-bottom:8px;"><label>Descripción (opcional)</label><input id="med-desc" placeholder="Ej: Muro frente N"></div>
+    <div class="form-grid" style="grid-template-columns:120px 1fr;margin-bottom:8px;">
+      <div class="fg"><label>N° Ítem</label><input id="med-itemcod" placeholder="Ej: 2.13" style="font-family:var(--mono);"></div>
+      <div class="fg"><label>Descripción (opcional)</label><input id="med-desc" placeholder="Ej: Muro frente N"></div>
+    </div>
     <div id="med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
     <div class="modal-footer"><button class="btn" onclick="closeModal('m-medicion')">Cancelar</button><button class="btn" onclick="saveMedicion(true)" style="border-color:var(--gr);color:var(--gr);">Guardar + otra</button><button class="btn btn-primary" onclick="saveMedicion(false)">Agregar y cerrar</button></div>
   </div>
@@ -648,7 +651,10 @@ textarea{resize:vertical;min-height:55px;}
       <div class="fg"><label>Tarea</label><select id="edit-med-tarea" onchange="onEditTareaChange()"></select></div>
       <div class="fg"><label>Ubicación</label><select id="edit-med-ubic"><option value="Global">Global</option></select></div>
     </div>
-    <div class="fg" style="margin-bottom:8px;"><label>Descripción</label><input id="edit-med-desc"></div>
+    <div class="form-grid" style="grid-template-columns:120px 1fr;margin-bottom:8px;">
+      <div class="fg"><label>N° Ítem</label><input id="edit-med-itemcod" placeholder="Ej: 2.13" style="font-family:var(--mono);"></div>
+      <div class="fg"><label>Descripción</label><input id="edit-med-desc"></div>
+    </div>
     <div id="edit-med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
     <div class="form-grid" style="margin-top:8px;">
       <div class="fg"><label>Cantidad</label><input id="edit-med-cant" type="number" step="0.001"></div>
@@ -2023,13 +2029,35 @@ function findMat(ref) {
   return encontrado;
 }
 
+// ── OBRA ACTIVA ÚNICA ──
+// Todas las pantallas (Mediciones, Cómputo, Presupuesto, Compras, Precios MO, Certificados,
+// Archivos, Historial) trabajan sobre la misma obra. Se recuerda entre sesiones.
+const OBRA_SEL_IDS = ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-cert','sel-obra-historial'];
+let obraActivaId = (() => { try { return localStorage.getItem('obra_activa_v1') || ''; } catch(e) { return ''; } })();
+function setObraActiva(id) {
+  if (!id) return;
+  obraActivaId = id;
+  try { localStorage.setItem('obra_activa_v1', id); } catch(e) {}
+  OBRA_SEL_IDS.forEach(sid => {
+    const el = document.getElementById(sid);
+    if (el && el.value !== id && [...el.options].some(o => o.value === id)) el.value = id;
+  });
+}
+// Cualquier cambio manual de obra en cualquier pantalla actualiza la obra activa (fase captura:
+// corre antes que el onchange propio del select, que después recarga la vista con la obra nueva)
+document.addEventListener('change', e => {
+  if (e.target && OBRA_SEL_IDS.includes(e.target.id)) setObraActiva(e.target.value);
+}, true);
+
 function popSelects() {
   const oe = obrasEmpresa();
-  ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-cert'].forEach(id => {
+  const activaValida = obraActivaId && oe.some(o => o.id === obraActivaId);
+  OBRA_SEL_IDS.forEach(id => {
     const el = document.getElementById(id); if (!el) return;
     el.innerHTML = oe.length
       ? oe.map(o => `<option value="${o.id}">${o.cod} — ${o.nombre}</option>`).join('')
       : '<option value="">Sin obras</option>';
+    if (activaValida) el.value = obraActivaId;
   });
 }
 
@@ -2047,7 +2075,13 @@ function computeObra(obraId) {
     const cantidad = num(med.cantidad);
     const sinDesp = (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
     const cantDesp = sinDesp ? cantidad : cantidad * desp;
-    const coefMats = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats||'[]') : []);
+    let coefMats = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats||'[]') : []);
+    // Datos de armadura detallada (widget de dimensiones) guardados en la descripción
+    const armData = splitArmDesc(med.desc || med.descripcion || '').arm;
+    const tieneArmDetalle = !!(armData.est || armData.ppal || armData.sup || armData.inf || armData.x || armData.y || armData.mlTotal || armData.cantHojas);
+    // Si hay armadura calculada elemento por elemento, el hierro "por m³" del coeficiente
+    // se descarta para no contarlo dos veces (antes se sumaban los dos → cómputo de hierro inflado)
+    if (tieneArmDetalle) coefMats = coefMats.filter(cm => !/HIERRO|ACERO|ADN|BARRA|ALAMBRE|ESTRIBO|MALLA/i.test(cm.matRef || ''));
     const matItems = coefMats.map(cm => {
       const mat = findMat(cm.matRef);
       const qtyBase = cantDesp * num(cm.coef);
@@ -2068,10 +2102,7 @@ function computeObra(obraId) {
       };
     });
 
-    // Parsear datos de armadura desde la descripción y agregar materiales dinámicos
-    const descStr = med.desc || med.descripcion || '';
-    const armData = {};
-    descStr.split('|').forEach(p => { const [k,v] = p.split(':'); if (k && v) armData[k.trim()] = v.trim(); });
+    // Materiales dinámicos de armadura (armData ya parseado arriba)
 
     if (armData.armTipo === 'hierros' && armData.hierroDiam) {
       // Hierros sueltos: buscar material por cod (MAT-001 a MAT-004)
@@ -2169,10 +2200,21 @@ function computeObra(obraId) {
           precioUnit: infMat.precio, subtotal: barrasInf * infMat.precio, matFound: true });
       }
     }
+    // Parrillas X/Y (zapata puntual, platea, losa maciza)
+    ['x','y'].forEach(dir => {
+      if (!armData[dir] || armData.armTipo) return;
+      const mat = mats.find(m => m.cod === (armData.diamPpal || 'MAT-003'));
+      const ml = num(armData[dir]);
+      const barras = Math.ceil(ml / 12);
+      if (mat && barras > 0) {
+        matItems.push({ nombre: mat.nombre + ' (' + dir.toUpperCase() + ')', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
+          cantidadBase: ml, cantidadComercial: barras, precioUnit: mat.precio, subtotal: barras * mat.precio, matFound: true });
+      }
+    });
     // Alambre para ataduras en cualquier elemento con hierros
-    if ((armData.est || armData.ppal || armData.sup || armData.inf) && !armData.armTipo) {
+    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.x || armData.y) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
-      const mlTot = num(armData.est||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0);
+      const mlTot = num(armData.est||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0) + num(armData.x||0) + num(armData.y||0);
       if (alMat && mlTot > 0) {
         const kgAl = +(mlTot * 0.03).toFixed(2);
         matItems.push({ nombre: alMat.nombre||'Alambre negro nº17', unidad: 'kg', unComercial: 'kg', divisor: 1,
@@ -2218,7 +2260,7 @@ function computeObra(obraId) {
     rubros[coef.rubro].items.push({ med, coef, cantidad, cantDesp, matItems: matItemsFilt, totalMats, totalMO, moDesc, total: totalMats + totalMO });
   });
   // Ordenar items dentro de cada rubro por código de tarea
-  Object.values(rubros).forEach(r => r.items.sort((a,b) => sortByCod(a.coef||{cod:'999'}, b.coef||{cod:'999'})));
+  Object.values(rubros).forEach(r => r.items.sort(sortMedPair));
   return rubros;
 }
 
@@ -2246,6 +2288,7 @@ function nav(page) {
       if (sel) {
         const oe = obrasEmpresa();
         sel.innerHTML = oe.length ? oe.map(o=>`<option value="${o.id}">${o.cod} — ${o.nombre}</option>`).join('') : '<option value="">Sin obras</option>';
+        if (obraActivaId && oe.some(o => o.id === obraActivaId)) sel.value = obraActivaId;
         if (oe.length) loadHistorial(sel.value);
       }
     },
@@ -2457,6 +2500,7 @@ function openModalMedicion() {
   const ubicSel = document.getElementById('med-ubicacion');
   ubicSel.innerHTML = '<option value="Global">Global (sin planta específica)</option>' + getUbicaciones(obra).map(u => `<option value="${u}">${u}</option>`).join('');
   document.getElementById('med-desc').value = '';
+  const icN = document.getElementById('med-itemcod'); if (icN) icN.value = '';
   document.getElementById('med-tarea-filter').value = '';
   onTareaChange();
   openModal('m-medicion');
@@ -2471,6 +2515,29 @@ function sortByCod(a, b) {
     if (da !== db) return da - db;
   }
   return 0;
+}
+
+// ── Código de ítem (N° Item del Excel del comitente) ──
+// Vive en mediciones.item_cod. Para mediciones viejas (antes de la columna) se lee
+// del prefijo "[2.13] ..." que el import dejaba en la descripción.
+function medItemCod(med) {
+  if (!med) return '';
+  if (med.item_cod) return String(med.item_cod);
+  const m = (med.desc || med.descripcion || '').match(/^\s*\[(\d+(?:[.,]\d+)*)\]/);
+  return m ? m[1].replace(',', '.') : '';
+}
+function stripItemCod(txt) { return (txt || '').replace(/^\s*\[\d+(?:[.,]\d+)*\]\s*/, ''); }
+// Orden de ítems dentro de un rubro: primero por N° de ítem (si lo tienen), después por código de tarea
+function sortMedPair(a, b) {
+  const ia = medItemCod(a.med), ib = medItemCod(b.med);
+  if (ia && ib) { const r = sortByCod({cod: ia}, {cod: ib}); if (r) return r; }
+  else if (ia) return -1;
+  else if (ib) return 1;
+  return sortByCod(a.coef || {cod:'999'}, b.coef || {cod:'999'});
+}
+function itemCodChip(med) {
+  const c = medItemCod(med);
+  return c ? `<span style="font-family:var(--mono);font-size:10px;background:var(--bl-l);color:var(--bl);padding:1px 5px;border-radius:3px;margin-right:5px;">${c}</span>` : '';
 }
 
 // Devuelve rubros en orden lógico (1. Tareas Preliminares, 2. Mov Suelos, etc.)
@@ -2519,6 +2586,21 @@ const EMPALME = 0.60; // longitud de empalme para ADN-420 Ø≤16 (m)
 
 function tipoEstructural(cod) {
   const c = (cod||'').toString();
+  // 1) Por NOMBRE de la tarea (resiste renumeraciones de códigos). Solo rubros estructurales.
+  const coefN = (typeof coefsEmpresa === 'function' ? coefsEmpresa() : coefs).find(x => x.cod === c);
+  if (coefN && ['Fundaciones','Hormigón Armado'].includes(coefN.rubro)) {
+    const n = (coefN.nombre || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if (/MADERA|METALIC|\bCANA\b|UPN|IPN|PERFIL|MAMPOST|LADRILLO|BLOQUE|VIGUETA|BOVEDILLA|ESCALERA|LIMPIEZA/.test(n)) return null;
+    if (/ZAPATA PUNTUAL|ZAPATA AISLADA|BASE AISLADA/.test(n)) return 'zapata_puntual';
+    if (/ZAPATA CORRIDA|BASE CORRIDA|VIGA DE FUNDACION|VIGA RIOSTRA|VIGA DE ENCADENADO INFERIOR/.test(n)) return 'zapata';
+    if (/POZO|PILOTE/.test(n)) return 'pozo';
+    if (/PLATEA/.test(n)) return 'platea';
+    if (/LOSA MACIZA|LOSA TANQUE/.test(n)) return 'losa_maciza';
+    if (/TABIQUE|MURO DE HORMIGON|MURO DE H/.test(n)) return 'tabique_hormigon';
+    if (/COLUMNA|ENCADENADO VERTICAL/.test(n)) return 'columna';
+    if (/VIGA|ENCADENADO|DINTEL/.test(n)) return 'viga';
+  }
+  // 2) Respaldo: lista de códigos conocida
   if (['4.1','4.7','4.14'].includes(c)) return 'columna';
   if (['4.2','4.3','4.4','4.5','4.6','4.8','4.15','4.16','4.17','4.18','4.19','4.20','4.21','4.22','4.23','4.24','4.25'].includes(c)) return 'viga';
   if (['4.11','4.12','4.13','4.28','4.29','4.30'].includes(c)) return 'tabique_hormigon';
@@ -2610,6 +2692,7 @@ function calcArmadura(tipo, dims) {
       mlX: +mlX.toFixed(3),
       mlY: +mlY.toFixed(3),
       cantX: cantX * cant, cantY: cantY * cant,
+      diamPpal,
       resumen: `${cant}u × ${ancho}×${largo}×${alto}m | parrilla c/${sep*100}cm`
     };
   }
@@ -2668,6 +2751,7 @@ function calcArmadura(tipo, dims) {
       mlEstribos: +mlEst.toFixed(3),
       mlPpal: +mlPpal.toFixed(3),
       cantEstribos: cantEst,
+      diamPpal,
       resumen: `Ø=${ladoA*100}cm, Prof=${ml}m | ${cantPpal} ppal, est. c/${sepEst*100}cm`
     };
   }
@@ -2686,6 +2770,7 @@ function calcArmadura(tipo, dims) {
       mlX: +mlX.toFixed(3),
       mlY: +mlY.toFixed(3),
       cantX, cantY,
+      diamPpal,
       resumen: `${ladoA}×${ladoB}m, e=${ml*100}cm | ${cantX} hierros X, ${cantY} hierros Y`
     };
   }
@@ -2698,13 +2783,222 @@ function ig(id, label, placeholder='0.00', step='0.01', extra='') {
   return `<div class="ig-item"><div class="ig-label">${label}</div><input class="ig-input" id="${id}" type="number" placeholder="${placeholder}" step="${step}" oninput="calcDimEstructural()" ${extra}></div>`;
 }
 
-function toggleArmTabique() {
-  const tipo = document.getElementById('dim-arm-tipo')?.value;
-  const divH = document.getElementById('tab-arm-hierros');
-  const divM = document.getElementById('tab-arm-malla');
+// =====================================================================
+// WIDGET DE ARMADURA — un solo generador para "Nueva medición" (P='')
+// y "Editar medición" (P='e-'). Así los dos modales tienen SIEMPRE los
+// mismos campos (dimensiones + hierro principal + estribos + diámetros).
+// =====================================================================
+function _diamSelect(id, sel, onch, opciones) {
+  const ops = opciones || [['MAT-001','Ø6mm'],['MAT-002','Ø8mm'],['MAT-003','Ø10mm'],['MAT-004','Ø12mm'],['MAT-005','Ø16mm'],['MAT-006','Ø20mm']];
+  return `<select class="ig-input" id="${id}" onchange="${onch}" style="font-family:var(--mono);font-size:11px;padding:6px;">${ops.map(([v,l]) => `<option value="${v}"${v===sel?' selected':''}>${l}</option>`).join('')}</select>`;
+}
+function armWidgetHTML(tipo, P) {
+  P = P || '';
+  const onc = P ? 'calcEditDims()' : 'calcDimEstructural()';
+  const f = (id, label, placeholder='0.00', step='0.01') =>
+    `<div class="ig-item"><div class="ig-label">${label}</div><input class="ig-input" id="${P}${id}" type="number" placeholder="${placeholder}" step="${step}" oninput="${onc}"></div>`;
+  const nota = txt => `<div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">${txt}</div>`;
+  const diam = (label, def) => `<div class="ig-item"><div class="ig-label">${label}</div>${_diamSelect(P+'dim-diam-ppal', def||'MAT-003', onc)}</div>`;
+  const pie = (lbl) => `
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Resultado calculado</div>
+        <div id="${P}arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
+      </div>
+      ${P ? '' : `<div class="ig-item"><div class="ig-label">${lbl||'M³ (calculado)'}</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`}`;
+
+  if (tipo === 'columna') return `
+      ${nota('Columna · Recubrimiento: 2.5cm · Anclaje: 25cm · Empalme automático si ML &gt; 12m')}
+      ${f('dim-la','Lado A — ancho (m)')}
+      ${f('dim-lb','Lado B — largo (m)')}
+      ${f('dim-ml','Altura libre (m)')}
+      ${f('dim-cant-elem','Cantidad de elementos','1','1')}
+      ${f('dim-np','Cant. hierros ppal','4','1')}
+      ${diam('Ø hierros ppal')}
+      ${f('dim-sep','Sep. estribos (m)','0.25')}
+      ${pie('M³ total (calculado)')}`;
+
+  if (tipo === 'viga') return `
+      ${nota('Viga · Longitud hierro = luz + luz/6 (Chandías) · Recubrimiento: 2.5cm')}
+      ${f('dim-la','Base — Lado A (m)')}
+      ${f('dim-lb','Altura — Lado B (m)')}
+      ${f('dim-ml','Longitud libre (m)')}
+      ${f('dim-cant-elem','Cantidad de elementos','1','1')}
+      ${f('dim-ns','Hierros sup. (cant)','2','1')}
+      ${f('dim-ni','Hierros inf. (cant)','2','1')}
+      ${diam('Ø hierros ppal')}
+      ${f('dim-sep','Sep. estribos (m)','0.25')}
+      ${pie('M³ total (calculado)')}`;
+
+  if (tipo === 'zapata') return `
+      ${nota('Zapata corrida · Recubrimiento: 2.5cm · Anclaje: 25cm')}
+      ${f('dim-la','Ancho base B (m)')}
+      ${f('dim-lb','Altura A (m)')}
+      ${f('dim-ml','Metros lineales (m)')}
+      ${f('dim-np','Cant. hierros ppal','4','1')}
+      ${diam('Ø hierros ppal')}
+      ${f('dim-sep','Sep. estribos (m)','0.25')}
+      ${pie()}`;
+
+  if (tipo === 'zapata_puntual') return `
+      ${nota('Zapata puntual aislada · Ancho × Largo × Alto · Parrilla en 2 direcciones · Recubrimiento: 2.5cm')}
+      ${f('dim-la','Ancho (m)')}
+      ${f('dim-lb','Largo (m)')}
+      ${f('dim-ml','Alto (m)')}
+      ${f('dim-cant','Cantidad de zapatas','1','1')}
+      ${diam('Ø parrilla', 'MAT-003')}
+      ${f('dim-sep','Sep. hierros (m)','0.20')}
+      ${pie('M³ total (calculado)')}`;
+
+  if (tipo === 'pozo') return `
+      ${nota('Pozo romano / pilote circular · Recubrimiento: 2.5cm')}
+      ${f('dim-la','Diámetro (m)')}
+      ${f('dim-ml','Profundidad (m)')}
+      ${f('dim-np','Cant. hierros ppal','6','1')}
+      ${diam('Ø hierros ppal')}
+      ${f('dim-sep','Sep. estribos (m)','0.25')}
+      ${pie()}`;
+
+  if (tipo === 'platea' || tipo === 'losa_maciza') return `
+      ${nota('Losa / Platea · Long. hierro = luz + luz/6 (Chandías)')}
+      ${f('dim-la','Lado X (m)')}
+      ${f('dim-lb','Lado Y (m)')}
+      ${f('dim-ml','Espesor (m)','0.20','0.01')}
+      ${diam('Ø hierros', 'MAT-003')}
+      ${f('dim-sep','Sep. hierros X (m)','0.20')}
+      ${f('dim-sep2','Sep. hierros Y (m)','0.20')}
+      ${pie()}`;
+
+  if (tipo === 'tabique_hormigon') return `
+      ${nota('Tabique de hormigón · Espesor × Alto × Largo · Armadura en parrilla o Malla SIMA')}
+      ${f('dim-la','Espesor (m)','0.20')}
+      ${f('dim-lb','Alto (m)')}
+      ${f('dim-ml','Largo (m)')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Tipo de armadura</div>
+        <select class="ig-input" id="${P}dim-arm-tipo" onchange="toggleArmTabique('${P}')" style="font-family:var(--mono);font-size:11px;padding:6px;">
+          <option value="hierros">Hierros sueltos (barras X + Y)</option>
+          <option value="malla">Malla SIMA</option>
+        </select>
+      </div>
+      <div id="${P}tab-arm-hierros">
+        <div class="ig-item">
+          <div class="ig-label">Diámetro barras</div>
+          ${_diamSelect(P+'dim-hierro-diam','MAT-002',onc,[['MAT-001','Ø6mm'],['MAT-002','Ø8mm'],['MAT-003','Ø10mm'],['MAT-004','Ø12mm']])}
+        </div>
+        ${f('dim-sep','Sep. hierros X (m)','0.20')}
+        ${f('dim-sep2','Sep. hierros Y (m)','0.20')}
+      </div>
+      <div id="${P}tab-arm-malla" style="display:none;">
+        <div class="ig-item" style="margin-bottom:6px;">
+          <div class="ig-label">Tipo de malla</div>
+          ${_diamSelect(P+'dim-malla-tipo','MAT-008',onc,[['MAT-007','Malla SIMA Ø5 15x25 — 3×2.4m'],['MAT-008','Malla SIMA Ø5 15x15 — 3×2.4m'],['MAT-009','Malla SIMA Ø6 15x15 — 3×2.4m']])}
+        </div>
+      </div>
+      ${pie()}`;
+
+  return '';
+}
+
+// Lee los campos del widget (P='' o 'e-') y arma el objeto dims para calcArmadura
+function readArmDims(tipo, P) {
+  P = P || '';
+  const g = id => num(document.getElementById(P + id)?.value);
+  const v = (id, def) => document.getElementById(P + id)?.value || def;
+  if (tipo === 'columna') return { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:v('dim-diam-ppal','MAT-003'), cantElem:g('dim-cant-elem')||1 };
+  if (tipo === 'viga') return { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:v('dim-diam-ppal','MAT-003'), cantElem:g('dim-cant-elem')||1 };
+  if (tipo === 'zapata') return { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:v('dim-diam-ppal','MAT-003') };
+  if (tipo === 'zapata_puntual') return { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1, diamPpal:v('dim-diam-ppal','MAT-003') };
+  if (tipo === 'tabique_hormigon') return { ancho:g('dim-la')||0.20, largo:g('dim-ml'), alto:g('dim-lb'), sep:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, armTipo:v('dim-arm-tipo','hierros'), mallaTipo:v('dim-malla-tipo','MAT-008'), hierroDiam:v('dim-hierro-diam','MAT-002') };
+  if (tipo === 'pozo') return { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6, diamPpal:v('dim-diam-ppal','MAT-003') };
+  if (tipo === 'platea' || tipo === 'losa_maciza') return { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, diamPpal:v('dim-diam-ppal','MAT-003') };
+  return {};
+}
+
+// HTML del preview de armadura (mismo texto en los dos modales)
+function armPreviewHTML(r) {
+  let html = `<b>M³ hormigón:</b> ${r.m3} m³<br>`;
+  if (r.mlEstribos) html += `<b>ML estribos (Ø6):</b> ${r.mlEstribos} ml → ${Math.ceil(r.mlEstribos/12)} barras 12m (${r.cantEstribos} estribos)<br>`;
+  if (r.mlPpal) html += `<b>ML hierros ppal:</b> ${r.mlPpal} ml → ${Math.ceil(r.mlPpal/12)} barras 12m<br>`;
+  if (r.mlSup) html += `<b>ML hierros sup:</b> ${r.mlSup} ml → ${Math.ceil(r.mlSup/12)} barras 12m<br>`;
+  if (r.mlInf) html += `<b>ML hierros inf:</b> ${r.mlInf} ml → ${Math.ceil(r.mlInf/12)} barras 12m<br>`;
+  if (r.mlX) html += `<b>ML hierros X:</b> ${r.mlX} ml (${r.cantX} barras) → ${Math.ceil(r.mlX/12)} barras 12m<br>`;
+  if (r.mlY) html += `<b>ML hierros Y:</b> ${r.mlY} ml (${r.cantY} barras) → ${Math.ceil(r.mlY/12)} barras 12m<br>`;
+  if (r.mlTotal) html += `<b>ML total:</b> ${r.mlTotal} ml → <b>${r.barras12m} barras 12m</b><br>`;
+  if (r.m2Malla) html += `<b>Malla SIMA:</b> ${r.m2Malla} m² → <b>${r.cantHojas} hojas</b> (3×2.4m)<br>`;
+  if (r.resumen) html += `<span style="color:var(--tx3);font-size:10px;">${r.resumen}</span>`;
+  return html;
+}
+
+// Serializa el resultado de armadura al formato "clave:valor|..." que lee computeObra
+function buildArmExtras(r) {
+  const extras = [];
+  if (r.mlEstribos) extras.push(`est:${r.mlEstribos}`);
+  if (r.mlPpal) extras.push(`ppal:${r.mlPpal}`);
+  if (r.mlSup) extras.push(`sup:${r.mlSup}`);
+  if (r.mlInf) extras.push(`inf:${r.mlInf}`);
+  if (r.mlX) extras.push(`x:${r.mlX}`);
+  if (r.mlY) extras.push(`y:${r.mlY}`);
+  if (r.mlTotal) extras.push(`mlTotal:${r.mlTotal}`);
+  if (r.barras12m) extras.push(`barras:${r.barras12m}`);
+  if (r.armTipo) extras.push(`armTipo:${r.armTipo}`);
+  if (r.hierroDiam) extras.push(`hierroDiam:${r.hierroDiam}`);
+  if (r.diamPpal) extras.push(`diamPpal:${r.diamPpal}`);
+  if (r.m2Malla) extras.push(`m2Malla:${r.m2Malla}`);
+  if (r.cantHojas) extras.push(`cantHojas:${r.cantHojas}`);
+  if (r.mallaTipo) extras.push(`mallaTipo:${r.mallaTipo}`);
+  if (r.resumen) extras.push(`res:${r.resumen}`);
+  return extras.join('|');
+}
+
+// Separa una descripción guardada en {base: texto humano, arm: {clave:valor}, armRaw}
+// Formato guardado: "texto libre | est:12.3|ppal:20|...|res:..."
+const _ARM_KEYS = ['est','ppal','sup','inf','x','y','mlTotal','barras','armTipo','hierroDiam','diamPpal','m2Malla','cantHojas','mallaTipo','res'];
+function splitArmDesc(desc) {
+  const s = desc || '';
+  const re = new RegExp('(?:^|\\s\\|\\s|\\|)(?=(?:' + _ARM_KEYS.join('|') + '):)');
+  const m = s.match(re);
+  if (!m) return { base: s.trim(), arm: {}, armRaw: '' };
+  const idx = m.index;
+  const base = s.slice(0, idx).replace(/\s*\|\s*$/, '').trim();
+  const armRaw = s.slice(idx).replace(/^\s*\|\s*/, '');
+  const arm = {};
+  // Un segmento que no empieza con clave conocida es continuación del anterior (el "res" contiene " | ")
+  let last = null;
+  armRaw.split('|').forEach(p => {
+    const [k, ...v] = p.split(':');
+    if (k && v.length && _ARM_KEYS.includes(k.trim())) { last = k.trim(); arm[last] = v.join(':').trim(); }
+    else if (last) arm[last] += ' | ' + p.trim();
+  });
+  return { base, arm, armRaw };
+}
+
+// Reconstruye los parámetros del widget a partir de una armadura ya guardada (campo res + diámetros)
+function armParamsFromSaved(tipo, arm) {
+  const p = {};
+  const res = (arm.res || '').replace(/,/g, '.');
+  const mCant = res.match(/^(\d+)u\s*×/); if (mCant) p.cant = parseInt(mCant[1]);
+  const mSec = res.match(/(\d+\.?\d*)×(\d+\.?\d*)cm/); if (mSec) { p.la = +(parseFloat(mSec[1])/100).toFixed(4); p.lb = +(parseFloat(mSec[2])/100).toFixed(4); }
+  const mH = res.match(/[HL]=(\d+\.?\d*)m/); if (mH) p.ml = parseFloat(mH[1]);
+  const mNp = res.match(/(\d+)Ø ppal/); if (mNp) p.np = parseInt(mNp[1]);
+  const mSup = res.match(/(\d+)↑\s*\+\s*(\d+)↓/); if (mSup) { p.ns = parseInt(mSup[1]); p.ni = parseInt(mSup[2]); }
+  const mEst = res.match(/est\. c\/(\d+\.?\d*)cm/); if (mEst) p.sep = +(parseFloat(mEst[1])/100).toFixed(3);
+  const mPar = res.match(/parrilla c\/(\d+\.?\d*)cm/); if (mPar) p.sep = +(parseFloat(mPar[1])/100).toFixed(3);
+  if (tipo === 'zapata_puntual') {
+    const mZ = res.match(/(\d+)u\s*×\s*(\d+\.?\d*)×(\d+\.?\d*)×(\d+\.?\d*)m/);
+    if (mZ) { p.cant = parseInt(mZ[1]); p.la = parseFloat(mZ[2]); p.lb = parseFloat(mZ[3]); p.ml = parseFloat(mZ[4]); }
+  }
+  if (arm.diamPpal) p.diam = arm.diamPpal;
+  return p;
+}
+
+function toggleArmTabique(P) {
+  P = P || '';
+  const tipo = document.getElementById(P + 'dim-arm-tipo')?.value;
+  const divH = document.getElementById(P + 'tab-arm-hierros');
+  const divM = document.getElementById(P + 'tab-arm-malla');
   if (divH) divH.style.display = tipo === 'hierros' ? '' : 'none';
   if (divM) divM.style.display = tipo === 'malla' ? '' : 'none';
-  calcDimEstructural();
+  if (P) calcEditDims(); else calcDimEstructural();
 }
 
 function onTareaChange() {
@@ -2714,186 +3008,8 @@ function onTareaChange() {
   const wrap = document.getElementById('med-dims-wrap');
   const tipo = tipoEstructural(coef.cod);
 
-  if (tipo === 'columna') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Recubrimiento: 2.5cm · Anclaje: 25cm · Empalme automático si ML > 12m
-      </div>
-      ${ig('dim-la','Lado A — ancho (m)')}
-      ${ig('dim-lb','Lado B — largo (m)')}
-      ${ig('dim-ml','Altura libre (m)')}
-      ${ig('dim-sep','Sep. estribos (m)','0.25')}
-      ${ig('dim-np','Cant. hierros ppal','4','1')}
-      <div class="ig-item">
-          <div class="ig-label">Ø hierros ppal</div>
-          <select class="ig-input" id="dim-diam-ppal" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
-            <option value="MAT-001">Ø6mm</option>
-            <option value="MAT-002">Ø8mm</option>
-            <option value="MAT-003" selected>Ø10mm</option>
-            <option value="MAT-004">Ø12mm</option>
-            <option value="MAT-005">Ø16mm</option>
-            <option value="MAT-006">Ø20mm</option>
-          </select>
-        </div>
-            ${ig('dim-cant-elem','Cantidad de elementos','1','1')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Resultado calculado</div>
-        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
-      </div>
-      <div class="ig-item"><div class="ig-label">M³ total (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
-  }
-
-  else if (tipo === 'viga') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Longitud hierro = luz + luz/6 (Chandías) · Recubrimiento: 2.5cm
-      </div>
-      ${ig('dim-la','Base — Lado A (m)')}
-      ${ig('dim-lb','Altura — Lado B (m)')}
-      ${ig('dim-ml','Longitud libre (m)')}
-      ${ig('dim-sep','Sep. estribos (m)','0.25')}
-      ${ig('dim-ns','Hierros sup. (cant)','2','1')}
-      ${ig('dim-ni','Hierros inf. (cant)','2','1')}
-      <div class="ig-item">
-          <div class="ig-label">Ø hierros ppal</div>
-          <select class="ig-input" id="dim-diam-ppal" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
-            <option value="MAT-001">Ø6mm</option>
-            <option value="MAT-002">Ø8mm</option>
-            <option value="MAT-003" selected>Ø10mm</option>
-            <option value="MAT-004">Ø12mm</option>
-            <option value="MAT-005">Ø16mm</option>
-            <option value="MAT-006">Ø20mm</option>
-          </select>
-        </div>
-            ${ig('dim-cant-elem','Cantidad de elementos','1','1')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Resultado calculado</div>
-        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
-      </div>
-      <div class="ig-item"><div class="ig-label">M³ total (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
-  }
-
-  else if (tipo === 'zapata') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata corrida · Recubrimiento: 2.5cm · Anclaje: 25cm
-      </div>
-      ${ig('dim-la','Ancho base B (m)')}
-      ${ig('dim-lb','Altura A (m)')}
-      ${ig('dim-ml','Metros lineales (m)')}
-      ${ig('dim-sep','Sep. estribos (m)','0.25')}
-      ${ig('dim-np','Cant. hierros ppal','4','1')}
-      <div class="ig-item">
-          <div class="ig-label">Ø hierros ppal</div>
-          <select class="ig-input" id="dim-diam-ppal" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
-            <option value="MAT-001">Ø6mm</option>
-            <option value="MAT-002">Ø8mm</option>
-            <option value="MAT-003" selected>Ø10mm</option>
-            <option value="MAT-004">Ø12mm</option>
-            <option value="MAT-005">Ø16mm</option>
-            <option value="MAT-006">Ø20mm</option>
-          </select>
-        </div>
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Resultado calculado</div>
-        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
-      </div>
-      <div class="ig-item"><div class="ig-label">M³ (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
-  }
-
-  else if (tipo === 'zapata_puntual') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata puntual aislada · Ancho × Largo × Alto · Recubrimiento: 2.5cm
-      </div>
-      ${ig('dim-la','Ancho (m)')}
-      ${ig('dim-lb','Largo (m)')}
-      ${ig('dim-ml','Alto (m)')}
-      ${ig('dim-sep','Sep. hierros (m)','0.20')}
-      ${ig('dim-cant','Cantidad de zapatas','1','1')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Resultado calculado</div>
-        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
-      </div>
-      <div class="ig-item"><div class="ig-label">M³ total (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
-  }
-
-  else if (tipo === 'tabique_hormigon') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Tabique de hormigón · Espesor × Alto × Largo · Armadura en parrilla o Malla SIMA
-      </div>
-      ${ig('dim-la','Espesor (m)','0.20')}
-      ${ig('dim-lb','Alto (m)')}
-      ${ig('dim-ml','Largo (m)')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Tipo de armadura</div>
-        <select class="ig-input" id="dim-arm-tipo" onchange="toggleArmTabique()" style="font-family:var(--mono);font-size:11px;padding:6px;">
-          <option value="hierros">Hierros sueltos (barras X + Y)</option>
-          <option value="malla">Malla SIMA</option>
-        </select>
-      </div>
-      <div id="tab-arm-hierros">
-        <div class="ig-item">
-          <div class="ig-label">Diámetro barras</div>
-          <select class="ig-input" id="dim-hierro-diam" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
-            <option value="MAT-001">Ø6mm</option>
-            <option value="MAT-002" selected>Ø8mm</option>
-            <option value="MAT-003">Ø10mm</option>
-            <option value="MAT-004">Ø12mm</option>
-          </select>
-        </div>
-        ${ig('dim-sep','Sep. hierros X (m)','0.20')}
-        ${ig('dim-sep2','Sep. hierros Y (m)','0.20')}
-      </div>
-      <div id="tab-arm-malla" style="display:none;">
-        <div class="ig-item" style="margin-bottom:6px;">
-          <div class="ig-label">Tipo de malla</div>
-          <select class="ig-input" id="dim-malla-tipo" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
-            <option value="MAT-007">Malla SIMA Ø5 15x25 — 3×2.4m</option>
-            <option value="MAT-008">Malla SIMA Ø5 15x15 — 3×2.4m</option>
-            <option value="MAT-009">Malla SIMA Ø6 15x15 — 3×2.4m</option>
-          </select>
-        </div>
-      </div>
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Resultado calculado</div>
-        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
-      </div>
-      <div class="ig-item"><div class="ig-label">M³ (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
-  }
-
-  else if (tipo === 'pozo') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Pozo romano / pilote circular · Recubrimiento: 2.5cm
-      </div>
-      ${ig('dim-la','Diámetro (m)')}
-      ${ig('dim-ml','Profundidad (m)')}
-      ${ig('dim-sep','Sep. estribos (m)','0.25')}
-      ${ig('dim-np','Cant. hierros ppal','6','1')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Resultado calculado</div>
-        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
-      </div>
-      <div class="ig-item"><div class="ig-label">M³ (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
-  }
-
-  else if (tipo === 'platea' || tipo === 'losa_maciza') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Losa / Platea · Long. hierro = luz + luz/6 (Chandías)
-      </div>
-      ${ig('dim-la','Lado X (m)')}
-      ${ig('dim-lb','Lado Y (m)')}
-      ${ig('dim-ml','Espesor (m)','0.20','0.01')}
-      ${ig('dim-sep','Sep. hierros X (m)','0.20')}
-      ${ig('dim-sep2','Sep. hierros Y (m)','0.20')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">Resultado calculado</div>
-        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
-      </div>
-      <div class="ig-item"><div class="ig-label">M³ (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
+  if (tipo) {
+    wrap.innerHTML = armWidgetHTML(tipo, '');
   }
 
   else if (coef.unidad === 'M2' || coef.unidad === 'M3') {
@@ -3045,11 +3161,10 @@ function eliminarLineaDim(idx) {
 // Formatea la descripción cruda de armadura en texto legible para mostrar en cómputo/presupuesto
 function formatArmDesc(rawDesc) {
   if (!rawDesc) return '—';
-  // Si no tiene datos de armadura (no tiene | con claves conocidas), devolver tal cual
-  if (!rawDesc.includes('|') || (!rawDesc.includes('est:') && !rawDesc.includes('armTipo:') && !rawDesc.includes('res:'))) return rawDesc;
-
-  const d = {};
-  rawDesc.split('|').forEach(p => { const [k,...v] = p.split(':'); if (k && v.length) d[k.trim()] = v.join(':').trim(); });
+  const sp = splitArmDesc(rawDesc);
+  const baseTxt = stripItemCod(sp.base);
+  if (!Object.keys(sp.arm).length) return baseTxt || '—';
+  const d = sp.arm;
 
   const parts = [];
 
@@ -3107,7 +3222,7 @@ function formatArmDesc(rawDesc) {
     parts.push(`Malla SIMA ${tipo}: ${d.m2Malla||''} m² → ${hojas} hojas`);
   }
 
-  return parts.join(' · ') || rawDesc;
+  return [baseTxt, parts.join(' · ')].filter(Boolean).join(' · ') || '—';
 }
 
 function calcDimEstructural() {
@@ -3116,42 +3231,13 @@ function calcDimEstructural() {
   if (!coef) return;
   const tipo = tipoEstructural(coef.cod);
   if (!tipo) return;
-
-  const g = id => num(document.getElementById(id)?.value);
-  let dims = {};
-
-  if (tipo === 'columna') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'viga') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'zapata') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003' };
-  else if (tipo === 'zapata_puntual') dims = { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1 };
-  else if (tipo === 'tabique_hormigon') {
-    const armTipo = document.getElementById('dim-arm-tipo')?.value || 'hierros';
-    const mallaTipo = document.getElementById('dim-malla-tipo')?.value || 'MAT-008';
-    const hierroDiam = document.getElementById('dim-hierro-diam')?.value || 'MAT-002';
-    dims = { ancho:g('dim-la')||0.20, largo:g('dim-ml'), alto:g('dim-lb'), sep:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, armTipo, mallaTipo, hierroDiam };
-  }
-  else if (tipo === 'pozo') dims = { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
-  else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20 };
-
+  const dims = readArmDims(tipo, '');
   const r = calcArmadura(tipo, dims);
   if (!r.m3) return;
-
   const preview = document.getElementById('arm-preview');
   const res = document.getElementById('dim-res');
   if (res) res.value = r.m3;
-
-  let html = `<b>M³ hormigón:</b> ${r.m3} m³<br>`;
-  if (r.mlEstribos) html += `<b>ML estribos (Ø6):</b> ${r.mlEstribos} ml → ${Math.ceil(r.mlEstribos/12)} barras 12m (${r.cantEstribos} estribos)<br>`;
-  if (r.mlPpal) html += `<b>ML hierros ppal:</b> ${r.mlPpal} ml → ${Math.ceil(r.mlPpal/12)} barras 12m<br>`;
-  if (r.mlSup) html += `<b>ML hierros sup:</b> ${r.mlSup} ml → ${Math.ceil(r.mlSup/12)} barras 12m<br>`;
-  if (r.mlInf) html += `<b>ML hierros inf:</b> ${r.mlInf} ml → ${Math.ceil(r.mlInf/12)} barras 12m<br>`;
-  if (r.mlX) html += `<b>ML hierros X:</b> ${r.mlX} ml (${r.cantX} barras) → ${Math.ceil(r.mlX/12)} paquetes<br>`;
-  if (r.mlY) html += `<b>ML hierros Y:</b> ${r.mlY} ml (${r.cantY} barras) → ${Math.ceil(r.mlY/12)} paquetes<br>`;
-  if (r.mlTotal) html += `<b>ML total:</b> ${r.mlTotal} ml → <b>${r.barras12m} barras 12m</b><br>`;
-  if (r.m2Malla) html += `<b>Malla SIMA:</b> ${r.m2Malla} m² → <b>${r.cantHojas} hojas</b> (3×2.4m)<br>`;
-  if (r.resumen) html += `<span style="color:var(--tx3);font-size:10px;">${r.resumen}</span>`;
-  if (preview) preview.innerHTML = html;
-
+  if (preview) preview.innerHTML = armPreviewHTML(r);
   // Guardar resultados para saveMedicion
   window._armResult = r;
   window._armTipo = tipo;
@@ -3168,32 +3254,17 @@ async function saveMedicion(keepOpen) {
   // Si es elemento estructural con armadura, guardamos los datos de hierros
   // en la descripción como JSON para mostrar en el cómputo
   let descFinal = desc;
-  if (window._armResult && window._armResult.m3 === cantidad) {
-    const r = window._armResult;
-    const extras = [];
-    if (r.mlEstribos) extras.push(`est:${r.mlEstribos}`);
-    if (r.mlPpal) extras.push(`ppal:${r.mlPpal}`);
-    if (r.mlSup) extras.push(`sup:${r.mlSup}`);
-    if (r.mlInf) extras.push(`inf:${r.mlInf}`);
-    if (r.mlX) extras.push(`x:${r.mlX}`);
-    if (r.mlY) extras.push(`y:${r.mlY}`);
-    if (r.mlTotal) extras.push(`mlTotal:${r.mlTotal}`);
-    if (r.barras12m) extras.push(`barras:${r.barras12m}`);
-    if (r.armTipo) extras.push(`armTipo:${r.armTipo}`);
-    if (r.hierroDiam) extras.push(`hierroDiam:${r.hierroDiam}`);
-    if (r.diamPpal) extras.push(`diamPpal:${r.diamPpal}`);
-    if (r.m2Malla) extras.push(`m2Malla:${r.m2Malla}`);
-    if (r.cantHojas) extras.push(`cantHojas:${r.cantHojas}`);
-    if (r.mallaTipo) extras.push(`mallaTipo:${r.mallaTipo}`);
-    if (r.resumen) extras.push(`res:${r.resumen}`);
-    if (extras.length) descFinal = (desc ? desc + ' | ' : '') + extras.join('|');
+  if (window._armResult && Math.abs(window._armResult.m3 - cantidad) < 0.0005) {
+    const extras = buildArmExtras(window._armResult);
+    if (extras) descFinal = (desc ? desc + ' | ' : '') + extras;
     window._armResult = null;
   }
+  const itemCod = (document.getElementById('med-itemcod')?.value || '').trim().replace(',', '.') || null;
 
   await withSync(async () => {
     const ubicacion = document.getElementById('med-ubicacion')?.value || 'Global';
     const revision = document.getElementById('sel-revision')?.value || 'Rev00';
-    const data = { obra_id: obraId, coef_id: coefId, descripcion: descFinal, cantidad, fecha: new Date().toLocaleDateString('es-AR'), ubicacion, revision };
+    const data = { obra_id: obraId, coef_id: coefId, descripcion: descFinal, cantidad, fecha: new Date().toLocaleDateString('es-AR'), ubicacion, revision, item_cod: itemCod };
     const res = await sbPost('mediciones', data);
     const med = res[0] || data;
     meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion});
@@ -3202,6 +3273,7 @@ async function saveMedicion(keepOpen) {
     if (keepOpen) {
       // Limpiar solo dims, mantener tarea y ubicación
       document.getElementById('med-desc').value = '';
+      const ic = document.getElementById('med-itemcod'); if (ic) ic.value = '';
       const wrap = document.getElementById('med-dims-wrap');
       wrap.querySelectorAll('input[type=number]').forEach(i => { if (!i.readOnly) i.value = ''; });
       onTareaChange();
@@ -3240,7 +3312,7 @@ function loadMediciones() {
     byRubro[r].push({med, coef: c});
   });
   // Ordenar ítems dentro de cada rubro por código de tarea
-  Object.values(byRubro).forEach(items => items.sort((a,b) => sortByCod(a.coef||{cod:'999'}, b.coef||{cod:'999'})));
+  Object.values(byRubro).forEach(items => items.sort(sortMedPair));
   // Ordenar rubros en orden lógico
   const rubrosOrden = ordenRubros(Object.keys(byRubro));
   body.innerHTML = rubrosOrden.map(rubro => {
@@ -3249,13 +3321,15 @@ function loadMediciones() {
     <div class="rubro-block">
       <div class="rubro-hdr"><span>${rubro}</span><span style="font-size:10px;color:var(--tx3);">${items.length} ítem${items.length!==1?'s':''}</span></div>
       <div class="rubro-body">
-        <table><thead><tr><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Descripción</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Rev / Acciones</th></tr></thead>
+        <table><thead><tr><th>Ítem</th><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Descripción</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Rev / Acciones</th></tr></thead>
         <tbody>${items.map(({med,coef}) => {
           const sinDesp = coef && (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
           const cantDesp = sinDesp ? num(med.cantidad) : num(med.cantidad)*desp;
-          return `<tr>
+          const aClasif = coef && /^ITEM A CLASIFICAR/.test(_normN(coef.nombre));
+          return `<tr${aClasif ? ' style="background:var(--re-l,#fdecea);"' : ''}>
+          <td style="font-family:var(--mono);font-size:10px;color:var(--bl);white-space:nowrap;">${medItemCod(med) || '—'}</td>
           <td style="font-size:10px;color:var(--tx3);">${coef?coef.cod:''}</td>
-          <td class="hi">${coef?coef.nombre:'(eliminada)'}</td>
+          <td class="hi">${coef?coef.nombre:'(eliminada)'}${aClasif ? ' <span style="font-size:9px;color:var(--re);">⚠ reasignar tarea</span>' : ''}</td>
           <td style="font-size:10px;color:${med.ubicacion && med.ubicacion !== 'Global' ? 'var(--bl)' : 'var(--tx3)'};">${med.ubicacion||'Global'}</td>
           <td>${formatArmDesc(med.desc||med.descripcion)||'—'}</td>
           <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
@@ -3293,6 +3367,7 @@ async function dupMed(medId) {
       cantidad: med.cantidad,
       fecha: new Date().toLocaleDateString('es-AR'),
       ubicacion: med.ubicacion || 'Global',
+      item_cod: med.item_cod || null,
       revision
     };
     const res = await sbPost('mediciones', data);
@@ -3324,106 +3399,39 @@ function onEditTareaChange() {
 
 function _buildEditDimsWrap(coef, wrap) {
   const tipo = tipoEstructural(coef.cod);
+  window._editArm = null;
   if (!tipo) { wrap.innerHTML = ''; return; }
-  // Función ig local para edit (usa calcEditDims en lugar de calcDimEstructural)
-  function ige(id, label, placeholder='0.00', step='0.01') {
-    return `<div class="ig-item"><div class="ig-label">${label}</div><input class="ig-input" id="e-${id}" type="number" placeholder="${placeholder}" step="${step}" oninput="calcEditDims()"></div>`;
-  }
-  if (tipo === 'zapata_puntual') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata puntual aislada · Ancho × Largo × Alto · Recubrimiento: 2.5cm
-      </div>
-      ${ige('dim-la','Ancho (m)')}
-      ${ige('dim-lb','Largo (m)')}
-      ${ige('dim-ml','Alto (m)')}
-      ${ige('dim-cant-elem','Cantidad de zapatas','1','1')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">M³ calculado → actualiza cantidad</div>
-        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
-      </div>`;
-  } else if (tipo === 'columna') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Columna · Lado A × Lado B × Altura libre
-      </div>
-      ${ige('dim-la','Lado A — ancho (m)')}
-      ${ige('dim-lb','Lado B — largo (m)')}
-      ${ige('dim-ml','Altura libre (m)')}
-      ${ige('dim-cant-elem','Cantidad de columnas','1','1')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">M³ calculado → actualiza cantidad</div>
-        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
-      </div>`;
-  } else if (tipo === 'viga') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Viga · Base × Altura × Longitud
-      </div>
-      ${ige('dim-la','Base — Lado A (m)')}
-      ${ige('dim-lb','Altura — Lado B (m)')}
-      ${ige('dim-ml','Longitud libre (m)')}
-      ${ige('dim-cant-elem','Cantidad de vigas','1','1')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">M³ calculado → actualiza cantidad</div>
-        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
-      </div>`;
-  } else if (tipo === 'zapata') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata corrida · Ancho × Altura × Metros lineales
-      </div>
-      ${ige('dim-la','Ancho base (m)')}
-      ${ige('dim-lb','Altura (m)')}
-      ${ige('dim-ml','Metros lineales (m)')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">M³ calculado → actualiza cantidad</div>
-        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
-      </div>`;
-  } else if (tipo === 'losa') {
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Losa · Superficie × Espesor
-      </div>
-      ${ige('dim-la','Superficie (m²)')}
-      ${ige('dim-lb','Espesor (m)','0.15')}
-      <div class="ig-item" style="grid-column:1/-1;">
-        <div class="ig-label">M³ calculado → actualiza cantidad</div>
-        <div id="e-dim-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);min-height:32px;"></div>
-      </div>`;
-  } else {
-    wrap.innerHTML = '';
-  }
+  // Mismo widget que "Nueva medición": dimensiones + hierro ppal + estribos + diámetros
+  wrap.innerHTML = armWidgetHTML(tipo, 'e-');
 }
 
 function calcEditDims() {
-  const la = parseFloat(document.getElementById('e-dim-la')?.value) || 0;
-  const lb = parseFloat(document.getElementById('e-dim-lb')?.value) || 0;
-  const ml = parseFloat(document.getElementById('e-dim-ml')?.value) || 0;
-  const cant = parseFloat(document.getElementById('e-dim-cant-elem')?.value) || 1;
-  const preview = document.getElementById('e-dim-preview');
+  const preview = document.getElementById('e-arm-preview');
+  window._editArm = null;
   if (!preview) return;
-  let m3 = 0;
   const sel = document.getElementById('edit-med-tarea');
   const coef = coefs.find(c => c.id === sel?.value);
   const tipo = tipoEstructural(coef?.cod || '');
-  if (tipo === 'losa') {
-    m3 = la * lb; // superficie × espesor
-  } else {
-    // Si falta el largo/altura, NO asumir 1: avisar y no tocar la cantidad
-    if (la > 0 && lb > 0 && !(ml > 0)) {
-      preview.textContent = `${la} × ${lb} × … — falta el largo/altura para calcular (la cantidad no se modificó)`;
-      return;
-    }
-    m3 = la * lb * ml * cant;
+  if (!tipo) return;
+  const dims = readArmDims(tipo, 'e-');
+  const r = calcArmadura(tipo, dims);
+  if (!r.m3) {
+    // Si falta una dimensión NO asumir 1: avisar y no tocar la cantidad
+    preview.innerHTML = '<span style="color:var(--am);">Completá las tres dimensiones para calcular — la cantidad no se modificó.</span>';
+    return;
   }
-  m3 = +m3.toFixed(4);
-  if (m3 > 0) {
-    preview.textContent = `${la} × ${lb}${ml ? ' × ' + ml : ''} × ${cant} = ${m3} m³`;
-    document.getElementById('edit-med-cant').value = m3;
-  } else {
-    preview.textContent = '';
-  }
+  preview.innerHTML = armPreviewHTML(r) + `<br><span style="color:var(--bl);font-size:10px;">→ La cantidad se actualizó a ${r.m3} m³</span>`;
+  document.getElementById('edit-med-cant').value = r.m3;
+  window._editArm = { tipo, r };
+}
+
+// Carga valores en los campos del widget de edición (solo los que vienen definidos)
+function _setEditDims(v) {
+  const set = (id, val) => { const el = document.getElementById('e-' + id); if (el && val !== undefined && val !== null && val !== '') el.value = val; };
+  set('dim-la', v.la); set('dim-lb', v.lb); set('dim-ml', v.ml);
+  set('dim-cant-elem', v.cant); set('dim-cant', v.cant);
+  set('dim-np', v.np); set('dim-ns', v.ns); set('dim-ni', v.ni);
+  set('dim-sep', v.sep); set('dim-diam-ppal', v.diam);
 }
 
 
@@ -3543,8 +3551,12 @@ function openEditMed(medId) {
   ubicSel.innerHTML = '<option value="Global">Global</option>' + getUbicaciones(obra).map(u => `<option value="${u}">${u}</option>`).join('');
   ubicSel.value = med.ubicacion || 'Global';
 
-  // Llenar campos
-  document.getElementById('edit-med-desc').value = med.desc || med.descripcion || '';
+  // Llenar campos — la descripción se muestra SIN los datos técnicos de armadura
+  // (se regeneran al guardar desde el widget) ni el [código de ítem] (tiene campo propio)
+  const _split = splitArmDesc(med.desc || med.descripcion || '');
+  window._editOrig = { armRaw: _split.armRaw, arm: _split.arm };
+  document.getElementById('edit-med-desc').value = stripItemCod(_split.base);
+  const icE = document.getElementById('edit-med-itemcod'); if (icE) icE.value = medItemCod(med);
   document.getElementById('edit-med-cant').value = num(med.cantidad);
   document.getElementById('edit-med-rev').value = med.revision || 'Rev00';
   document.getElementById('edit-med-rev-nota').value = '';
@@ -3554,9 +3566,16 @@ function openEditMed(medId) {
   const wrap = document.getElementById('edit-med-dims-wrap');
   if (coef) {
     _buildEditDimsWrap(coef, wrap);
-    // Pre-cargar dimensiones desde la descripción
-    const desc = med.desc || med.descripcion || '';
-    const dims = extractDimsFromDesc(desc);
+    const tipoE = tipoEstructural(coef.cod);
+    window._editOrig.tipo = tipoE;
+    // 1) Si la medición ya tiene armadura guardada, reconstruir el widget desde ahí
+    const saved = tipoE && Object.keys(_split.arm).length ? armParamsFromSaved(tipoE, _split.arm) : null;
+    if (saved && saved.la && saved.lb && saved.ml) {
+      setTimeout(() => { _setEditDims(saved); calcEditDims(); }, 50);
+    } else {
+    // 2) Si no, pre-cargar dimensiones desde el texto de la descripción
+    const desc = _split.base;
+    const dims = tipoE ? extractDimsFromDesc(desc) : null;
     if (dims) {
       const cantMed = num(med.cantidad);
       let skipCalcPrefill = false;
@@ -3586,17 +3605,15 @@ function openEditMed(medId) {
         }
       }
       setTimeout(() => {
-        if (document.getElementById('e-dim-la')) document.getElementById('e-dim-la').value = dims.la || '';
-        if (document.getElementById('e-dim-lb')) document.getElementById('e-dim-lb').value = dims.lb || '';
-        if (document.getElementById('e-dim-ml')) document.getElementById('e-dim-ml').value = dims.ml || '';
-        if (document.getElementById('e-dim-cant-elem')) document.getElementById('e-dim-cant-elem').value = dims.cant || 1;
+        _setEditDims({ la: dims.la || '', lb: dims.lb || '', ml: dims.ml || '', cant: dims.cant || 1 });
         if (skipCalcPrefill) {
-          const pv = document.getElementById('e-dim-preview');
+          const pv = document.getElementById('e-arm-preview');
           if (pv) pv.textContent = 'Las dimensiones del texto no coinciden con la cantidad cargada — ajustá algún campo para recalcular (la cantidad no se modificó)';
         } else {
           calcEditDims();
         }
       }, 50);
+    }
     }
   }
 
@@ -3796,8 +3813,16 @@ async function saveEditMed() {
   if (!med) return;
 
   const newCoefId = document.getElementById('edit-med-tarea').value;
-  const newDesc = document.getElementById('edit-med-desc').value.trim();
+  const newDescBase = document.getElementById('edit-med-desc').value.trim();
   const newCant = num(document.getElementById('edit-med-cant').value);
+  const newItemCod = (document.getElementById('edit-med-itemcod')?.value || '').trim().replace(',', '.') || null;
+  // Armadura: si el widget calculó, se regenera; si no, se conserva la que había (misma familia de tarea)
+  const coefNew = coefs.find(c => c.id === newCoefId);
+  const tipoNew = coefNew ? tipoEstructural(coefNew.cod) : null;
+  let armStr = '';
+  if (tipoNew && window._editArm && window._editArm.tipo === tipoNew) armStr = buildArmExtras(window._editArm.r);
+  else if (tipoNew && window._editOrig?.armRaw && window._editOrig.tipo === tipoNew) armStr = window._editOrig.armRaw;
+  const newDesc = newDescBase + (armStr ? (newDescBase ? ' | ' : '') + armStr : '');
   const newUbic = document.getElementById('edit-med-ubic').value;
   const revNota = document.getElementById('edit-med-rev-nota').value.trim();
 
@@ -3806,7 +3831,8 @@ async function saveEditMed() {
   const oldDesc = med.desc || med.descripcion || '';
   const oldCant = num(med.cantidad);
   const oldUbic = med.ubicacion || 'Global';
-  const changed = newCoefId !== oldCoefId || newDesc !== oldDesc || newCant !== oldCant || newUbic !== oldUbic;
+  const oldItemCod = med.item_cod || null;
+  const changed = newCoefId !== oldCoefId || newDesc !== oldDesc || newCant !== oldCant || newUbic !== oldUbic || newItemCod !== oldItemCod;
 
   if (!changed && !revNota) {
     closeModal('m-edit-med');
@@ -3824,6 +3850,7 @@ async function saveEditMed() {
       descripcion: newDesc,
       cantidad: newCant,
       ubicacion: newUbic,
+      item_cod: newItemCod,
       revision: newRev,
       revision_fecha: new Date().toLocaleDateString('es-AR'),
       revision_nota: revNota || (changed ? 'Editado' : '')
@@ -3839,6 +3866,7 @@ async function saveEditMed() {
     med.descripcion = newDesc;
     med.cantidad = newCant;
     med.ubicacion = newUbic;
+    med.item_cod = newItemCod;
     med.revision = newRev;
     med.revision_fecha = patch.revision_fecha;
     med.revision_nota = patch.revision_nota;
@@ -3878,7 +3906,7 @@ function loadComputo() {
         <div class="med-item">
           <div class="med-hdr" onclick="toggleBody('mb-${rubro.replace(/\s/g,'-')}-${idx}')">
             <div>
-              <div class="med-name">${item.med.etiqueta ? '<span style="font-family:var(--mono);font-size:10px;background:var(--surf2);padding:1px 5px;border-radius:3px;margin-right:5px;color:var(--tx2);">'+item.med.etiqueta+'</span>' : ''}${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' — <span style="color:var(--tx3);">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>':''}</div>
+              <div class="med-name">${itemCodChip(item.med)}${item.med.etiqueta ? '<span style="font-family:var(--mono);font-size:10px;background:var(--surf2);padding:1px 5px;border-radius:3px;margin-right:5px;color:var(--tx2);">'+item.med.etiqueta+'</span>' : ''}${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' — <span style="color:var(--tx3);">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>':''}</div>
               <div class="med-meta"><span>${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:3})} ${item.coef.unidad}</span><span style="color:var(--am);">+${desperdicio}% → ${item.cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</span><span style="color:var(--tx3);">▾ ver detalle</span></div>
             </div>
             <div style="text-align:right;"><div style="font-size:12px;font-weight:500;">${$p(item.total)}</div><div style="font-size:9px;color:var(--tx3);margin-top:2px;">mat+MO</div></div>
@@ -5086,8 +5114,8 @@ async function renderCertDetalle(certId) {
       const nombreTarea = coef ? coef.nombre : '—';
 
       rubroHTML += `<tr>
-        <td style="font-size:10px;">${coef?.cod||''}</td>
-        <td class="hi" style="font-size:11px;">${nombreTarea}${desc?' <span style="color:var(--tx3);font-size:10px;">— '+desc+'</span>':''}</td>
+        <td style="font-size:10px;white-space:nowrap;"><span style="font-family:var(--mono);color:var(--bl);">${medItemCod(med)}</span>${medItemCod(med)?' · ':''}<span style="color:var(--tx3);">${coef?.cod||''}</span></td>
+        <td class="hi" style="font-size:11px;">${nombreTarea}${desc?' <span style="color:var(--tx3);font-size:10px;">— '+formatArmDesc(desc)+'</span>':''}</td>
         <td class="num" style="font-size:10px;">${cantBase.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
         <td style="font-size:10px;">${coef?.unidad||''}</td>
         <td><input class="inline-num" type="text" style="width:90px;" placeholder="contratista"
@@ -5460,6 +5488,20 @@ function detectSubtipo(t) {
 
   // ══ PINTURA SOBRE METAL — el esmalte prima sobre herrería/pérgola/perfiles ══
   if (t.includes('ESMALTE')) return 'esmalte';
+  // ══ BARNIZ / LASUR — prima sobre "columna/viga de madera" (es pintura, no estructura) ══
+  if (t.includes('BARNIZ') || t.includes('LASUR')) return 'barniz';
+
+  // ══ AZOTADO — ANTES que losas ("Azotado cementicio en cielorraso, sector losa de viguetas") ══
+  if (t.includes('AZOTADO')) return 'rev_azotado';
+
+  // ══ CAÑA — ANTES que columnas ("C8-Cubierta Caña Exterior": el C8- es la etiqueta, no una columna) ══
+  if (/\bCANAS?\b|CANIZO|ENCANIZADO|TACUARA/.test(t)) return 'cubierta_cana';
+
+  // ══ ESTRUCTURA DE MADERA — ANTES que columnas/vigas de Hº ══
+  if (t.includes('MADERA') && !/CIELORRASO|CIELORASO|PISO|DECK|PUERTA|VENTANA|REVESTIM|ZOCALO|MUEBLE|MESADA|BARANDA|PERGOLA|ENCOFRADO/.test(t)) {
+    if (/COLUMNA|PILAR|POSTE|PARANTE|\bC\d+\s*[-–]/.test(t)) return 'madera_col';
+    if (/VIGA|TIRANTE|CABRIADA|CORREA|\bV\d*\s*[-–]/.test(t)) return 'madera_viga';
+  }
 
   // ══ PÉRGOLA — ANTES que UPN/IPN (una pérgola suele describirse con esos perfiles) ══
   if (t.includes('PERGOLA')) return 'pergola';
@@ -5487,6 +5529,9 @@ function detectSubtipo(t) {
   // ══ FUNDACIONES — bases, zapatas ══
   if (t.includes('BASE AISLADA') || t.includes('ZAPATA AISLADA') || t.includes('ZAPATA PUNTUAL') || t.match(/\bBASE\s+B\d/)) return 'zapata_puntual';
   if (t.includes('ZAPATA CORRIDA') || t.includes('BASE CORRIDA')) return 'zapata_corrida';
+  // Casali: "Zapata ZC1 (50x30) - PB (178 ml)" → corrida. ZC = zapata corrida; si trae ml también.
+  if (t.match(/\bZC\d*\b/) || (t.includes('ZAPATA') && /\d\s*ML\b/.test(t))) return 'zapata_corrida';
+  if (t.includes('ZAPATA')) return /\(\s*[\d.,]+\s*X\s*[\d.,]+\s*X\s*[\d.,]+\s*\)/.test(t) ? 'zapata_puntual' : 'zapata_corrida';
   if (t.includes('PLATEA')) return 'platea';
   if ((t.includes('VIGA') && (t.includes('FUNDACION') || t.includes('FUND'))) || t.match(/\bVF\b/) || t.includes('VIGA RIOSTRA') || t.match(/\bVR\b/)) return 'viga_fund';
   if (t.includes('POZO ROMANO') || t.includes('PILOTE')) return 'pozo_romano';
@@ -5495,14 +5540,18 @@ function detectSubtipo(t) {
   // ══ ESTRUCTURA — encadenado vertical (Ce, Ce1, Ce2) — ANTES de columnas Cn ══
   if (t.match(/\bCE\d*\s*[-–]/) || (t.includes('ENCADENADO') && t.includes('VERTICAL'))) return 'encadenado_vert';
 
+  // ══ ESTRUCTURA — vigas de encadenado (VE, VE1...) — ANTES de columnas y vigas genéricas ══
+  if (t.match(/\bVE\d*\s*[-–]/) || t.match(/^\s*VE\d*\b/)) return 'encadenado_horiz';
+
   // ══ ESTRUCTURA — columnas Hº elaborado (default H17) ══
-  if (t.match(/\bC\d+\s*[-–]/) || (t.includes('COLUMNA') && !t.includes('METALIC'))) return 'columna_elab';
+  // El patrón "C8-" solo cuenta como columna si el texto no habla de cubierta/techo (es la etiqueta del ítem)
+  if ((t.match(/\bC\d+\s*[-–]/) && !/CUBIERTA|TECHO|CHAPA|TEJA|MEMBRANA|CIELORRASO/.test(t)) || (t.includes('COLUMNA') && !t.includes('METALIC'))) return 'columna_elab';
 
   // ══ ESTRUCTURA — encadenado horizontal (EH, EH1) ══
   if (t.match(/\bEH\d*\s*[-–]/) || (t.includes('ENCADENADO') && (t.includes('HORIZONTAL') || t.includes('HORIZ')))) return 'encadenado_horiz';
 
   // ══ ESTRUCTURA — vigas (V -, NB -, NB1) ══
-  if (t.match(/^\s*V\s*[-–]/) || t.match(/\bNB\d*\s*[-–]/) || (t.includes('VIGA') && !t.includes('METALIC') && !t.includes('FUND') && !t.includes('RIOSTRA'))) return 'viga_elab';
+  if (t.match(/^\s*V\d*\s*[-–]/) || t.match(/\bNB\d*\s*[-–]/) || (t.includes('VIGA') && !t.includes('METALIC') && !t.includes('FUND') && !t.includes('RIOSTRA'))) return 'viga_elab';
 
   // ══ ESTRUCTURA — losas ══
   if (t.includes('LOSA MACIZA') || (t.includes('LOSA') && t.includes('MACIZA')) || t.includes('LOSA TANQUE')) return 'losa_maciza';
@@ -5739,6 +5788,48 @@ const MAP_SUBTIPO = {
   'armadura': '4.7', 'hormigon_llenado': '4.7'
 };
 
+// Subtipos que se resuelven por NOMBRE de la tarea (no por código fijo): así no dependen
+// de qué número les tocó al insertarlas en Supabase. Se evalúan ANTES que MAP_SUBTIPO.
+const MAP_SUBTIPO_NOMBRE = {
+  'madera_col':    /^COLUMNA DE MADERA/,
+  'madera_viga':   /^VIGA DE MADERA/,
+  'cubierta_cana': /^CUBIERTA DE CANA/
+};
+function _normN(s) { return (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim(); }
+
+// Hº elaborado: si el texto no dice H21, se usa H17 (default pedido). Si dice H21, H21.
+// Busca la tarea "gemela" cambiando solo H17↔H21 en el nombre, dentro del mismo rubro.
+function ajustarCalidadHormigon(c, texto) {
+  if (!c) return c;
+  const n = _normN(c.nombre);
+  const m = n.match(/\bH\s?-?\s?(17|21)\b/);
+  if (!m) return c;                          // no es una tarea con calidad de Hº
+  const t = _normN(texto);
+  const objetivo = /\bH\s?-?\s?21\b/.test(t) ? '21' : '17';
+  if (m[1] === objetivo) return c;
+  const buscado = n.replace(m[0], 'H' + objetivo);
+  const alt = coefsEmpresa().find(x => x.id !== c.id && x.rubro === c.rubro && _normN(x.nombre) === buscado);
+  return alt || c;
+}
+
+// Asigna la tarea (coeficiente) a una fila del Excel. Se usa en el import Y en la vista previa.
+function resolverCoefImport(item) {
+  const ce = coefsEmpresa();
+  let c = null;
+  if (item.subtipo && MAP_SUBTIPO_NOMBRE[item.subtipo]) c = ce.find(x => MAP_SUBTIPO_NOMBRE[item.subtipo].test(_normN(x.nombre)));
+  if (!c && item.subtipo && MAP_SUBTIPO[item.subtipo]) c = ce.find(x => x.cod === MAP_SUBTIPO[item.subtipo]) || coefs.find(x => x.cod === MAP_SUBTIPO[item.subtipo]);
+  if (c) return ajustarCalidadHormigon(c, item.desc);
+  // Sin detección: SOLO se acepta el rubro si su tarea genérica es de precio libre (sin materiales).
+  // Nunca más "primer coeficiente del rubro" con materiales (era el bug de ZC1/VE1 → Columnas H17).
+  const rubroCoefs = ce.filter(x => x.rubro === item.rubro).sort(sortByCod);
+  const libre = rubroCoefs.find(x => num(x.mo_rend) === 0 && (!x.mats || x.mats === '[]' || (Array.isArray(x.mats) && !x.mats.length)));
+  if (libre) return libre;
+  const aClasificar = ce.find(x => /^ITEM A CLASIFICAR/.test(_normN(x.nombre)));
+  if (aClasificar) return aClasificar;
+  // Último recurso (si todavía no se creó la tarea "Ítem a clasificar")
+  return rubroCoefs[0] || ce.find(x => x.cod === '17.1') || ce.find(x => x.rubro === 'Varios') || coefs[0];
+}
+
 // =====================================================================
 // ARNÉS DE TESTS DEL LECTOR — correr testLector() en la consola (F12)
 // Cada Excel corregido suma casos acá. Un fix nunca más rompe un caso viejo sin avisar.
@@ -5832,6 +5923,19 @@ const TEST_CASES_LECTOR = [
   ['Vereda perimetral de hormigón', 'vereda'],
   ['Asador c/parrilla enlozada', 'asador'],
   ['Escalera HºAº 18 escalones', 'escalera'],
+  // Casali — revisión oct-2026 (foto 2)
+  ['C8-Cubierta Caña Exterior', 'cubierta_cana'],
+  ['Columna Madera - (0,20x0,20) - 6 unid - (3,0 m de altura)', 'madera_col'],
+  ['Vigas de Madera - verificar sección', 'madera_viga'],
+  ['Zapata ZC1 (50x30) - PB (178.1356 ml)', 'zapata_corrida'],
+  ['Zapata ZC2 (60x30) - PB (6.2264 ml)', 'zapata_corrida'],
+  ['VE1 - (12x22),(18x22)', 'encadenado_horiz'],
+  ['VE4 - (18x22) (1.5058 ml)', 'encadenado_horiz'],
+  ['V1 - (18x40),(18x42)', 'viga_elab'],
+  ['AZ - Azotado Cementicio en cielorraso interior, sector losa de viguetas', 'rev_azotado'],
+  ['Losa de Viguetas s/PB', 'losa_vigueta'],
+  ['Barniz en columnas de madera', 'barniz'],
+  ['C9- Cubierta de chapa trapezoidal', 'cubierta_chapa'],
 ];
 
 function testLector(verbose) {
@@ -5843,7 +5947,10 @@ function testLector(verbose) {
   });
   // Chequeo de integridad: todo subtipo esperado debe estar en MAP_SUBTIPO,
   // y todo código del mapa debe existir en los coeficientes cargados
-  const sinMapa = [...new Set(TEST_CASES_LECTOR.map(tc => tc[1]))].filter(s => !MAP_SUBTIPO[s]);
+  const sinMapa = [...new Set(TEST_CASES_LECTOR.map(tc => tc[1]))].filter(s => !MAP_SUBTIPO[s] && !MAP_SUBTIPO_NOMBRE[s]);
+  const nombresSinTarea = (typeof coefs !== 'undefined' && coefs.length)
+    ? Object.entries(MAP_SUBTIPO_NOMBRE).filter(([s, re]) => !coefsEmpresa().some(c => re.test(_normN(c.nombre)))).map(([s]) => s) : [];
+  if (nombresSinTarea.length) console.warn('Subtipos por nombre SIN tarea en Supabase (correr el SQL de tareas nuevas):', nombresSinTarea);
   const codsInexistentes = (typeof coefs !== 'undefined' && coefs.length)
     ? Object.entries(MAP_SUBTIPO).filter(([s, cod]) => !coefs.some(c => c.cod === cod))
     : 'coefs no cargados aún — abrí la app logueado y volvé a correr';
@@ -5866,9 +5973,9 @@ function processImportRows(rows) {
   let colMap={nItem:0,desc:1,cant:2,un:3,contratista:4,costoUnit:5}, headerFound=false;
   for(let i=0;i<Math.min(rows.length,25);i++){const row=rows[i];if(!row)continue;const rowStr=row.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('DESIGNAC')||rowStr.includes('CANT')){for(let j=0;j<row.length;j++){const h=String(row[j]||'').toUpperCase().trim();if(h.includes('ITEM')||h.includes('N°'))colMap.nItem=j;if(h.includes('DESIGNAC')||h.includes('DESCRIPCI'))colMap.desc=j;if(h==='CANT.'||h==='CANT'||h==='CANTIDAD')colMap.cant=j;if(h==='UN.'||h==='UN'||h==='UNIDAD')colMap.un=j;if(h.includes('CONTRATISTA'))colMap.contratista=j;if(h.includes('COSTO UNIT'))colMap.costoUnit=j;}headerFound=true;break;}}
   let debugRows=[];
-  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=String(row[colMap.nItem]||'').trim(),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const u=detectUbic(col1);if(u)currentUbicacion=u;const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=/^\d+[\.,]\d+$/.test(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
+  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const _rawIt=row[colMap.nItem],col0=(typeof _rawIt==='number'&&!Number.isInteger(_rawIt)&&Math.abs(_rawIt*100-Math.round(_rawIt*100))<1e-6)?_rawIt.toFixed(2):String(_rawIt??'').trim().replace(/^(\d+),(\d+)$/,'$1.$2'),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const u=detectUbic(col1);if(u)currentUbicacion=u;const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=/^\d+[\.,]\d+$/.test(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
     const esMetadato = /^\[0\.\d+\]/.test(col1) || /^0\.\d+$/.test(col0);
-    if(col1.length>2&&cantVal>0&&!esMetadato){importData.push({nItem:hasNum?col0:(importData.length+1).toString(),desc:col1,cant:cantVal,unidad:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:currentUbicacion,subtipo:detectSubtipo(col1),incluir:true});}}
+    if(col1.length>2&&cantVal>0&&!esMetadato){importData.push({nItem:hasNum?col0:(importData.length+1).toString(),itemCod:hasNum?col0:'',desc:col1,cant:cantVal,unidad:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:currentUbicacion,subtipo:detectSubtipo(col1),incluir:true});}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
   marcarImportDuplicados();
   renderImportPreview();
@@ -5880,7 +5987,7 @@ function renderImportPreview() {
   btn.disabled=false;
   const byRubro={};importData.forEach((item,idx)=>{if(!byRubro[item.rubro])byRubro[item.rubro]=[];byRubro[item.rubro].push({...item,idx});});
   let totalCosto=0;importData.filter(i=>i.costoUnit>0).forEach(i=>totalCosto+=i.costoUnit*i.cant);
-  preview.innerHTML=Object.entries(byRubro).map(([rubro,items])=>`<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${rubro||'Sin rubro'}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body" style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:250px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>Contratista</th><th>Costo</th><th>✓</th></tr></thead><tbody>${items.map(item=>`<tr style="${item.costoUnit>0?'':'opacity:0.5;'}"><td>${item.nItem}</td><td>${item.existe ? '<span style="font-size:9px;background:#fff3cd;color:#8a6d00;padding:1px 5px;border-radius:4px;margin-right:4px;">ya existe</span>' : ''}${item.desc}</td><td class="num">${item.cant}</td><td>${item.unidad}</td><td style="font-size:10px;color:var(--bl);">${item.ubicacion}</td><td style="font-size:10px;">${item.contratista}</td><td class="num">${item.costoUnit?$p(item.costoUnit):'—'}</td><td><input type="checkbox" ${item.incluir?'checked':''} onchange="importData[${item.idx}].incluir=this.checked"></td></tr>`).join('')}</tbody></table></div></div>`).join('');
+  preview.innerHTML=Object.entries(byRubro).map(([rubro,items])=>`<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${rubro||'Sin rubro'}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body" style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:250px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>→ Tarea asignada</th><th>Contratista</th><th>Costo</th><th>✓</th></tr></thead><tbody>${items.map(item=>{const _c=resolverCoefImport(item);const _mal=!_c||/^ITEM A CLASIFICAR/.test(_normN(_c.nombre))||!item.subtipo;return `<tr style="${item.costoUnit>0?'':'opacity:0.5;'}"><td>${item.nItem}</td><td>${item.existe ? '<span style="font-size:9px;background:#fff3cd;color:#8a6d00;padding:1px 5px;border-radius:4px;margin-right:4px;">ya existe</span>' : ''}${item.desc}</td><td class="num">${item.cant}</td><td>${item.unidad}</td><td style="font-size:10px;color:var(--bl);">${item.ubicacion}</td><td style="font-size:10px;${_mal?'color:var(--re);':''}">${_c?_c.cod+' — '+_c.nombre:'—'}${_mal?' ⚠':''}</td><td style="font-size:10px;">${item.contratista}</td><td class="num">${item.costoUnit?$p(item.costoUnit):'—'}</td><td><input type="checkbox" ${item.incluir?'checked':''} onchange="importData[${item.idx}].incluir=this.checked"></td></tr>`;}).join('')}</tbody></table></div></div>`).join('');
   stats.innerHTML=`<div class="stats-grid"><div class="stat"><div class="stat-label">Ítems</div><div class="stat-value">${importData.length}</div></div><div class="stat"><div class="stat-label">Con precio</div><div class="stat-value">${importData.filter(i=>i.costoUnit>0).length}</div></div><div class="stat"><div class="stat-label">Costo total</div><div class="stat-value">${$p(totalCosto)}</div></div><div class="stat"><div class="stat-label">Rubros</div><div class="stat-value">${Object.keys(byRubro).length}</div></div></div>`;
 }
 
@@ -5929,28 +6036,13 @@ async function saveImport() {
     await sbPost('cert_config', { obra_id: obraId, k });
     } // fin obra nueva
 
-    // 3. Buscar coeficiente genérico por rubro para cada item
-    function findCoefForItem(item) {
-      const mapSubtipo = MAP_SUBTIPO; // global, testeable con testLector()
-      if (item.subtipo && mapSubtipo[item.subtipo]) {
-        const c = coefs.find(x => x.cod === mapSubtipo[item.subtipo]);
-        if (c) return c.id;
-      }
-      // Match por rubro → primer coeficiente genérico del rubro
-      const rubroCoefs = coefsEmpresa().filter(c => c.rubro === item.rubro);
-      if (rubroCoefs.length) {
-        // Preferir precio libre (mo_rend === 0)
-        const libre = rubroCoefs.find(c => num(c.mo_rend) === 0);
-        return (libre || rubroCoefs[0]).id;
-      }
-      // Fallback final: Varios (17.x). El viejo '19.1' no existe desde la renumeración.
-      const varios = coefsEmpresa().find(c => c.cod === '17.1') || coefsEmpresa().find(c => c.rubro === 'Varios');
-      return varios ? varios.id : coefs[0]?.id;
-    }
+    // 3. Asignar tarea a cada ítem (misma lógica que la vista previa)
+    function findCoefForItem(item) { return resolverCoefImport(item)?.id; }
 
     // 4. Crear mediciones (batch)
     const medBatch = items.map(item => {
-      const descCompleta = `[${item.nItem}] ${item.desc}`;
+      // El N° de ítem va a su propia columna (item_cod); la descripción queda limpia
+      const descCompleta = item.itemCod ? item.desc : `[${item.nItem}] ${item.desc}`;
       // Intentar extraer cantidad desde dimensiones en el texto
       const coef = coefs.find(c => c.id === findCoefForItem(item));
       const tipo = coef ? tipoEstructural(coef.cod) : '';
@@ -5993,6 +6085,15 @@ async function saveImport() {
             notaDims = ` (${item.cant} m² × e=${esp}m)`;
           }
         }
+        // Unidades/elementos del Excel → ml nuestro (columnas/vigas de madera): N unid × largo del texto
+        else if (coefU.startsWith('ml') && !(itemU === 'ml' || itemU === 'm' || itemU === 'mts')) {
+          const dm = extractDimsFromDesc(item.desc);
+          if (dm && dm.ml > 0) {
+            const nEl = /\d+\s*UNID/i.test(item.desc || '') ? (dm.cant || 1) : (item.cant || 1);
+            cantidad = +(nEl * dm.ml).toFixed(3);
+            notaDims = ` (${nEl} u × ${dm.ml} m)`;
+          }
+        }
         // ml del Excel → m² nuestro (capa aisladora sobre muro): ancho de muro 0.20 por defecto
         else if (coefU.startsWith('m2') && (itemU === 'ml' || itemU === 'm' || itemU === 'mts')) {
           cantidad = +(item.cant * 0.20).toFixed(4);
@@ -6006,6 +6107,7 @@ async function saveImport() {
         coef_id: findCoefForItem(item),
         descripcion: descFinal,
         etiqueta: etiqueta || null,
+        item_cod: item.itemCod || null,
         cantidad,
         fecha: new Date().toLocaleDateString('es-AR'),
         ubicacion: item.ubicacion,
@@ -6084,6 +6186,7 @@ async function saveImport() {
     popSelects();
     if (enObra) {
       notif(`${items.length} ítems importados a "${nombre}" (${revision}) ✓`);
+      setObraActiva(obraId);
       const selMed = document.getElementById('sel-obra-med');
       if (selMed) selMed.value = obraId;
       const selRevM = document.getElementById('sel-revision');
@@ -6097,6 +6200,7 @@ async function saveImport() {
       }, 700);
       return;
     }
+    setObraActiva(obraId);
     notif(`Obra "${nombre}" importada: ${items.length} ítems + certificado base ✓`);
     // Ir a Mediciones y abrir el revisor automáticamente si hay puntos a revisar
     setTimeout(() => {
@@ -6105,6 +6209,7 @@ async function saveImport() {
       if (badge && badge.style.display !== 'none' && parseInt(badge.textContent) > 0) {
         nav('mediciones');
         // Seleccionar la obra recién importada
+        setObraActiva(obraId);
         const selMed = document.getElementById('sel-obra-med');
         if (selMed) {
           selMed.value = obraId;
@@ -6373,7 +6478,7 @@ function exportMediciones() {
     const r = c ? c.rubro : 'Sin rubro';
     (byRubro[r] = byRubro[r] || []).push({ med: m, coef: c });
   });
-  Object.values(byRubro).forEach(items => items.sort((a,b) => sortByCod(a.coef||{cod:'999'}, b.coef||{cod:'999'})));
+  Object.values(byRubro).forEach(items => items.sort(sortMedPair));
   const rubrosOrden = ordenRubros(Object.keys(byRubro));
 
   // Cabecera de obra
@@ -6385,14 +6490,14 @@ function exportMediciones() {
     ['Empresa:', emp?.nombre || '', '', 'Fecha:', new Date().toLocaleDateString('es-AR')],
     filRubro || filPiso ? ['Filtros:', [filRubro, filPiso].filter(Boolean).join(' · ')] : [],
     [],
-    ['Código','Tarea','Cantidad','Unidad','Ubicación','Revisión','Descripción']
+    ['N° Ítem','Código','Tarea','Cantidad','Unidad','Ubicación','Revisión','Descripción']
   ];
 
   rubrosOrden.forEach(rubro => {
     rows.push([rubro.toUpperCase()]);
     byRubro[rubro].forEach(({med: m, coef: c}) => {
       rows.push([
-        c?.cod||'', c?.nombre||'',
+        medItemCod(m), c?.cod||'', c?.nombre||'',
         num(m.cantidad), c?.unidad||'',
         m.ubicacion||'Global',
         m.revision||'Rev00',
