@@ -5471,7 +5471,7 @@ function detectSubtipo(t) {
   if (has('ESMALTE')) return 'esmalte';
 
   // ══ ESCALERA de Hº — antes de estructura/mampostería (salvo que sea su terminación o baranda) ══
-  if (has('ESCALERA') && !/REVESTIM|PORCELANATO|BARANDA|PASAMANO|LATEX|PINTURA|ZOCALO|MARMOL|GRANITO/.test(t)) return 'escalera';
+  if (has('ESCALERA') && !/REVESTIM|PORCELANATO|BARANDA|PASAMANO|LATEX|PINTURA|ZOCALO|MARMOL|GRANITO|IPN|UPN|PERFIL|METALIC/.test(t)) return 'escalera';
 
   // ══ PÉRGOLA — ANTES que UPN/IPN ══
   if (has('PERGOLA')) return 'pergola';
@@ -5532,7 +5532,11 @@ function detectSubtipo(t) {
 
   // ══ AISLACIONES (antes de mampostería) ══
   if ((has('CAPA AISLAD') || has('AISLACION')) && (has('HORIZONTAL') || has('BAJO CONTRAPISO'))) return 'aislacion_h';
-  if ((has('CAPA AISLAD') || has('AISLACION')) && (has('VERTICAL') || has('EN MURO'))) return 'aislacion_v';
+  if ((has('CAPA AISLAD') || has('AISLACION')) && (has('VERTICAL') || has('EN MURO'))) {
+    if (has('MONOTOP')) return 'aislacion_v_monotop';
+    if (has('GEO')) return 'aislacion_v_geo';
+    return 'aislacion_v';
+  }
   if (has('MEMBRANA') && (has('BAJO PISO') || has('HUMEDO'))) return 'membrana_piso';
   if (has('LANA DE VIDRIO') || has('AISLACION TERMICA')) return 'aislacion_termica';
 
@@ -5581,6 +5585,7 @@ function detectSubtipo(t) {
 
   // ══ REVOQUES ══
   if (has('AZOTADO')) {
+    if (has('REVOQUE') || has('GRUESO')) return 'rev_azotado_grueso'; // 7.14 Azotado hidrófugo + revoque grueso
     if (has('CIELORRASO') || has('CIELORASO') || has('CIELO RASO')) return 'rev_azotado_cielo';
     if (has('REVESTIM')) return 'rev_azotado';           // 7.7 Azotado bajo revestimiento
     return 'rev_azotado_hidro';                          // azotado hidrófugo general sobre muro
@@ -5592,7 +5597,7 @@ function detectSubtipo(t) {
   if (has('REVOQUE')) return 'rev_grueso_int';
 
   // ══ CIELORRASOS ══
-  if (has('CORTINERO')) return 'cielorraso_susp';
+  if (has('CORTINERO')) return 'cortinero';
   if (has('CIELORRASO') || has('CIELORASO')) {
     if (has('PLACA') || has('DURLOCK') || (has('YESO') && has('SUSPENDIDO'))) return 'cielorraso_susp';
     if (has('MADERA')) return 'cielorraso_madera';
@@ -5613,12 +5618,12 @@ function detectSubtipo(t) {
   }
   if (has('CERAMICO') && !has('REVESTIM') && !has('LADRILLO')) return 'piso_ceramico';
   if (has('ADOQUIN')) return 'piso_adoquin';
+  if (has('PIEDRA BOLA') || has('GRANZA')) return 'piso_granza';  // árido suelto, no laja
   if (has('LAJA') || has('PIEDRA NATURAL')) return 'piso_laja';
   if (has('DURMIENTE')) return 'piso_durmiente';
   if (!has('REVESTIM') && (has('DECK') || has('ENTABLONADO') || (has('PVC') && has('SIMIL MADERA')))) {
     return /PVC|WPC|COMPUESTO|SINTETIC|SIMIL/.test(t) ? 'piso_deck_wpc' : 'piso_deck';
   }
-  if (has('PIEDRA BOLA') || has('GRANZA')) return 'piso_laja';
   if (has('ALISADO') || has('HELICOPTERO')) return 'piso_cemento';
   if (has('LOSETA')) return 'piso_loseta';
 
@@ -5627,7 +5632,8 @@ function detectSubtipo(t) {
     if (has('PORCELANATO')) return 'rev_porcelanato';
     if (has('WPC') || has('ALISTONADO')) return 'rev_wpc';
     if (has('SIMIL MADERA')) return 'rev_simil_madera';
-    if (has('CERAMICO') || has('SIMIL ROCA') || has('HORMIGON VISTO')) return 'rev_ceramico';
+    if (has('HORMIGON VISTO') || has('HO VISTO')) return 'rev_ho_visto';
+    if (has('CERAMICO') || has('SIMIL ROCA')) return 'rev_ceramico';
     if (has('PIEDRA') || has('LAJA')) return 'rev_piedra';
     if (has('VENECITA')) return 'rev_venecita';
     if (has('LADRILLO') && has('REFRACTARIO')) return 'rev_refractario';
@@ -5649,7 +5655,7 @@ function detectSubtipo(t) {
   if (has('CUBIERTA') && has('LOSA')) return 'ho_pendiente';
 
   // ══ CARPINTERÍA ══
-  if (has('PREMARCO')) return 'puerta';
+  if (has('PREMARCO') && !has('PUERTA') && !has('VENTANA')) return 'premarco';
   if (has('PUERTA') || has('VENTANA') || has('ABERTURA') || has('CORREDIZA')) return has('PUERTA') ? 'puerta' : 'ventana';
 
   // ══ HERRERÍA (resto) ══
@@ -5663,7 +5669,7 @@ function detectSubtipo(t) {
   // materiales). Si no, cada ítem suelto multiplica los materiales de una instalación entera.
   const esAA = has('AIRE ACONDICIONADO') || has('SPLIT') || /\bA\.?A\.?\b/.test(t) || has('CONDENSAD');
   // Electricidad para AA (toma, boca, circuito) — antes que AA
-  if (esAA && /TOMA|BOCA|CIRCUITO|TERMICA/.test(t)) return 'inst_electrica';
+  if (esAA && /TOMA|BOCA|CIRCUITO|TERMICA/.test(t)) return 'inst_elec_boca';
   if (esAA) {
     if (/DESAGUE|DRENAJE|CONDENSAD/.test(t)) return 'inst_aa_item';
     if (has('CONDUCTO')) return 'inst_aa_conducto';
@@ -5674,11 +5680,12 @@ function detectSubtipo(t) {
 
   // Gas — antes que sanitaria (una ventilación de gas en un baño es gas)
   if (/\bGAS\b/.test(t)) {
-    if (/TRAMITE|INSPECCION|VENTILACION|REJILLA|CONDUCTO|PLANO|MATRICUL|MEDIDOR|REGULADOR|NICHO|PRUEBA|HABILITAC|DERECHO/.test(t)) return 'inst_gas_item';
+    if (/TRAMITE|INSPECCION|VENTILACION|REJILLA|CONDUCTO|PLANO|MATRICUL|MEDIDOR|REGULADOR|NICHO|PRUEBA|HABILITAC|DERECHO|FACTIBILIDAD|SOLICITUD|SERVICIO|ARANCEL|\bFINAL\b/.test(t)) return 'inst_gas_item';
     return 'inst_gas';
   }
   // Calefacción — antes que agua ("losa radiante por agua caliente")
   if (has('CALEFACCION') || has('PISO RADIANTE') || has('LOSA RADIANTE') || has('COLECTOR') || has('CALDERA')) return 'inst_calef';
+  if (has('BOMBEO')) return 'bombeo';                      // antes que cloacal ("sistema de bombeo cloacal")
   if (has('BOMBA') || has('HIDRONEUMAT')) return 'inst_bomba';
   if (has('PLUVIAL')) return 'inst_pluvial';
   // Cloacal: ítems sueltos
@@ -5688,7 +5695,7 @@ function detectSubtipo(t) {
   // Agua: ítems sueltos
   if ((has('ALIMENTACION') && !has('ELECTRIC')) || (has('CANILLA') && has('PATIO')) || has('LLAVE DE PASO') ||
       (has('TANQUE') && !has('LOSA'))) return 'inst_agua_item';
-  if (has('AGUA') && (has('FRIA') || has('CALIENTE'))) return 'inst_agua';
+  if (has('AGUA') && (has('FRIA') || has('CALIENTE') || has('INSTALACION'))) return 'inst_agua'; // antes que sanitaria ("...para 2 baños")
   if (has('SANITARI') || has('BANO') || has('GRIFERI')) return 'inst_sanitaria';
   if (has('VALVULA') && has('INODORO')) return 'inst_sanitaria';
   if (has('INSPECCION') && has('CANERIA')) return 'inst_sanitaria';
@@ -5696,23 +5703,20 @@ function detectSubtipo(t) {
   // Eléctrica: puesta a tierra y acometida tienen tarea propia
   if (has('BORNETA') || has('JABALINA') || has('PUESTA A TIERRA')) return 'inst_pat';
   if (has('ACOMETIDA')) return 'inst_acometida';
-  if (has('ELECTRIC') || has('SENAL') || has('DEBIL') || has('TOMACORRIENTE')) return 'inst_electrica';
-  if (has('BOCA') && (has('ILUMINACION') || has('PARED') || has('TECHO') || has('PISO') || has('TOMA'))) return 'inst_electrica';
-  if (has('TABLERO') && (has('DISYUNTOR') || has('T.M'))) return 'inst_electrica';
-  if (has('TOMA') && has('INDIVIDUAL')) return 'inst_electrica';
-  if (has('TERMOSTATO')) return 'inst_electrica';
-  if (has('ARTEFACT') && (has('COMUN') || has('RIEL'))) return 'inst_electrica';
-  if (has('SENSOR') && has('INALAMBRIC')) return 'inst_electrica';
-  if (has('ALARMA') || has('SIRENA')) return 'inst_electrica';
-  if (/ACCESS? POINT/.test(t) || has('REPETIDOR') || has('SWITCH') || has('POE')) return 'inst_electrica';
-  if (has('CONEXION') && has('TABLERO')) return 'inst_electrica';
+  // Eléctrica por unidad de obra (boca, tablero, artefacto, tira LED, punto de señales débiles).
+  // Una "instalación eléctrica completa" multiplicada por 76 bocas era el error más caro del import.
+  if (has('TIRA') && has('LED')) return 'inst_elec_led';
+  if (/SENSOR|ALARMA|SIRENA|ACCESS? POINT|REPETIDOR|SWITCH|\bPOE\b|SENALES DEBILES|DEBIL|RED DE DATOS|CAMARA DE SEGURIDAD|PORTERO/.test(t)) return 'inst_senales';
+  if (has('TABLERO') && !has('PILAR')) return 'inst_elec_tablero';
+  if (has('ARTEFACT')) return 'inst_elec_artefacto';
+  if (has('BOCA') || has('TOMACORRIENTE') || has('TERMOSTATO') || (has('TOMA') && has('INDIVIDUAL'))) return 'inst_elec_boca';
+  if (has('ELECTRIC')) return 'inst_electrica';
 
   // ══ VARIOS ══
   if (has('ASADOR') || has('PARRILLA') || (has('FOGONERO') && !has('PISO'))) return 'asador';
   if (has('PISCINA') || (has('PILETA') && !/PATIO|COCINA|LAVADERO|BACHA/.test(t))) return 'pileta';
   if (has('VEREDA') || has('SENDERO')) return 'vereda';
   if (has('CANTERO')) return 'cantero';
-  if (has('TIRA') && has('LED')) return 'inst_electrica';
   if (has('BANQUINA') || has('BAJO COCINA') || has('BAJO LAVADERO') || has('BAJO ISLA') || (has('BAJO') && has('MESADA'))) return 'banquina';
   if (has('BOMBEO')) return 'bombeo';
 
@@ -5802,6 +5806,38 @@ Object.assign(MAP_SUBTIPO, {
 // rev_wpc y piso_adoquin apuntaban a tareas que no correspondían (12.6 símil madera / 11.6 piso de concreto):
 // se vacían para que se resuelvan por nombre.
 MAP_SUBTIPO['rev_wpc'] = '';
+// Hormigón: el default es H17 (pedido explícito). H21 sólo si el texto lo dice; in situ sólo si el texto
+// indica mezcla en obra (dosificación 1:3:3, hormigonera, materiales sueltos). "In situ" a secas en un
+// presupuesto de contratista suele significar "colado en obra", no "sin hormigón elaborado": no lo dispara.
+Object.assign(MAP_SUBTIPO, {
+  'zapata_puntual': '3.18', 'zapata_corrida': '3.8', 'platea': '3.17', 'viga_fund': '3.16',
+  'pozo_romano': '3.12', 'cabezal': '3.19',
+  'columna_elab': '4.14', 'encadenado_vert': '4.14', 'viga_elab': '4.15', 'encadenado_horiz': '4.16',
+  'losa_maciza': '4.19', 'losa_vigueta': '4.31', 'tabique_hormigon': '4.28', 'escalera': '4.26',
+  'rev_azotado_grueso': '7.14', 'aislacion_v_monotop': '6.3', 'aislacion_v_geo': '6.4',
+  'aislacion_termica': '', 'premarco': '', 'membrana_piso': '6.5',
+  'inst_elec_boca': '', 'inst_elec_tablero': '', 'inst_elec_artefacto': '', 'inst_elec_led': '', 'inst_senales': '',
+  'cortinero': '', 'rev_ho_visto': '', 'piso_granza': ''
+});
+const MAP_HO = {
+  zapata_puntual: { H21: '3.15', INSITU: '3.14' }, zapata_corrida: { H21: '3.9', INSITU: '3.2' },
+  platea: { H21: '3.10', INSITU: '3.3' }, viga_fund: { H21: '3.13', INSITU: '3.6' },
+  pozo_romano: { H21: '3.11', INSITU: '3.4' }, cabezal: { H21: '3.20', INSITU: '3.5' },
+  columna_elab: { H21: '4.7', INSITU: '4.1' }, encadenado_vert: { H21: '4.7', INSITU: '4.1' },
+  viga_elab: { H21: '4.8', INSITU: '4.4' }, encadenado_horiz: { H21: '4.21', INSITU: '4.2' },
+  losa_maciza: { H21: '4.20', INSITU: '4.6' }, losa_vigueta: { H21: '4.32' },
+  tabique_hormigon: { H21: '4.12', INSITU: '4.11' }, escalera: { H21: '4.27', INSITU: '4.10' }
+};
+function calidadHo(desc) {
+  const t = _normN(desc);
+  if (/\bH\s*-?\s*21\b/.test(t)) return 'H21';
+  if (/1:3:3|1:2:2|HORMIGONERA|MATERIALES SUELTOS|ELABORADO EN OBRA|MEZCLA EN OBRA/.test(t)) return 'INSITU';
+  return 'H17';
+}
+function codParaSubtipo(subtipo, desc) {
+  const v = MAP_HO[subtipo]; const q = desc ? calidadHo(desc) : 'H17';
+  return (v && v[q]) || MAP_SUBTIPO[subtipo] || '';
+}
 MAP_SUBTIPO['piso_adoquin'] = '';
 
 // Qué tiene que decir el NOMBRE de la tarea para aceptar el código del mapa.
@@ -5809,18 +5845,18 @@ MAP_SUBTIPO['piso_adoquin'] = '';
 // Si el código del mapa no cumple, se busca por nombre en toda la base; si no hay ninguna, el ítem queda sin tarea.
 const SUBTIPO_ESPERA = {
   'losa_vigueta':         { inc: [/VIGUETA|BOVEDILLA|PRETENSAD/] },
-  'losa_nervurada':       { inc: [/NERVURADA/], exc: /VIST/ },
-  'losa_nervurada_vista': { inc: [/NERVURADA/, /VIST/] },
+  'losa_nervurada':       { inc: [/NERVURADA/], exc: /VIST/, rubro: 'Hormigón Armado' },
+  'losa_nervurada_vista': { inc: [/NERVURADA/, /VIST/], rubro: 'Hormigón Armado' },
   'mamp_cementicio':      { inc: [/BLOQUE/], exc: /ARMAD/ },
-  'mamp_armado':          { inc: [/MURO ARMADO|BLOQUE.*ARMAD/] },
-  'mamp_rafa':            { inc: [/RAFA|PANDERETE/] },
+  'mamp_armado':          { inc: [/MURO ARMADO|BLOQUE.*ARMAD/], rubro: 'Mampostería' },
+  'mamp_rafa':            { inc: [/RAFA|PANDERETE/], rubro: 'Mampostería' },
   'rev_azotado':          { inc: [/AZOTADO/, /REVESTIM/] },
-  'rev_azotado_hidro':    { inc: [/AZOTADO/], exc: /REVESTIM|CIELO/ },
-  'rev_azotado_cielo':    { inc: [/AZOTADO/, /CIELO/] },
+  'rev_azotado_hidro':    { inc: [/AZOTADO/], exc: /REVESTIM|CIELO|GRUESO|REVOQUE/, rubro: 'Revoques' },
+  'rev_azotado_cielo':    { inc: [/AZOTADO/, /CIELO/], rubro: 'Revoques' },
   'carpeta_cubierta':     { inc: [/CARPETA/], rubro: 'Cubiertas' },
   'piso_porcelanato':     { inc: [/PORCELANATO/], exc: /EXTERIOR/ },
-  'piso_porcelanato_ext': { inc: [/PORCELANATO/, /EXTERIOR/] },
-  'piso_adoquin':         { inc: [/ADOQUIN/] },
+  'piso_porcelanato_ext': { inc: [/PORCELANATO/, /EXTERIOR/], rubro: 'Pisos' },
+  'piso_adoquin':         { inc: [/ADOQUIN/], rubro: 'Pisos' },
   'piso_deck':            { inc: [/DECK/], exc: /WPC|PVC/ },
   'piso_deck_wpc':        { inc: [/WPC|PVC/], rubro: 'Pisos' },
   'rev_wpc':              { inc: [/WPC/], rubro: 'Revestimientos' },
@@ -5829,16 +5865,41 @@ const SUBTIPO_ESPERA = {
   'inst_gas':             { inc: [/GAS/], exc: /COMPLEMENT/ },
   'inst_cloacal':         { inc: [/CLOAC/], exc: /COMPLEMENT/ },
   'inst_agua':            { inc: [/AGUA/], exc: /COMPLEMENT/ },
-  'inst_electrica':       { inc: [/ELECTRI/], exc: /TIERRA|ACOMETIDA|COMPLEMENT/ },
+  'inst_electrica':       { inc: [/ELECTRI/], exc: /TIERRA|ACOMETIDA|COMPLEMENT|BOCA|TABLERO|ARTEFACTO|\bLED\b/ },
   'inst_aa':              { inc: [/SPLIT|AIRE ACOND|\bAA\b/], exc: /CONDUCTO|COMPLEMENT/ },
   'inst_aa_conducto':     { inc: [/CONDUCTO/, /AIRE|\bAA\b/] },
   'inst_gas_item':        { inc: [/GAS/, /COMPLEMENT/] },
   'inst_cloacal_item':    { inc: [/CLOAC/, /COMPLEMENT/] },
   'inst_agua_item':       { inc: [/AGUA/, /COMPLEMENT/] },
   'inst_aa_item':         { inc: [/AIRE|\bAA\b/, /COMPLEMENT/] },
-  'inst_pat':             { inc: [/PUESTA A TIERRA/] },
-  'inst_acometida':       { inc: [/ACOMETIDA/] }
+  'inst_pat':             { inc: [/PUESTA A TIERRA/], rubro: 'Instalaciones' },
+  'inst_acometida':       { inc: [/ACOMETIDA/], rubro: 'Instalaciones' },
+  'aislacion_termica':    { inc: [/TERMIC|LANA DE VIDRIO|POLIESTIRENO/] },
+  'premarco':             { inc: [/PREMARCO/], rubro: 'Carpintería' },
+  'rev_azotado_grueso':   { inc: [/AZOTADO/, /GRUESO/] },
+  'inst_elec_boca':       { inc: [/BOCA/], rubro: 'Instalaciones' },
+  'inst_elec_tablero':    { inc: [/TABLERO/], exc: /ACOMETIDA/, rubro: 'Instalaciones' },
+  'inst_elec_artefacto':  { inc: [/ARTEFACTO/], rubro: 'Instalaciones' },
+  'inst_elec_led':        { inc: [/\bLED\b/], rubro: 'Instalaciones' },
+  'inst_senales':         { inc: [/SENALES|DEBIL|ALARMA|DATOS/], rubro: 'Instalaciones' },
+  'cortinero':            { inc: [/CORTINERO/], rubro: 'Cielorrasos' },
+  'rev_ho_visto':         { inc: [/HORMIGON VISTO/], rubro: 'Revestimientos' },
+  'piso_granza':          { inc: [/GRANZA|PIEDRA BOLA/], rubro: 'Pisos' }
 };
+
+// El texto de la fila a veces no alcanza: "Porcelanato - Baños y cocina" bajo "Revestimientos Interiores" es
+// revestimiento, "Final de gas" / "Segunda inspección de cañerías" bajo "Instalaciones de Gas" son ítems de gas.
+// Se completa el texto con lo que aporta el encabezado de sección SOLO en estos casos acotados.
+function detectSubtipoCtx(desc, seccion) {
+  const D = _normN(desc), S = _normN(seccion);
+  let t = desc || '';
+  if (/REVESTIM/.test(S) && !/REVESTIM/.test(D)) t = 'Revestimiento ' + t;
+  if (/EXTERIOR/.test(S) && /PORCELANATO/.test(D) && !/INTERIOR|EXTERIOR/.test(D)) t += ' exterior';
+  const sist = [['\\bGAS\\b', ' gas'], ['CLOAC', ' cloacal'], ['AIRE ACONDICIONADO', ' aire acondicionado'], ['CALEFACCION', ' calefaccion']];
+  sist.forEach(([re, w]) => { if (new RegExp(re).test(S) && !new RegExp(re).test(D)) t += w; });
+  if (/\bAGUA\b/.test(S) && !/\bAGUA\b/.test(D) && !/BOMBA|HIDRONEUMAT/.test(D)) t += ' agua';
+  return detectSubtipo(t);
+}
 
 function _normN(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function _coefCumple(c, esp) {
@@ -5851,10 +5912,10 @@ function _coefCumple(c, esp) {
 
 // Devuelve { coef, aviso } o { coef:null, motivo }. Reemplaza al viejo fallback "primer coeficiente del rubro",
 // que asignaba en silencio una tarea cualquiera (ej. mampostería cayendo en "Columnas H17").
-function resolverCoefSubtipo(subtipo) {
+function resolverCoefSubtipo(subtipo, desc) {
   if (!subtipo) return { coef: null, motivo: 'El lector no reconoció la descripción — asigná la tarea a mano' };
   const ce = (typeof coefsEmpresa === 'function') ? coefsEmpresa() : coefs;
-  const cod = MAP_SUBTIPO[subtipo] || '';
+  const cod = codParaSubtipo(subtipo, desc);
   const esp = SUBTIPO_ESPERA[subtipo];
   const porCod = cod ? ce.filter(c => c.cod === cod) : [];
   const dupAviso = porCod.length > 1 ? `El código ${cod} está duplicado en coeficientes (${porCod.length} filas)` : '';
@@ -5920,7 +5981,19 @@ function autoCorregirItem(item) {
 function calcCantidadImport(item, coef) {
   let cantidad = item.cant, notaDims = '', convertida = false, esp = 0, anchoInfo = null;
   const tipo = coef ? tipoEstructural(coef.cod) : '';
+  let seccProm = null;
   if (tipo) {
+    const secc = ((item.desc || '').replace(/,/g, '.').match(/\((\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\)/g) || [])
+      .map(x => x.match(/(\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)/)).map(m => [parseFloat(m[1]), parseFloat(m[2])].map(v => v > 5 ? v / 100 : v));
+    const distintas = [...new Map(secc.map(s => [s.join('x'), s])).values()];
+    if (distintas.length >= 2 && ['ml', 'm', 'mts'].includes(normUnidad(item.unidad)) && normUnidad(coef?.unidad) === 'm3') {
+      // Varias secciones y largo total: sin largo por sección no hay forma exacta. Se usa el área promedio
+      // de las secciones DISTINTAS (sin repetir) y se avisa. Antes pasaban los ml como m³ (84 ml → 84 m³).
+      const areaProm = distintas.reduce((a, s) => a + s[0] * s[1], 0) / distintas.length;
+      seccProm = { n: distintas.length, areaProm };
+      const cant = +(item.cant * areaProm).toFixed(4);
+      return { cantidad: cant, notaDims: ` (${item.cant} ml × sección prom. ${areaProm.toFixed(4)} m² de ${distintas.length} secciones)`, convertida: true, coefU: 'm3', itemU: 'ml', esp: 0, anchoInfo: null, tipo, seccProm };
+    }
     const dims = extractDimsFromDesc(item.desc);
     if (dims && dims.la && dims.lb) {
       const m3Unit = dims.la * dims.lb * (dims.ml || 1);
@@ -5941,13 +6014,13 @@ function calcCantidadImport(item, coef) {
     if (coefU === 'm3' && itemU === 'm2') {
       esp = extractEspesorFromDesc(item.desc);
       if (esp > 0) { cantidad = +(item.cant * esp).toFixed(4); notaDims = ` (${item.cant} m² × e=${esp}m)`; convertida = true; }
-    } else if (coefU === 'm2' && itemU === 'ml') {
+    } else if (coefU === 'm2' && itemU === 'ml' && (coef?.rubro === 'Aislaciones' || /^aislacion/.test(item.subtipo || ''))) {
       anchoInfo = extractAnchoMuro(item.desc);
       cantidad = +(item.cant * anchoInfo.ancho).toFixed(4);
       notaDims = ` (${item.cant} ml × ${anchoInfo.ancho} ancho muro)`; convertida = true;
     }
   }
-  return { cantidad, notaDims, convertida, coefU, itemU, esp, anchoInfo, tipo };
+  return { cantidad, notaDims, convertida, coefU, itemU, esp, anchoInfo, tipo, seccProm };
 }
 
 const RANGO_ESPESOR = {
@@ -5975,7 +6048,11 @@ function validarImport() {
     if (!coef) w.push({ lvl: 'err', msg: item.motivo || 'Sin tarea asignada' });
     else if (item.aviso && !item.manual) w.push({ lvl: 'warn', msg: item.aviso });
     (item.notas || []).forEach(n => w.push({ lvl: 'info', msg: n }));
-    if (item.cant === 1 && !['gl', 'u'].includes(u)) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u}: parece un valor provisorio — cargá la cantidad real` });
+    if (!u) w.push({ lvl: 'warn', msg: 'El Excel no trae unidad para este ítem' });
+    const mMts = T.replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*(?:MTS?|ML|METROS)\b/);
+    if (item.cant === 1 && mMts ) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u} pero el texto menciona ${mMts[1]} m — ¿la cantidad real es esa?` });
+    if (item.ubicTexto && item.ubicacion !== 'Global' && item.ubicTexto !== item.ubicacion) w.push({ lvl: 'warn', msg: `El texto dice ${item.ubicTexto} pero el ítem está bajo ${item.ubicacion} en el Excel` });
+    if (u && item.cant === 1 && !['gl', 'u'].includes(u)) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u}: parece un valor provisorio — cargá la cantidad real` });
     if (u === 'gl' && item.cant > 1) w.push({ lvl: 'warn', msg: `${item.cant} gl: un global debería ser 1 — ¿la unidad es otra (m², u)?` });
     if (item.nItem === 's/n') w.push({ lvl: 'warn', msg: 'Ítem sin número en el Excel' });
     else if (cntItem[item.nItem] > 1) w.push({ lvl: 'warn', msg: `N° ${item.nItem} repetido en el Excel` });
@@ -5998,12 +6075,13 @@ function validarImport() {
       } else if (calc.anchoInfo) {
         if (calc.anchoInfo.multi) w.push({ lvl: 'warn', msg: `Varios anchos de muro en el texto (${calc.anchoInfo.multi.map(a => a * 100).join(' y ')} cm): se usó 20 cm — separá por ancho` });
         else if (calc.anchoInfo.defecto) w.push({ lvl: 'info', msg: 'Sin ancho de muro en el texto: se usó 20 cm' });
-      } else if (!calc.convertida && calc.coefU && calc.itemU && calc.coefU !== calc.itemU) {
+      } else if (!calc.convertida && calc.coefU && calc.itemU && calc.coefU !== calc.itemU && !(['u', 'gl'].includes(calc.coefU) && ['u', 'gl'].includes(calc.itemU))) {
         w.push({ lvl: 'warn', msg: `Unidad del Excel "${u}" ≠ unidad de la tarea "${coef.unidad}": la cantidad pasa sin convertir` });
       }
       if (calc.tipo) {
         const secc = (item.desc || '').replace(/,/g, '.').match(/\(\d+\.?\d*\s*[Xx×]\s*\d+\.?\d*\)/g) || [];
-        if (secc.length >= 2) w.push({ lvl: 'warn', msg: `${secc.length} secciones distintas en el texto: la cantidad del Excel no se puede verificar — conviene un ítem por sección` });
+        if (calc.seccProm) w.push({ lvl: 'warn', msg: `${calc.seccProm.n} secciones distintas: m³ estimado con sección promedio — para el valor exacto cargá un ítem por sección con su largo` });
+        else if (secc.length >= 2) w.push({ lvl: 'warn', msg: `${secc.length} secciones en el texto: la cantidad del Excel no se puede verificar — conviene un ítem por sección` });
       }
     }
     item.warns = w;
@@ -6013,7 +6091,7 @@ function validarImport() {
 function asignarCoefsImport() {
   importData.forEach(item => {
     if (item.manual) return;
-    const r = resolverCoefSubtipo(item.subtipo);
+    const r = resolverCoefSubtipo(item.subtipo, item.desc);
     item.coefId = r.coef ? r.coef.id : null;
     item.aviso = r.aviso || '';
     item.motivo = r.motivo || '';
@@ -6110,7 +6188,8 @@ const TEST_CASES_LECTOR = [
   ['Ventilaciones para gas. Conductos y rejillas.', 'inst_gas_item'],
   ['Colocación de conducto de ventilacion 3,00m - 30 diam.', 'conducto'],
   ['Bomba hidroneumática', 'inst_bomba'],
-  ['Instalación eléctrica: bocas de iluminación', 'inst_electrica'],
+  ['Instalación eléctrica: bocas de iluminación', 'inst_elec_boca'],
+  ['Instalación eléctrica completa', 'inst_electrica'],
   ['Desagüe cloacal PVC 110', 'inst_cloacal'],
   ['Vereda perimetral de hormigón', 'vereda'],
   ['Asador c/parrilla enlozada', 'asador'],
@@ -6132,7 +6211,7 @@ const TEST_CASES_LECTOR = [
   ['Sistema por conductos PB', 'inst_aa_conducto'],
   ['AA Split PSS - 3 equipos', 'inst_aa'],
   ['Desagües de AA', 'inst_aa_item'],
-  ['Toma para AA', 'inst_electrica'],
+  ['Toma para AA', 'inst_elec_boca'],
   ['Barandas metálicas y vidrio', 'baranda_metal'],
   ['Carpeta de nivelación de cubierta', 'carpeta_cubierta'],
   ['Trámites e inspecciones de gas', 'inst_gas_item'],
@@ -6144,8 +6223,38 @@ const TEST_CASES_LECTOR = [
   ['Instalación de agua fría y caliente', 'inst_agua'],
   ['Borneta y jabalinas de puesta a tierra', 'inst_pat'],
   ['Acometida eléctrica a tablero principal', 'inst_acometida'],
-  ['Access Point PSS', 'inst_electrica'],
-  ['Bocas de tomacorriente', 'inst_electrica'],
+  ['Access Point PSS', 'inst_senales'],
+  ['Bocas de tomacorriente', 'inst_elec_boca'],
+  // ── Excel real Casali ──
+  ['Tablero (por T.M y disyuntores)', 'inst_elec_tablero'],
+  ['Toma individul A.A', 'inst_elec_boca'],
+  ['Termostatos', 'inst_elec_boca'],
+  ['Tiras Led aleros/nichos/espejos/placares/baso alacena mesada, etc', 'inst_elec_led'],
+  ['Instalación artefactos comunes*', 'inst_elec_artefacto'],
+  ['Instalación de sensor inalámbrico - PSS', 'inst_senales'],
+  ['Instalación de Acces Point (repetidor) - PB', 'inst_senales'],
+  ['Instalación de Switch POE (central derivador de datos)*', 'inst_senales'],
+  ['Conexión de acometida a Tablero', 'inst_acometida'],
+  ['Borneta puesta a tierra por tablero', 'inst_pat'],
+  ['Armado de Pilar con Tablero de Obra', 'pilar_tablero'],
+  ['Cortinero  (estructura + emplacado)', 'cortinero'],
+  ['Revestimiento de Hormigón Visto', 'rev_ho_visto'],
+  ['S12 - Piedra Bola (patio interior y fogon)', 'piso_granza'],
+  ['S7 - Granza Exterior (terraza balcon)', 'piso_granza'],
+  ['IPN 140 - Viga de anclaje de escalera', 'herreria_viga_ipn140'],
+  ['Revoque c/ azotado hidrof. cementicio en mamp.', 'rev_azotado_grueso'],
+  ['Capa Aisladora Vertical Muros revestido de piedra con sika monotop 107', 'aislacion_v_monotop'],
+  ['Capa Aisladora Vertical en Muros Armados - Cara exterior (membrana geo)', 'aislacion_v_geo'],
+  ['Capa Aisladora Vertical en Muros Armados - Cara exterior (rafa de ladrillos)**', 'mamp_rafa'],
+  ['Instalación de agua para  2 baños completos en PSS, 1 cocina', 'inst_agua'],
+  ['Instalación de cloacas para  2 baños completos en PSS', 'inst_cloacal'],
+  ['Factibilidad de gas y plano aprobación de cañerías', 'inst_gas_item'],
+  ['Final de gas con artefactos colocados.', 'inst_gas_item'],
+  ['Sistema de bombeo cloacal (en caso de necesitarlo)', 'bombeo'],
+  ['Colocación de premarcos', 'premarco'],
+  ['L1 - Losa Nervurada - 35 cm (cieloraso de yeso o madera)', 'losa_nervurada'],
+  ['L2 - Losa Nervurada VISTA - 35 cm', 'losa_nervurada_vista'],
+  ['Cubierta común sobre Losa - Hormigon de Pendiente (carga) - 10 cm', 'ho_pendiente'],
   ['Losa radiante agua caliente', 'inst_calef'],
   ['Piscina con desborde infinito', 'pileta'],
   ['Banquina bajo mesada cocina 6,20 m2', 'banquina'],
@@ -6192,7 +6301,9 @@ function testLector(verbose) {
 
 function processImportRows(rows) {
   importData = [];
-  let currentRubro = '', currentUbicacion = 'Global';
+  let currentRubro = '', currentUbicacion = 'Global', currentSeccion = '';
+  // Ubicación escrita en el propio texto del ítem ("- PSS", "(PB)", "PA"): se usa para avisar contradicciones
+  function ubicDelTexto(t) { t=_normN(t); const u=[]; if(/\bPSS\b|SUBSUELO/.test(t))u.push('Subsuelo 1'); if(/\bPB\b|PLANTA BAJA/.test(t))u.push('Planta Baja'); if(/\bPA\b|PLANTA ALTA/.test(t))u.push('Planta Alta'); return u.length===1?u[0]:null; }
   function detectUbic(t) { t=(t||'').toUpperCase(); if(t.includes('PLANTA ALTA')||t.match(/\bPA\b/))return'Planta Alta'; if(t.includes('PLANTA BAJA')||t.match(/\bPB\b/))return'Planta Baja'; if(t.includes('FUND')||t.includes('PSS')||t.includes('SUBSUELO'))return'Subsuelo 1'; return null; }
   function mapRubro(t) { t=(t||'').toUpperCase(); if(t.includes('PRELIMINAR')||t.includes('CONFORMACIÓN'))return'Tareas Preliminares'; if(t.includes('ESTRUCTURA')||t.includes('ALBAÑIL'))return'Hormigón Armado'; if(t.includes('HERRERIA')||t.includes('HERRERÍA'))return'Herrería'; if(t.includes('SANITARIA'))return'Instalaciones'; if(t.includes('ELECTRIC'))return'Instalaciones'; if(t.includes('PISO')||t.includes('REVESTIM'))return'Pisos'; if(t.includes('PINTURA'))return'Pintura'; if(t.includes('CARPINTER'))return'Carpintería'; if(t.includes('VARIOS'))return'Varios'; return''; }
   // detectSubtipo ahora es global (ver arriba de processImportRows) para poder testearla con testLector()
@@ -6200,9 +6311,9 @@ function processImportRows(rows) {
   let colMap={nItem:0,desc:1,cant:2,un:3,contratista:4,costoUnit:5}, headerFound=false;
   for(let i=0;i<Math.min(rows.length,25);i++){const row=rows[i];if(!row)continue;const rowStr=row.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('DESIGNAC')||rowStr.includes('CANT')){for(let j=0;j<row.length;j++){const h=String(row[j]||'').toUpperCase().trim();if(h.includes('ITEM')||h.includes('N°'))colMap.nItem=j;if(h.includes('DESIGNAC')||h.includes('DESCRIPCI'))colMap.desc=j;if(h==='CANT.'||h==='CANT'||h==='CANTIDAD')colMap.cant=j;if(h==='UN.'||h==='UN'||h==='UNIDAD')colMap.un=j;if(h.includes('CONTRATISTA'))colMap.contratista=j;if(h.includes('COSTO UNIT'))colMap.costoUnit=j;}headerFound=true;break;}}
   let debugRows=[];
-  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=String(row[colMap.nItem]||'').trim(),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const u=detectUbic(col1);if(u)currentUbicacion=u;const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=/^\d+[\.,]\d+$/.test(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
+  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=String(row[colMap.nItem]||'').trim(),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;currentUbicacion='Global';currentSeccion='';continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const esUbic=/^\s*(PLANTA\b|SUBSUELO|PSS\b|PB\b|PA\b)/i.test(col1);if(esUbic){const u=detectUbic(col1);if(u)currentUbicacion=u;}else{currentSeccion=col1;currentUbicacion='Global';}const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=/^\d+[\.,]\d+$/.test(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
     const esMetadato = /^\[0\.\d+\]/.test(col1) || /^0\.\d+$/.test(col0);
-    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?col0:'s/n',desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:currentUbicacion,subtipo:detectSubtipo(col1),incluir:true};autoCorregirItem(it);importData.push(it);}}
+    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?col0:'s/n',desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(col1,currentSeccion),incluir:true};autoCorregirItem(it);importData.push(it);}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
   marcarImportDuplicados();
   asignarCoefsImport();
