@@ -320,6 +320,7 @@ textarea{resize:vertical;min-height:55px;}
   <div class="nav-sec">Obra</div>
   <div class="nav-item" onclick="nav('archivos')"><span>⬚</span> Archivos</div>
   <div class="nav-item" onclick="nav('compras')"><span>◫</span> Lista de compras</div>
+  <div class="nav-item" onclick="nav('cronograma')"><span>▭</span> Cronograma</div>
   <div class="nav-item" onclick="nav('mo-precios')"><span>▣</span> Precios MO</div>
   <div class="nav-item" onclick="nav('certificados')"><span>◐</span> Certificados</div>
   <div class="nav-item" onclick="nav('historial')"><span>⊙</span> Historial</div>
@@ -524,6 +525,21 @@ textarea{resize:vertical;min-height:55px;}
         </div>
       </div>
       <div id="compras-body"></div>
+    </div>
+
+    <!-- CRONOGRAMA ↔ CÓMPUTO -->
+    <div id="page-cronograma" class="page">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="form-grid" style="grid-template-columns:2fr 2fr 1.2fr auto;margin-bottom:0;align-items:end;">
+          <div class="fg"><label>Obra</label><select id="sel-obra-crono" onchange="cronoCambioObra()"></select></div>
+          <div class="fg"><label>Project (BkTableros)</label><select id="sel-crono-proj"><option value="">— elegir Project —</option></select></div>
+          <div class="fg"><label>Revisión de mediciones</label><select id="sel-crono-rev" style="font-family:var(--mono);"></select></div>
+          <button class="btn btn-primary" onclick="cronoCargar()" style="white-space:nowrap;">Cargar y vincular</button>
+        </div>
+        <div id="crono-info" style="font-size:10px;color:var(--tx3);margin-top:6px;"></div>
+      </div>
+      <div id="crono-reporte"></div>
+      <div id="crono-materiales"></div>
     </div>
 
     <!-- PRECIOS MO POR TAREA -->
@@ -1163,7 +1179,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-07-10.11';
+const APP_BUILD = '2026-10-02.3';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -1767,67 +1783,6 @@ async function arrancarApp() {
   popSelects();
 }
 
-async function createTablesIfNeeded() {
-  // Intentar leer cada tabla — si da error 404/42P01 la tabla no existe
-  // Usamos el endpoint RPC para ejecutar SQL de creación
-  const sql = `
-    CREATE TABLE IF NOT EXISTS obras (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      cod text, nombre text, cliente text, ubic text,
-      sup numeric, estado text, notas text,
-      created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS materiales (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      cod text, nombre text, unidad text, cat text,
-      precio numeric, prov text, fecha text,
-      created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS mano_obra (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      cat text, descripcion text, jornal numeric,
-      rend numeric, fecha text,
-      created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS coeficientes (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      cod text, nombre text, rubro text, unidad text,
-      mo_id text, mo_rend numeric, mats jsonb,
-      created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS mediciones (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      obra_id uuid REFERENCES obras(id) ON DELETE CASCADE,
-      coef_id text, descripcion text, cantidad numeric,
-      fecha text,
-      created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS config (
-      id text PRIMARY KEY,
-      valor text
-    );
-    CREATE TABLE IF NOT EXISTS empresas (
-      id text PRIMARY KEY,
-      nombre text NOT NULL,
-      logo_url text DEFAULT '',
-      color_primario text DEFAULT '#4a7c59',
-      created_at timestamptz DEFAULT now()
-    );
-    ALTER TABLE obras ADD COLUMN IF NOT EXISTS empresa text;
-    ALTER TABLE obras ADD COLUMN IF NOT EXISTS direccion text;
-    ALTER TABLE obras ADD COLUMN IF NOT EXISTS dir text;
-    ALTER TABLE obras ADD COLUMN IF NOT EXISTS subsuelos integer DEFAULT 0;
-    ALTER TABLE obras ADD COLUMN IF NOT EXISTS plantas integer DEFAULT 1;
-    ALTER TABLE mediciones ADD COLUMN IF NOT EXISTS ubicacion text;
-  `;
-  const r = await fetch(`${SB_URL}/rest/v1/rpc/exec_sql`, {
-    method: 'POST', headers: SB_HDR,
-    body: JSON.stringify({ sql })
-  });
-  // Si el RPC no existe (error 404) no pasa nada — las tablas ya existen
-  // Si hay otro error, lo ignoramos también porque Supabase puede ya tener las tablas
-}
-
 async function loadAllData() {
   // Cargar todo en paralelo
   const [o, m, mo_data, c, med, idx, pe] = await Promise.all([
@@ -2025,7 +1980,7 @@ function findMat(ref) {
 
 function popSelects() {
   const oe = obrasEmpresa();
-  ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-cert'].forEach(id => {
+  ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-cert','sel-obra-crono'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
     el.innerHTML = oe.length
       ? oe.map(o => `<option value="${o.id}">${o.cod} — ${o.nombre}</option>`).join('')
@@ -2229,7 +2184,7 @@ function nav(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Consumos de materiales', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Lista de compras', 'mo-precios':'Precios mano de obra', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
+  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Consumos de materiales', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Lista de compras', cronograma:'Cronograma ↔ Cómputo', 'mo-precios':'Precios mano de obra', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
   document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
   const renders = {
@@ -2250,6 +2205,7 @@ function nav(page) {
       }
     },
     compras: () => { popSelects(); loadCompras(); },
+    cronograma: () => { popSelects(); cronoInit(); },
     'mo-precios': () => { popSelects(); loadMOPrecios(); },
     certificados: () => { popSelects(); loadCertificados(); }
   };
@@ -2518,14 +2474,15 @@ const BARRA_MAX = 12.0; // longitud máxima de barra comercial (m)
 const EMPALME = 0.60; // longitud de empalme para ADN-420 Ø≤16 (m)
 
 function tipoEstructural(cod) {
+  // Numeración vigente: H17 (default), H21 e in situ tienen códigos propios.
   const c = (cod||'').toString();
   if (['4.1','4.7','4.14'].includes(c)) return 'columna';
-  if (['4.2','4.3','4.4','4.5','4.6','4.8','4.15','4.16','4.17','4.18','4.19','4.20','4.21','4.22','4.23','4.24','4.25'].includes(c)) return 'viga';
+  if (['4.6','4.19','4.20'].includes(c)) return 'losa_maciza';   // in situ / H17 / H21
+  if (['4.2','4.3','4.4','4.5','4.8','4.15','4.16','4.17','4.18','4.21','4.22','4.23','4.24','4.25'].includes(c)) return 'viga';
   if (['4.11','4.12','4.13','4.28','4.29','4.30'].includes(c)) return 'tabique_hormigon';
-  if (['3.2','3.6','3.7','3.8','3.9','3.13','3.16'].includes(c)) return 'zapata';
+  if (['3.2','3.5','3.6','3.7','3.8','3.9','3.13','3.16','3.19','3.20'].includes(c)) return 'zapata';  // incluye cabezales 3.5 / 3.19 / 3.20
   if (['3.14','3.15','3.18'].includes(c)) return 'zapata_puntual';
   if (['3.4','3.11','3.12'].includes(c)) return 'pozo';
-  if (['4.6b','4.9b'].includes(c)) return 'losa_maciza';
   if (['3.3','3.10','3.17'].includes(c)) return 'platea';
   return null;
 }
@@ -4491,10 +4448,10 @@ async function delCoef(id) {
 // =====================================================================
 // LISTA DE COMPRAS
 // =====================================================================
-function consolidarMateriales(obraId) {
+function consolidarMateriales(obraId, medsFiltro) {
   _obraEnComputo = obras.find(o => o.id === obraId) || null;
   const desp = 1 + desperdicio/100;
-  const obsMeds = meds.filter(m => (m.obraId||m.obra_id) === obraId);
+  const obsMeds = medsFiltro || meds.filter(m => (m.obraId||m.obra_id) === obraId);   // medsFiltro: subconjunto (cronograma por período)
   const consolidado = {}; // matRef → { cantBase, cantComercial, unComercial, precio, rubro }
 
   obsMeds.forEach(med => {
@@ -5432,7 +5389,7 @@ function parseImportFile() {
       const wb = XLSX.read(e.target.result, {type:'binary'});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-      processImportRows(rows);
+      processImportRows(rows, ws);
     } catch(err) { notif('Error al leer: ' + err.message); }
   };
   reader.readAsBinaryString(file);
@@ -5511,7 +5468,7 @@ function detectSubtipo(t) {
     if (has('BASE AISLADA') || has('ZAPATA AISLADA') || has('ZAPATA PUNTUAL') || t.match(/\bBASE\s+B\d/)) return 'zapata_puntual';
     if (has('ZAPATA CORRIDA') || has('BASE CORRIDA')) return 'zapata_corrida';
     if (has('PLATEA')) return 'platea';
-    if ((has('VIGA') && (has('FUNDACION') || has('FUND'))) || t.match(/\bVF\b/) || has('VIGA RIOSTRA') || t.match(/\bVR\b/)) return 'viga_fund';
+    if ((has('VIGA') && (has('FUNDACION') || has('FUND'))) || t.match(/\bVF\d*\b/) || has('VIGA RIOSTRA') || t.match(/\bVR\d*\b/)) return 'viga_fund';
     if (has('POZO ROMANO') || has('PILOTE')) return 'pozo_romano';
     if (has('CABEZAL')) return 'cabezal';
 
@@ -5528,6 +5485,8 @@ function detectSubtipo(t) {
     if (has('NERVURADA') || has('CASETON')) return has('VISTA') || has('VISTO') ? 'losa_nervurada_vista' : 'losa_nervurada';
     if (has('VIGUETA') || has('BOVEDILLA') || has('PRETENSAD')) return 'losa_vigueta';
     if (t.match(/\bL\d+\s*[-–]/)) return 'losa_vigueta';
+    // Tabiques / muros de hormigón (T1 -, "tabiques de hormigón visto")
+    if (has('TABIQUE') && (has('HORMIGON') || has('HO VISTO') || has('HºAº') || t.match(/^\s*T\d+\s*[-–]/))) return 'tabique_hormigon';
   }
 
   // ══ AISLACIONES (antes de mampostería) ══
@@ -5541,7 +5500,7 @@ function detectSubtipo(t) {
   if (has('LANA DE VIDRIO') || has('AISLACION TERMICA')) return 'aislacion_termica';
 
   // ══ REVESTIMIENTO DE PIEDRA — ANTES de mampostería (caso trampa "...en muro de contención") ══
-  if ((has('REVESTIM') || has('REVESTM')) && (has('PIEDRA') || has('LAJA'))) return 'rev_piedra';
+  if ((has('REVESTIM') || has('REVESTM') || /\bREV\.\s/.test(t)) && (has('PIEDRA') || has('LAJA'))) return 'rev_piedra';
 
   // ══ MAMPOSTERÍA ══
   if (!term) {
@@ -5549,7 +5508,8 @@ function detectSubtipo(t) {
     if (has('MURO ARMADO') || has('MUROS ARMADOS') || (has('BLOQUE') && (has('ARMAD') || has('LLENADO')))) return 'mamp_armado';
     if (has('BLOQUE') && (has('CEMENTICIO') || has('CEMENTO') || has('HORMIGON'))) return 'mamp_cementicio';
     if (has('MURO DE CONTENCION')) return 'mamp_18';
-    if (has('MAMPOST')) {
+    if (has('MAMPOST') || /\bMAMP\b/.test(t)) {
+      if (/\b8\s*X\s*18/.test(t)) return 'mamp_8';   // ladrillo 8x18x33: tabique, no portante
       if (has('12X18') || has('12X19') || has('12 X 18') || t.match(/PORTANTE\s+12/)) return 'mamp_12';
       if (has('18X18') || has('18X19') || has('18 X 18') || t.match(/PORTANTE\s+18/)) return 'mamp_18';
       if (has('COMUN')) return 'mamp_comun';
@@ -5584,6 +5544,11 @@ function detectSubtipo(t) {
   }
 
   // ══ REVOQUES ══
+  // "Rev. fino / Rev. grueso" = revoque abreviado (distinto de "rev. de piedra", que es revestimiento y se resolvió antes)
+  if (/\bREV\.\s*(FINO|GRUESO)/.test(t)) {
+    const ext = has('EXT');
+    return has('FINO') ? (ext ? 'rev_fino_ext' : 'rev_fino_int') : (ext ? 'rev_grueso_ext' : 'rev_grueso_int');
+  }
   if (has('AZOTADO')) {
     if (has('REVOQUE') || has('GRUESO')) return 'rev_azotado_grueso'; // 7.14 Azotado hidrófugo + revoque grueso
     if (has('CIELORRASO') || has('CIELORASO') || has('CIELO RASO')) return 'rev_azotado_cielo';
@@ -5709,7 +5674,7 @@ function detectSubtipo(t) {
   if (/SENSOR|ALARMA|SIRENA|ACCESS? POINT|REPETIDOR|SWITCH|\bPOE\b|SENALES DEBILES|DEBIL|RED DE DATOS|CAMARA DE SEGURIDAD|PORTERO/.test(t)) return 'inst_senales';
   if (has('TABLERO') && !has('PILAR')) return 'inst_elec_tablero';
   if (has('ARTEFACT')) return 'inst_elec_artefacto';
-  if (has('BOCA') || has('TOMACORRIENTE') || has('TERMOSTATO') || (has('TOMA') && has('INDIVIDUAL'))) return 'inst_elec_boca';
+  if (has('BOCA') || has('TOMACORRIENTE') || has('TERMOSTATO') || (has('TOMA') && has('INDIVIDUAL')) || /\bTOMA\s+(DOBLE|SIMPLE|TRIPLE|\d)/.test(t)) return 'inst_elec_boca';
   if (has('ELECTRIC')) return 'inst_electrica';
 
   // ══ VARIOS ══
@@ -5839,11 +5804,17 @@ function codParaSubtipo(subtipo, desc) {
   return (v && v[q]) || MAP_SUBTIPO[subtipo] || '';
 }
 MAP_SUBTIPO['piso_adoquin'] = '';
+MAP_SUBTIPO['mamp_8'] = '';            // ladrillo 8x18x33: se resuelve por nombre (si no existe la tarea, queda "falta crear")
+MAP_SUBTIPO['cielorraso_lona'] = '';   // 10.6 es "vidrio templado": se resuelve por nombre (tarea nueva, SQL_02)
+MAP_SUBTIPO['barniz'] = '13.6';        // 13.4 es esmalte
 
 // Qué tiene que decir el NOMBRE de la tarea para aceptar el código del mapa.
 // inc: todas deben matchear · exc: no debe matchear · rubro: rubro exacto de la tarea.
 // Si el código del mapa no cumple, se busca por nombre en toda la base; si no hay ninguna, el ítem queda sin tarea.
 const SUBTIPO_ESPERA = {
+  'mamp_8':               { inc: [/8\s*X\s*18/], rubro: 'Mampostería' },
+  'cielorraso_lona':      { inc: [/LONA|CAMUFLAD/], rubro: 'Cielorrasos' },
+  'barniz':               { inc: [/BARNIZ/], rubro: 'Pintura' },
   'losa_vigueta':         { inc: [/VIGUETA|BOVEDILLA|PRETENSAD/] },
   'losa_nervurada':       { inc: [/NERVURADA/], exc: /VIST/, rubro: 'Hormigón Armado' },
   'losa_nervurada_vista': { inc: [/NERVURADA/, /VIST/], rubro: 'Hormigón Armado' },
@@ -5899,6 +5870,17 @@ function detectSubtipoCtx(desc, seccion) {
   sist.forEach(([re, w]) => { if (new RegExp(re).test(S) && !new RegExp(re).test(D)) t += w; });
   if (/\bAGUA\b/.test(S) && !/\bAGUA\b/.test(D) && !/BOMBA|HIDRONEUMAT/.test(D)) t += ' agua';
   return detectSubtipo(t);
+}
+
+// N° de ítem de un Excel de certificado o de un Project. Acepta prefijo de obra
+// (RR2.01, EM1.01, JS2.1; "RR.2.96" se corrige a RR2.96) y coma decimal.
+// Devuelve { key, prefijo, num } o null si no tiene parte decimal ("2", "[117]", "").
+function parseNItem(raw) {
+  let t = String(raw == null ? '' : raw).trim().replace(/^\[|\]$/g, '').replace(/\s+/g, '').replace(/\*+$/, '');
+  if (!t) return null;
+  t = t.replace(/,/g, '.').toUpperCase().replace(/^([A-Z]+)[.\-_]+(?=\d)/, '$1');
+  const m = t.match(/^([A-Z]{0,4})(\d+\.\d+)$/);
+  return m ? { key: t, prefijo: m[1], num: m[2] } : null;
 }
 
 function _normN(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
@@ -6269,7 +6251,29 @@ const TEST_CASES_LECTOR = [
   ['Capa aisladora horizontal sobre viga de fundación', 'aislacion_h'],
   ['Barniz en cielorrasos de madera', 'barniz'],
   ['C1- Columna 20x20 c/azotado', 'columna_elab'],
+  // Octubre 2026 — lona / barniz
+  ['Cielorraso de lona camuflada en galería', 'cielorraso_lona'],
+  ['Barniz sintético en aberturas', 'barniz'],
+  // Auditoría contra Project reales (oct 2026)
+  ['VF1 - 0,30 x 0,40', 'viga_fund'], ['VF2 - 0,30 x 0,45', 'viga_fund'],
+  ['MAMP. LADRILLO CERAMICO HUECO PORTANTE 18x18x33', 'mamp_18'],
+  ['MAMP. LADRILLO CERAMICO HUECO PORTANTE 12x18x33', 'mamp_12'],
+  ['MAMP. LADRILLO CERAMICO HUECO PORTANTE 8x18x33', 'mamp_8'],
+  ['R6 - rev. De piedra formato natural de color a definir - ext', 'rev_piedra'],
+  ['T1 - TABIQUES DE HORMIGON VISTO PA - esp: 20cm', 'tabique_hormigon'],
+  ['Tabiques de hormigón armado esp 15cm', 'tabique_hormigon'],
+  ['Toma doble 20A', 'inst_elec_boca'],
+  ['Rev. fino interior', 'rev_fino_int'],
 ];
+
+// N° de ítem: [texto de la celda, normalizado esperado (null = no es un ítem con parte decimal)]
+const TEST_CASES_ITEM = [
+  ['2.10', '2.10'], ['2.100', '2.100'], ['2.1', '2.1'], ['2,16', '2.16'], ['[2.16]', '2.16'],
+  ['RR2.01', 'RR2.01'], ['RR.2.96', 'RR2.96'], ['EM1.01', 'EM1.01'], ['JS2.1', 'JS2.1'],
+  ['RL1.01', 'RL1.01'], ['LM1.01', 'LM1.01'], ['VB1.01', 'VB1.01'], ['4.17*', '4.17'],
+  ['117', null], ['[117]', null], ['2', null], ['', null], ['Total', null]
+];
+
 
 function testLector(verbose) {
   const fallas = [];
@@ -6296,10 +6300,14 @@ function testLector(verbose) {
   }
   if (Array.isArray(codsInexistentes) && codsInexistentes.length) console.warn('Códigos de MAP_SUBTIPO que NO existen en coeficientes:', codsInexistentes.filter(([s, cod]) => cod));
   else if (!Array.isArray(codsInexistentes)) console.warn(codsInexistentes);
-  return fallas;
+  const fallasItem = TEST_CASES_ITEM.filter(([raw, esp]) => ((parseNItem(raw) || {}).key || null) !== esp)
+    .map(([raw, esp]) => ({ raw, esperado: esp, obtenido: (parseNItem(raw) || {}).key || null }));
+  console.log(`N° de ítem: ${TEST_CASES_ITEM.length - fallasItem.length}/${TEST_CASES_ITEM.length} OK`);
+  if (fallasItem.length) console.table(fallasItem);
+  return [...fallas, ...fallasItem];
 }
 
-function processImportRows(rows) {
+function processImportRows(rows, ws) {
   importData = [];
   let currentRubro = '', currentUbicacion = 'Global', currentSeccion = '';
   // Ubicación escrita en el propio texto del ítem ("- PSS", "(PB)", "PA"): se usa para avisar contradicciones
@@ -6310,10 +6318,20 @@ function processImportRows(rows) {
   function parseNum(v) { if(typeof v==='number')return v; const s=String(v||'').replace(/[$\s]/g,''); if(s.includes(',')&&s.indexOf(',')>s.lastIndexOf('.'))return parseFloat(s.replace(/\./g,'').replace(',','.'))||0; if(s.includes(',')&&!s.includes('.'))return parseFloat(s.replace(',','.'))||0; return parseFloat(s)||0; }
   let colMap={nItem:0,desc:1,cant:2,un:3,contratista:4,costoUnit:5}, headerFound=false;
   for(let i=0;i<Math.min(rows.length,25);i++){const row=rows[i];if(!row)continue;const rowStr=row.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('DESIGNAC')||rowStr.includes('CANT')){for(let j=0;j<row.length;j++){const h=String(row[j]||'').toUpperCase().trim();if(h.includes('ITEM')||h.includes('N°'))colMap.nItem=j;if(h.includes('DESIGNAC')||h.includes('DESCRIPCI'))colMap.desc=j;if(h==='CANT.'||h==='CANT'||h==='CANTIDAD')colMap.cant=j;if(h==='UN.'||h==='UN'||h==='UNIDAD')colMap.un=j;if(h.includes('CONTRATISTA'))colMap.contratista=j;if(h.includes('COSTO UNIT'))colMap.costoUnit=j;}headerFound=true;break;}}
+  // Texto VISIBLE de la celda del N° de ítem (cell.w): "2.10" y "2.100" no se pisan y "RR2.01" conserva el cero.
+  function itemTexto(i, fallback) {
+    try {
+      if (!ws || !ws['!ref']) return fallback;
+      const rg = XLSX.utils.decode_range(ws['!ref']);
+      const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r + i, c: rg.s.c + colMap.nItem })];
+      if (cell) { const w = cell.w != null ? String(cell.w) : (cell.v != null ? String(cell.v) : ''); if (w.trim()) return w.trim(); }
+    } catch (e) {}
+    return fallback;
+  }
   let debugRows=[];
-  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=String(row[colMap.nItem]||'').trim(),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;currentUbicacion='Global';currentSeccion='';continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const esUbic=/^\s*(PLANTA\b|SUBSUELO|PSS\b|PB\b|PA\b)/i.test(col1);if(esUbic){const u=detectUbic(col1);if(u)currentUbicacion=u;}else{currentSeccion=col1;currentUbicacion='Global';}const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=/^\d+[\.,]\d+$/.test(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
-    const esMetadato = /^\[0\.\d+\]/.test(col1) || /^0\.\d+$/.test(col0);
-    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?col0:'s/n',desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(col1,currentSeccion),incluir:true};autoCorregirItem(it);importData.push(it);}}
+  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=itemTexto(i,String(row[colMap.nItem]||'').trim()),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;currentUbicacion='Global';currentSeccion='';continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const esUbic=/^\s*(PLANTA\b|SUBSUELO|PSS\b|PB\b|PA\b)/i.test(col1);if(esUbic){const u=detectUbic(col1);if(u)currentUbicacion=u;}else{currentSeccion=col1;currentUbicacion='Global';}const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=!!parseNItem(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
+    const esMetadato = /^\[0\.\d+\]/.test(col1) || /^[A-Za-z]{0,4}0[\.,]\d+$/.test(col0);
+    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?parseNItem(col0).key:'s/n',nItemOk:hasNum,desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(col1,currentSeccion),incluir:true};autoCorregirItem(it);importData.push(it);}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
   marcarImportDuplicados();
   asignarCoefsImport();
@@ -6472,6 +6490,7 @@ async function saveImport() {
         coef_id: findCoefForItem(item),
         descripcion: descFinal,
         etiqueta: etiqueta || null,
+        n_item: item.nItemOk ? item.nItem : null,   // vínculo con el cronograma (columna mediciones.n_item)
         cantidad,
         fecha: new Date().toLocaleDateString('es-AR'),
         ubicacion: item.ubicacion,
@@ -6481,7 +6500,16 @@ async function saveImport() {
     });
     // Limpiar campo auxiliar antes de enviar
     const medPayload = medBatch.map(({ _item, ...rest }) => rest);
-    const medRes = await sbPost('mediciones', medPayload);
+    let medRes;
+    try {
+      medRes = await sbPost('mediciones', medPayload);
+    } catch (e) {
+      // Si todavía no existe la columna n_item, importar igual sin el vínculo y avisar
+      if (/n_item/.test(String(e.message))) {
+        medRes = await sbPost('mediciones', medPayload.map(({ n_item, ...r }) => r));
+        notif('Importado SIN vínculo al cronograma: falta correr el SQL de la columna n_item en Supabase');
+      } else throw e;
+    }
     const mediciones = (medRes || []).map((med, i) => ({
       ...med,
       item: medBatch[i]._item
@@ -6588,6 +6616,286 @@ async function saveImport() {
     const btn2 = document.getElementById('btn-import-save');
     if (btn2) { btn2.disabled = false; btn2.textContent = 'Importar obra'; }
   }
+}
+
+// =====================================================================
+// CRONOGRAMA ↔ CÓMPUTO  (Projects MSPDI publicados en BkTableros)
+// El vínculo es el N° de ítem: mediciones.n_item ([2.16] al inicio de la descripción)
+// contra el campo personalizado "N° Item" de cada tarea del Project.
+// =====================================================================
+const BK_BASES = [
+  'https://manuelsagarraga-cloud.github.io/BkTableros/data/',
+  'https://raw.githubusercontent.com/manuelsagarraga-cloud/BkTableros/main/data/'
+];
+let _bkManifest = null;
+const _cronoCache = {};      // archivo → { tareas, itemFid }
+let _cronoVinculo = null;    // resultado del último vínculo
+let _cronoUltimoMat = null;  // último cálculo de materiales (para exportar)
+
+const _cEsc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const _cFecha = d => d ? d.toLocaleDateString('es-AR') : '—';
+
+async function bkFetch(path, asJson) {
+  let ultimo = null;
+  for (const base of BK_BASES) {
+    try {
+      const r = await fetch(base + path, { cache: 'no-cache' });
+      if (!r.ok) { ultimo = new Error(r.status + ' ' + r.statusText); continue; }
+      return asJson ? await r.json() : await r.text();
+    } catch (e) { ultimo = e; }
+  }
+  throw ultimo || new Error('sin respuesta');
+}
+
+// Lee un MSPDI. El N° Item de BkTableros es un campo corporativo: viene en
+// <EnterpriseExtendedAttribute> (no en <ExtendedAttribute>), por eso se miran los dos.
+function parseMSPDI(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('El XML del Project no se pudo leer');
+  const root = doc.documentElement;
+  const hijo = (el, nombre) => { for (const ch of el.children) if (ch.localName === nombre) return ch; return null; };
+  const txt = (el, nombre) => { const h = hijo(el, nombre); return h ? h.textContent.trim() : ''; };
+  let itemFid = '188776460';   // FieldID observado en BkTableros; se busca por nombre por si cambia
+  const defs = hijo(root, 'ExtendedAttributes');
+  if (defs) for (const d of defs.children) {
+    if (/\bITEM\b/.test(_normN(txt(d, 'FieldName') + ' ' + txt(d, 'Alias')))) { itemFid = txt(d, 'FieldID'); break; }
+  }
+  const cont = hijo(root, 'Tasks');
+  if (!cont) throw new Error('El XML no tiene tareas');
+  const tareas = [];
+  for (const t of cont.children) {
+    if (t.localName !== 'Task' || txt(t, 'IsNull') === '1') continue;
+    const uid = txt(t, 'UID'); if (uid === '0') continue;
+    let itemRaw = '';
+    for (const ch of t.children) {
+      if (ch.localName !== 'EnterpriseExtendedAttribute' && ch.localName !== 'ExtendedAttribute') continue;
+      if (txt(ch, 'FieldID') === itemFid) { const v = txt(ch, 'Value'); if (v) itemRaw = v; }
+    }
+    const f = v => v ? new Date(v) : null;
+    tareas.push({
+      uid, wbs: txt(t, 'WBS'), nombre: txt(t, 'Name'), resumen: txt(t, 'Summary') === '1',
+      inicio: f(txt(t, 'Start')), fin: f(txt(t, 'Finish')), avance: parseInt(txt(t, 'PercentComplete')) || 0,
+      itemRaw, item: parseNItem(itemRaw)
+    });
+  }
+  return { tareas, itemFid };
+}
+
+function nItemDeMed(m) {
+  const d = m.desc || m.descripcion || '';
+  return parseNItem(m.n_item) || parseNItem((d.match(/^\s*\[([^\]]+)\]/) || [])[1]);
+}
+
+// Vincula mediciones ↔ tareas por la parte numérica del N° de ítem (los prefijos RR/EM/JS… se ignoran).
+// Si un N° está repetido en el Project se asigna la tarea que empieza antes (y se avisa).
+function cronoVincular(tareas, medsObra) {
+  const porNum = new Map();
+  tareas.forEach(t => { if (!t.item) return; if (!porNum.has(t.item.num)) porNum.set(t.item.num, []); porNum.get(t.item.num).push(t); });
+  const elegida = new Map(), dupProject = [];
+  porNum.forEach((arr, num) => {
+    arr.sort((a, b) => (a.resumen - b.resumen) || ((a.inicio || 0) - (b.inicio || 0)));   // hojas primero, luego la que empieza antes
+    elegida.set(num, arr[0]);
+    const hojas = arr.filter(t => !t.resumen);
+    if (hojas.length > 1) dupProject.push({ num, tareas: hojas, elegida: arr[0] });
+  });
+  const vinculadas = [], sinTarea = [], porMedNum = new Map();
+  medsObra.forEach(m => {
+    const it = nItemDeMed(m);
+    if (!it) { sinTarea.push({ med: m, item: null, motivo: 'La medición no tiene N° de ítem (carga manual o código sin decimal)' }); return; }
+    if (!porMedNum.has(it.num)) porMedNum.set(it.num, []);
+    porMedNum.get(it.num).push(m);
+    const t = elegida.get(it.num);
+    if (!t) { sinTarea.push({ med: m, item: it, motivo: 'Ninguna tarea del Project tiene ese N° Item' }); return; }
+    vinculadas.push({ med: m, item: it, tarea: t });
+  });
+  const dupMeds = [];
+  porMedNum.forEach((arr, num) => { if (arr.length > 1) dupMeds.push({ num, meds: arr }); });
+  const hojasProj = tareas.filter(t => !t.resumen);
+  return {
+    vinculadas, sinTarea, dupProject, dupMeds,
+    tareasSinMed: hojasProj.filter(t => t.item && !porMedNum.has(t.item.num)),
+    tareasSinItem: hojasProj.filter(t => !t.item).length,
+    totalMeds: medsObra.length, totalTareas: hojasProj.length
+  };
+}
+
+async function cronoInit() {
+  const info = document.getElementById('crono-info');
+  if (!_bkManifest) {
+    try { _bkManifest = await bkFetch('manifest.json?_=' + Date.now(), true); }
+    catch (e) { if (info) info.innerHTML = '<span style="color:var(--re);">No pude leer el listado de Projects de BkTableros (' + _cEsc(e.message) + '). Revisá la conexión.</span>'; cronoCambioObra(); return; }
+  }
+  const selP = document.getElementById('sel-crono-proj');
+  const lista = (_bkManifest.projects || []).map(p => p.file).sort((a, b) => a.localeCompare(b, 'es'));
+  selP.innerHTML = '<option value="">— elegir Project —</option>' + lista.map(f => `<option value="${_cEsc(f)}">${_cEsc(f.replace(/\.xml$/i, ''))}</option>`).join('');
+  if (info) info.innerHTML = lista.length + ' Projects publicados en BkTableros.';
+  cronoCambioObra();
+}
+
+function cronoCambioObra() {
+  const obraId = document.getElementById('sel-obra-crono')?.value;
+  const obra = obras.find(o => o.id === obraId);
+  const selP = document.getElementById('sel-crono-proj');
+  if (selP) {
+    const pf = obra?.project_file || localStorage.getItem('crono_proj_' + obraId) || '';
+    selP.value = [...selP.options].some(o => o.value === pf) ? pf : '';
+  }
+  const cuenta = {};
+  meds.filter(m => (m.obraId || m.obra_id) === obraId).forEach(m => { const r = m.revision || 'Rev00'; cuenta[r] = (cuenta[r] || 0) + 1; });
+  const revs = Object.keys(cuenta).sort();
+  const selR = document.getElementById('sel-crono-rev');
+  if (selR) {
+    selR.innerHTML = revs.length ? revs.map(r => `<option value="${r}">${r} (${cuenta[r]} mediciones)</option>`).join('') : '<option value="">Sin mediciones</option>';
+    const mejor = revs.slice().sort((a, b) => cuenta[b] - cuenta[a])[0];
+    if (mejor) selR.value = mejor;
+  }
+  _cronoVinculo = null;
+  const rep = document.getElementById('crono-reporte'); if (rep) rep.innerHTML = '';
+  const mat = document.getElementById('crono-materiales'); if (mat) mat.innerHTML = '';
+}
+
+async function cronoCargar() {
+  const obraId = document.getElementById('sel-obra-crono')?.value;
+  const file = document.getElementById('sel-crono-proj')?.value;
+  const rev = document.getElementById('sel-crono-rev')?.value;
+  // Validaciones ANTES del spinner
+  if (!obraId) { notif('Elegí una obra'); return; }
+  if (!file) { notif('Elegí el Project de BkTableros'); return; }
+  if (!rev) { notif('La obra no tiene mediciones'); return; }
+  const obra = obras.find(o => o.id === obraId);
+  showBusy('Leyendo el cronograma...');
+  try {
+    let parsed = _cronoCache[file];
+    if (!parsed) {
+      const xml = await bkFetch('projects/' + encodeURIComponent(file), false);
+      parsed = parseMSPDI(xml);
+      _cronoCache[file] = parsed;
+    }
+    if ((obra?.project_file || '') !== file) {
+      try { await sbPatch('obras', obraId, { project_file: file }); if (obra) obra.project_file = file; }
+      catch (e) {
+        localStorage.setItem('crono_proj_' + obraId, file);
+        console.warn('project_file no se pudo guardar en Supabase (¿falta la columna?):', e.message);
+      }
+    }
+    const medsObra = meds.filter(m => (m.obraId || m.obra_id) === obraId && (m.revision || 'Rev00') === rev);
+    _cronoVinculo = { ...cronoVincular(parsed.tareas, medsObra), obraId, rev, file };
+    cronoRenderReporte();
+  } catch (e) {
+    console.error('cronoCargar:', e);
+    notif('No pude cargar el cronograma: ' + e.message);
+  } finally {
+    hideBusy();
+  }
+}
+
+function cronoRenderReporte() {
+  const v = _cronoVinculo; if (!v) return;
+  const rep = document.getElementById('crono-reporte');
+  const corto = (m, n) => _cEsc(String(m.desc || m.descripcion || '').replace(/^\s*\[[^\]]*\]\s*/, '').slice(0, n || 90));
+  const pctV = v.totalMeds ? Math.round(100 * v.vinculadas.length / v.totalMeds) : 0;
+  const nDup = v.dupProject.length + v.dupMeds.length;
+  const stat = (lbl, val, color) => `<div class="stat"><div class="stat-label">${lbl}</div><div class="stat-value" ${color ? 'style="color:' + color + ';"' : ''}>${val}</div></div>`;
+  const bloque = (titulo, n, abierto, cuerpo) => `<details ${abierto && n ? 'open' : ''} style="margin-bottom:8px;"><summary style="cursor:pointer;font-weight:600;font-size:12px;padding:8px 10px;background:var(--surf2);border-radius:6px;">${titulo} <span style="color:var(--tx3);font-weight:400;">(${n})</span></summary><div class="card" style="padding:0;overflow:auto;max-height:420px;margin-top:4px;">${cuerpo}</div></details>`;
+  const tabla = (cols, filas) => filas.length ? `<table style="font-size:11px;"><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${filas.join('')}</tbody></table>` : '<div class="empty" style="padding:12px;">Nada para mostrar.</div>';
+
+  const hVinc = tabla(['N° ítem', 'Medición', 'Tarea del Project', 'Inicio', 'Avance'],
+    v.vinculadas.map(x => `<tr><td><code>${_cEsc(x.item.key)}</code></td><td>${corto(x.med)}</td><td>${_cEsc(x.tarea.nombre)}</td><td>${_cFecha(x.tarea.inicio)}</td><td class="num">${x.tarea.avance}%</td></tr>`));
+  const hSin = tabla(['N° ítem', 'Medición', 'Motivo'],
+    v.sinTarea.map(x => `<tr><td><code>${x.item ? _cEsc(x.item.key) : '—'}</code></td><td>${corto(x.med)}</td><td style="color:var(--tx3);">${_cEsc(x.motivo)}</td></tr>`));
+  const hDupP = tabla(['N° Item', 'Tareas del Project con ese código (la 1ª es la asignada)'],
+    v.dupProject.map(d => `<tr><td><code>${_cEsc(d.num)}</code></td><td>${d.tareas.slice().sort((a, b) => (a.inicio || 0) - (b.inicio || 0)).map((t, i) => `${i === 0 ? '✔ ' : ''}${_cEsc(t.nombre)} <span style="color:var(--tx3);">(${_cFecha(t.inicio)})</span>`).join('<br>')}</td></tr>`));
+  const hDupM = tabla(['N° ítem', 'Mediciones de la obra con ese código'],
+    v.dupMeds.map(d => `<tr><td><code>${_cEsc(d.num)}</code></td><td>${d.meds.map(m => corto(m, 80)).join('<br>')}</td></tr>`));
+  const hSinMed = tabla(['N° Item', 'Tarea del Project sin medición'],
+    v.tareasSinMed.map(t => `<tr><td><code>${_cEsc(t.item.key)}</code></td><td>${_cEsc(t.nombre)} <span style="color:var(--tx3);">(${_cFecha(t.inicio)})</span></td></tr>`));
+
+  const hoy = new Date(), en30 = new Date(Date.now() + 30 * 86400000);
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  rep.innerHTML = `
+    <div class="stats-grid" style="margin-bottom:10px;">
+      ${stat('Mediciones (' + _cEsc(v.rev) + ')', v.totalMeds)}
+      ${stat('Vinculadas', v.vinculadas.length + ' · ' + pctV + '%', pctV >= 90 ? 'var(--gr, #2e7d32)' : '#b45309')}
+      ${stat('Sin tarea', v.sinTarea.length, v.sinTarea.length ? '#b45309' : '')}
+      ${stat('Códigos duplicados', nDup, nDup ? '#b45309' : '')}
+      ${stat('Tareas sin medición', v.tareasSinMed.length)}
+    </div>
+    ${bloque('✔ Mediciones vinculadas a una tarea', v.vinculadas.length, false, hVinc)}
+    ${bloque('⚠ Mediciones sin tarea en el Project', v.sinTarea.length, true, hSin)}
+    ${bloque('⚠ N° Item repetido en el Project', v.dupProject.length, true, hDupP)}
+    ${bloque('⚠ N° de ítem repetido en las mediciones de la obra', v.dupMeds.length, true, hDupM)}
+    ${bloque('Tareas del Project con N° Item sin medición', v.tareasSinMed.length, false, hSinMed)}
+    <div style="font-size:10px;color:var(--tx3);margin:2px 0 14px;">${v.tareasSinItem} tareas del Project no tienen N° Item (no se pueden vincular). El vínculo compara la parte numérica del código, sin el prefijo de obra.</div>`;
+
+  document.getElementById('crono-materiales').innerHTML = `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Materiales por período de compra</div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr auto auto;margin-bottom:0;align-items:end;">
+        <div class="fg"><label>Comprar desde</label><input type="date" id="crono-desde" value="${iso(hoy)}" onchange="cronoCalcMateriales()"></div>
+        <div class="fg"><label>Comprar hasta</label><input type="date" id="crono-hasta" value="${iso(en30)}" onchange="cronoCalcMateriales()"></div>
+        <div class="fg"><label>Anticipación (días)</label><input type="number" id="crono-ant" value="15" min="0" step="1" onchange="cronoCalcMateriales()"></div>
+        <label style="font-size:11px;display:flex;gap:5px;align-items:center;padding-bottom:8px;"><input type="checkbox" id="crono-pend" checked onchange="cronoCalcMateriales()"> Excluir tareas al 100%</label>
+        <button class="btn" onclick="cronoExportMateriales()">↓ Excel</button>
+      </div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:6px;">Se listan los materiales de las tareas que <b>empiezan</b> entre (desde + anticipación) y (hasta + anticipación). La fecha de compra sugerida es el inicio menos la anticipación.</div>
+    </div>
+    <div id="crono-mat-resultado"></div>`;
+  cronoCalcMateriales();
+}
+
+function cronoCalcMateriales() {
+  const v = _cronoVinculo; if (!v) return;
+  const out = document.getElementById('crono-mat-resultado'); if (!out) return;
+  const d = document.getElementById('crono-desde').value, h = document.getElementById('crono-hasta').value;
+  const ant = parseInt(document.getElementById('crono-ant').value) || 0;
+  const soloPend = document.getElementById('crono-pend').checked;
+  if (!d || !h) { out.innerHTML = '<div class="empty">Elegí el rango de fechas.</div>'; return; }
+  const dia = 86400000;
+  const iniV = new Date(new Date(d + 'T00:00:00').getTime() + ant * dia);
+  const finV = new Date(new Date(h + 'T23:59:59').getTime() + ant * dia);
+  const grupos = new Map();
+  v.vinculadas.forEach(x => {
+    const t = x.tarea;
+    if (!t.inicio || t.inicio < iniV || t.inicio > finV) return;
+    if (soloPend && t.avance >= 100) return;
+    if (!grupos.has(t.uid)) grupos.set(t.uid, { tarea: t, meds: [] });
+    grupos.get(t.uid).meds.push(x.med);
+  });
+  const encab = `<div style="font-size:11px;color:var(--tx3);margin-bottom:8px;">Tareas que empiezan entre <b>${_cFecha(iniV)}</b> y <b>${_cFecha(finV)}</b>.${v.sinTarea.length ? ' <span style="color:#b45309;">' + v.sinTarea.length + ' mediciones sin tarea vinculada no entran en este cálculo.</span>' : ''}</div>`;
+  if (!grupos.size) { out.innerHTML = encab + '<div class="empty"><div class="empty-icon">◫</div>Ninguna tarea vinculada empieza en esa ventana.</div>'; _cronoUltimoMat = null; return; }
+  const medsVent = []; grupos.forEach(g => g.meds.forEach(m => medsVent.push(m)));
+  const cons = consolidarMateriales(v.obraId, medsVent);
+  const items = Object.values(cons).sort((a, b) => b.subtotal - a.subtotal);
+  const total = items.reduce((s, i) => s + i.subtotal, 0);
+  const tareas = [...grupos.values()].sort((a, b) => a.tarea.inicio - b.tarea.inicio);
+  _cronoUltimoMat = { items, tareas, ant, iniV, finV };
+  out.innerHTML = encab + `
+    <div class="card" style="padding:0;overflow:auto;margin-bottom:10px;"><table style="font-size:11px;">
+      <thead><tr><th>N° ítem</th><th>Tarea</th><th>Inicio</th><th>Comprar antes de</th><th>Avance</th><th>Mediciones</th></tr></thead>
+      <tbody>${tareas.map(g => `<tr><td><code>${_cEsc(g.tarea.item ? g.tarea.item.key : '')}</code></td><td>${_cEsc(g.tarea.nombre)}</td><td>${_cFecha(g.tarea.inicio)}</td><td>${_cFecha(new Date(g.tarea.inicio.getTime() - ant * dia))}</td><td class="num">${g.tarea.avance}%</td><td class="num">${g.meds.length}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="card" style="padding:0;overflow:hidden;"><table>
+      <thead><tr><th>Material</th><th>Cant. base</th><th>Cant. comercial</th><th>Precio unit.</th><th>Subtotal</th><th>Rubros</th></tr></thead>
+      <tbody>${items.map(m => `<tr><td class="hi">${_cEsc(m.nombre)}</td><td class="num" style="color:var(--tx3);">${m.cantBase.toFixed(2)} ${_cEsc(m.unBase)}</td><td class="num" style="color:var(--bl);font-weight:600;">${m.cantComercialCeil} ${_cEsc(m.unComercial)}</td><td class="num">${m.precio ? $p(m.precio) : '<span style="color:var(--re);font-size:10px;">sin precio</span>'}</td><td class="num hi">${m.precio ? $p(m.subtotal) : '—'}</td><td style="font-size:10px;color:var(--tx3);">${_cEsc(m.rubros.join(', '))}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="total-bar"><span class="tl">Total materiales del período</span><span class="tv">${$p(total)}</span></div>`;
+}
+
+function cronoExportMateriales() {
+  const r = _cronoUltimoMat;
+  if (!r) { notif('Primero calculá un período con materiales'); return; }
+  const obra = obras.find(o => o.id === _cronoVinculo?.obraId);
+  const hoja1 = [['Material', 'Cantidad comercial', 'Un. comercial', 'Cant. base', 'Un. base', 'Precio unit.', 'Subtotal', 'Rubros']];
+  r.items.forEach(m => hoja1.push([m.nombre, m.cantComercialCeil, m.unComercial, +m.cantBase.toFixed(3), m.unBase, m.precio, m.subtotal, m.rubros.join(', ')]));
+  const hoja2 = [['N° ítem', 'Tarea', 'Inicio', 'Comprar antes de', 'Avance %', 'Mediciones']];
+  r.tareas.forEach(g => hoja2.push([g.tarea.item ? g.tarea.item.key : '', g.tarea.nombre, _cFecha(g.tarea.inicio), _cFecha(new Date(g.tarea.inicio.getTime() - r.ant * 86400000)), g.tarea.avance, g.meds.length]));
+  const wb = XLSX.utils.book_new();
+  const w1 = XLSX.utils.aoa_to_sheet(hoja1); w1['!cols'] = [{wch:42},{wch:12},{wch:14},{wch:12},{wch:8},{wch:12},{wch:14},{wch:26}];
+  const w2 = XLSX.utils.aoa_to_sheet(hoja2); w2['!cols'] = [{wch:10},{wch:50},{wch:12},{wch:16},{wch:9},{wch:11}];
+  XLSX.utils.book_append_sheet(wb, w1, 'Materiales');
+  XLSX.utils.book_append_sheet(wb, w2, 'Tareas');
+  XLSX.writeFile(wb, `Materiales_periodo_${(obra?.nombre || 'obra').replace(/\s/g, '_')}.xlsx`);
+  notif('Excel exportado ✓');
 }
 
 // =====================================================================
