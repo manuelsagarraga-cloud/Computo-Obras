@@ -507,21 +507,20 @@ textarea{resize:vertical;min-height:55px;}
     <!-- LISTA DE COMPRAS -->
     <div id="page-compras" class="page">
       <div class="card" style="margin-bottom:12px;">
-        <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr;margin-bottom:0;">
+        <div class="form-grid" style="grid-template-columns:2fr 1.4fr auto auto auto auto;margin-bottom:0;">
           <div class="fg"><label>Obra</label><select id="sel-obra-compras" onchange="loadCompras()"></select></div>
-          <div style="display:flex;align-items:flex-end;"><button class="btn" onclick="exportComprasExcel(document.getElementById('sel-obra-compras').value)" style="white-space:nowrap;">↓ Exportar Excel</button></div>
           <div class="fg"><label>Vista</label>
             <select id="compras-vista" onchange="loadCompras()">
               <option value="consolidado">Consolidado por material</option>
               <option value="rubros">Agrupado por rubro</option>
+              <option value="saldo">Saldo: computado vs comprado</option>
+              <option value="registro">Registro de compras</option>
             </select>
           </div>
-          <div style="display:flex;align-items:flex-end;">
-            <button class="btn" style="width:100%;" onclick="exportCompras()">↓ Exportar lista</button>
-          <div style="display:flex;align-items:flex-end;">
-            <button class="btn btn-primary" id="btn-export-compras" style="width:100%;white-space:nowrap;" onclick="exportComprasPDF()">⎙ Exportar PDF</button>
-          </div>
-          </div>
+          <div style="display:flex;align-items:flex-end;"><button class="btn btn-primary" style="white-space:nowrap;" onclick="openModalCompra()">+ Registrar compra</button></div>
+          <div style="display:flex;align-items:flex-end;"><button class="btn" onclick="exportComprasExcel(document.getElementById('sel-obra-compras').value)" style="white-space:nowrap;">↓ Excel</button></div>
+          <div style="display:flex;align-items:flex-end;"><button class="btn" style="white-space:nowrap;" onclick="exportCompras()">↓ Lista .txt</button></div>
+          <div style="display:flex;align-items:flex-end;"><button class="btn" id="btn-export-compras" style="white-space:nowrap;" onclick="exportComprasPDF()">⎙ PDF</button></div>
         </div>
       </div>
       <div id="compras-body"></div>
@@ -610,6 +609,33 @@ textarea{resize:vertical;min-height:55px;}
     </div>
     <div class="fg"><label>Notas</label><textarea id="o-notas"></textarea></div>
     <div class="modal-footer"><button class="btn" onclick="closeModal('m-obra')">Cancelar</button><button class="btn btn-primary" onclick="this.disabled=true;saveObra().finally(()=>this.disabled=false)">Guardar obra</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="m-compra">
+  <div class="modal">
+    <div class="modal-title"><span id="compra-modal-title">Registrar compra</span> <button class="modal-close" onclick="closeModal('m-compra')">✕</button></div>
+    <input type="hidden" id="compra-id">
+    <div class="form-grid">
+      <div class="fg"><label>Fecha</label><input id="compra-fecha" type="date"></div>
+      <div class="fg"><label>Proveedor</label><input id="compra-proveedor" list="compra-prov-list" placeholder="Corralón, hormigonera…"><datalist id="compra-prov-list"></datalist></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px;"><label>Material <span style="color:var(--tx3);font-weight:400;">(elegí uno del cómputo o escribí otro)</span></label>
+      <input id="compra-material" list="compra-mat-list" oninput="onCompraMaterial()" placeholder="Ej: Cemento portland"><datalist id="compra-mat-list"></datalist>
+      <div id="compra-mat-info" style="font-size:10px;color:var(--tx3);margin-top:4px;min-height:13px;"></div>
+    </div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+      <div class="fg"><label>Cantidad</label><input id="compra-cant" type="number" step="any" oninput="calcCompraTotal()"></div>
+      <div class="fg"><label>Unidad</label><input id="compra-un"></div>
+      <div class="fg"><label>Precio unit. ($)</label><input id="compra-precio" type="number" step="any" oninput="calcCompraTotal()"></div>
+      <div class="fg"><label>Total ($)</label><input id="compra-total" type="number" step="any" oninput="this.dataset.manual='1'"></div>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label>N° factura / remito</label><input id="compra-factura"></div>
+      <div class="fg"><label>Observaciones</label><input id="compra-obs"></div>
+    </div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:-4px;">La cantidad va en la misma unidad comercial que la lista de compras (bolsas, m³, barras…) para que el saldo sea comparable. El total podés pisarlo si incluye flete o descuentos.</div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('m-compra')">Cancelar</button><button class="btn btn-primary" id="btn-save-compra" onclick="saveCompra()">Guardar</button></div>
   </div>
 </div>
 
@@ -1179,7 +1205,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-02.3';
+const APP_BUILD = '2026-10-07.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -4602,6 +4628,19 @@ function exportComprasExcel(obraId) {
   wsData['!cols'] = [{wch:40},{wch:8},{wch:12},{wch:15},{wch:15},{wch:14},{wch:14},{wch:25}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsData, 'Lista de Compras');
+  const compras = _comprasCache[obraId] || [];
+  if (compras.length) {
+    const sal = calcSaldoCompras(obraId);
+    const rS = [['Material','Unidad','Computado','Comprado','Saldo cant.','Presupuestado $','Gastado $','Pendiente estimado $']];
+    sal.filas.forEach(f => rS.push([f.nombre, f.un, f.computado, f.comprado, f.saldo, Math.round(f.presup), Math.round(f.gastado), Math.round(f.pendiente)]));
+    rS.push([]); rS.push(['TOTAL','','','','', Math.round(sal.presup), Math.round(sal.gastado), Math.round(sal.pendiente)]);
+    const wsS = XLSX.utils.aoa_to_sheet(rS); wsS['!cols'] = [{wch:40},{wch:10},{wch:12},{wch:12},{wch:12},{wch:16},{wch:16},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, wsS, 'Saldo');
+    const rR = [['Fecha','Material','Cantidad','Unidad','Precio unit.','Total','Proveedor','Factura','Obs.']];
+    compras.forEach(c => rR.push([c.fecha, c.material, num(c.cantidad), c.un||'', num(c.precio_unit), num(c.total), c.proveedor||'', c.factura||'', c.obs||'']));
+    const wsR = XLSX.utils.aoa_to_sheet(rR); wsR['!cols'] = [{wch:11},{wch:40},{wch:10},{wch:8},{wch:12},{wch:14},{wch:22},{wch:14},{wch:30}];
+    XLSX.utils.book_append_sheet(wb, wsR, 'Compras');
+  }
   XLSX.writeFile(wb, `Compras_${(obra?.nombre||'obra').replace(/\s/g,'_')}.xlsx`);
   notif('Excel exportado ✓');
 }
@@ -4611,6 +4650,8 @@ function loadCompras() {
   const vista = document.getElementById('compras-vista')?.value || 'consolidado';
   const body = document.getElementById('compras-body');
   if (!obraId) { body.innerHTML = '<div class="empty">Seleccioná una obra.</div>'; return; }
+
+  if (vista === 'saldo' || vista === 'registro') { renderComprasReales(obraId, vista); return; }
 
   const consolidado = consolidarMateriales(obraId);
   if (!Object.keys(consolidado).length) {
@@ -4673,6 +4714,236 @@ function loadCompras() {
     html += `<div class="total-bar"><span class="tl">Total materiales</span><span class="tv">${$p(totalCompra)}</span></div>`;
     body.innerHTML = html;
   }
+}
+
+
+// =====================================================================
+// COMPRAS REALES Y SALDO — tabla compras_reales (una fila por compra)
+// La cantidad se registra en la unidad comercial de la lista de compras.
+// El vínculo con el cómputo es por nombre de material (misma clave que consolidarMateriales).
+// =====================================================================
+let _comprasCache = {}; // { obraId: [filas] }
+const _escC = s => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const _normMat = s => String(s||'').trim().toLowerCase();
+
+async function loadComprasReales(obraId, force=false) {
+  if (!force && _comprasCache[obraId]) return _comprasCache[obraId];
+  const rows = await sbGet('compras_reales', `obra_id=eq.${obraId}`);
+  _comprasCache[obraId] = (rows||[]).sort((a,b) => String(a.fecha||'').localeCompare(String(b.fecha||'')));
+  return _comprasCache[obraId];
+}
+
+function calcSaldoCompras(obraId) {
+  const consolidado = consolidarMateriales(obraId);
+  const compras = _comprasCache[obraId] || [];
+  const filas = {};
+  Object.values(consolidado).forEach(m => {
+    filas[_normMat(m.nombre)] = { nombre:m.nombre, un:m.unComercial, computado:m.cantComercialCeil, comprado:0, presup:m.subtotal, precioRef:m.precio, gastado:0, nCompras:0, enComputo:true };
+  });
+  compras.forEach(c => {
+    const k = _normMat(c.material);
+    if (!filas[k]) filas[k] = { nombre:c.material, un:c.un||'', computado:0, comprado:0, presup:0, precioRef:num(c.precio_unit), gastado:0, nCompras:0, enComputo:false };
+    filas[k].comprado += num(c.cantidad);
+    filas[k].gastado += num(c.total);
+    filas[k].nCompras++;
+  });
+  const lista = Object.values(filas).map(f => {
+    f.comprado = +f.comprado.toFixed(3);
+    f.saldo = +(f.computado - f.comprado).toFixed(3);
+    // Precio para estimar lo que falta: último precio pagado si hay compras, si no el de la base
+    const pagado = f.comprado > 0 ? f.gastado / f.comprado : 0;
+    f.precioPend = pagado || f.precioRef || 0;
+    f.pendiente = f.saldo > 0 ? f.saldo * f.precioPend : 0;
+    return f;
+  });
+  lista.sort((a,b) => (b.enComputo - a.enComputo) || (b.presup - a.presup));
+  const presup = lista.reduce((s,f) => s+f.presup, 0);
+  const gastado = lista.reduce((s,f) => s+f.gastado, 0);
+  const pendiente = lista.reduce((s,f) => s+f.pendiente, 0);
+  return { filas: lista, presup, gastado, pendiente, proyeccion: gastado + pendiente };
+}
+
+async function renderComprasReales(obraId, vista) {
+  const body = document.getElementById('compras-body');
+  body.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>';
+  try {
+    await loadComprasReales(obraId);
+  } catch(e) {
+    body.innerHTML = `<div class="empty">No se pudieron leer las compras (${_escC(e.message)}).<br><span style="font-size:10px;">Si es la primera vez, falta crear la tabla <code>compras_reales</code> en Supabase.</span></div>`;
+    return;
+  }
+  if (document.getElementById('sel-obra-compras')?.value !== obraId) return; // cambió de obra mientras cargaba
+  if (vista === 'registro') return renderRegistroCompras(obraId);
+
+  const s = calcSaldoCompras(obraId);
+  if (!s.filas.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">◫</div>Sin mediciones ni compras para esta obra.</div>'; return; }
+  const desvio = s.proyeccion - s.presup;
+  const pctGast = s.presup ? Math.round(s.gastado / s.presup * 100) : 0;
+  const fmtQ = n => (Math.abs(n) % 1 ? n.toLocaleString('es-AR',{maximumFractionDigits:2}) : n.toLocaleString('es-AR'));
+  const saldoCell = f => {
+    if (!f.enComputo) return `<span style="color:var(--am);">fuera de cómputo</span>`;
+    if (f.saldo > 0) return `<span style="color:var(--bl);font-weight:600;">falta ${fmtQ(f.saldo)}</span>`;
+    if (f.saldo < 0) return `<span style="color:var(--re);font-weight:600;">excedido ${fmtQ(-f.saldo)}</span>`;
+    return `<span style="color:var(--gr);font-weight:600;">✓ completo</span>`;
+  };
+  body.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat"><div class="stat-label">Presupuesto materiales</div><div class="stat-value">${$p(s.presup)}</div><div class="stat-sub">según cómputo</div></div>
+      <div class="stat"><div class="stat-label">Gastado</div><div class="stat-value">${$p(s.gastado)}</div><div class="stat-sub">${pctGast}% del presupuesto · ${(_comprasCache[obraId]||[]).length} compras</div></div>
+      <div class="stat"><div class="stat-label">Saldo disponible</div><div class="stat-value" style="color:${s.presup - s.gastado < 0 ? 'var(--re)' : 'var(--gr)'};">${$p(s.presup - s.gastado)}</div><div class="stat-sub">presupuesto − gastado</div></div>
+      <div class="stat"><div class="stat-label">Falta comprar (estim.)</div><div class="stat-value">${$p(s.pendiente)}</div><div class="stat-sub">saldo de cantidades × último precio pagado</div></div>
+      <div class="stat"><div class="stat-label">Proyección al cierre</div><div class="stat-value" style="color:${desvio > 0 ? 'var(--re)' : 'var(--gr)'};">${$p(s.proyeccion)}</div><div class="stat-sub">${desvio > 0 ? 'se pasa ' + $p(desvio) : 'ahorro ' + $p(-desvio)} vs presupuesto</div></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table>
+        <thead><tr><th>Material</th><th>Computado</th><th>Comprado</th><th>Saldo</th><th>Presupuestado</th><th>Gastado</th><th>Falta comprar $</th><th></th></tr></thead>
+        <tbody>${s.filas.map(f => `<tr>
+          <td class="hi">${_escC(f.nombre)}${f.nCompras ? ` <span style="font-size:9px;color:var(--tx3);">(${f.nCompras})</span>` : ''}</td>
+          <td class="num" style="color:var(--tx3);">${f.enComputo ? fmtQ(f.computado) + ' ' + _escC(f.un) : '—'}</td>
+          <td class="num">${f.comprado ? fmtQ(f.comprado) + ' ' + _escC(f.un) : '—'}</td>
+          <td class="num">${saldoCell(f)}</td>
+          <td class="num">${f.presup ? $p(f.presup) : '—'}</td>
+          <td class="num hi">${f.gastado ? $p(f.gastado) : '—'}</td>
+          <td class="num" style="color:var(--tx3);">${f.pendiente ? $p(f.pendiente) : '—'}</td>
+          <td><button class="btn-icon" title="Registrar compra de este material" style="color:var(--gr);" onclick="openModalCompra(null, '${_escC(f.nombre).replace(/'/g,"\\'")}')">＋</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="total-bar"><span class="tl">Saldo disponible</span><span class="tv">${$p(s.presup - s.gastado)}</span></div>`;
+}
+
+function renderRegistroCompras(obraId) {
+  const body = document.getElementById('compras-body');
+  const compras = (_comprasCache[obraId] || []).slice().reverse();
+  if (!compras.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">◫</div>Todavía no hay compras registradas. Usá “+ Registrar compra”.</div>'; return; }
+  const total = compras.reduce((s,c) => s + num(c.total), 0);
+  const fecha = f => f ? f.split('-').reverse().join('/') : '—';
+  body.innerHTML = `
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table>
+        <thead><tr><th>Fecha</th><th>Material</th><th>Cantidad</th><th>Precio unit.</th><th>Total</th><th>Proveedor</th><th>Factura</th><th></th></tr></thead>
+        <tbody>${compras.map(c => `<tr>
+          <td style="white-space:nowrap;">${fecha(c.fecha)}</td>
+          <td class="hi">${_escC(c.material)}${c.obs ? `<div style="font-size:9px;color:var(--tx3);">${_escC(c.obs)}</div>` : ''}</td>
+          <td class="num">${num(c.cantidad).toLocaleString('es-AR')} ${_escC(c.un||'')}</td>
+          <td class="num">${c.precio_unit ? $p(c.precio_unit) : '—'}</td>
+          <td class="num hi">${$p(num(c.total))}</td>
+          <td>${_escC(c.proveedor||'—')}</td>
+          <td style="font-size:10px;color:var(--tx3);">${_escC(c.factura||'')}</td>
+          <td style="white-space:nowrap;"><button class="btn-icon" title="Editar" onclick="openModalCompra('${c.id}')">✎</button><button class="btn-icon" title="Borrar" onclick="delCompra('${c.id}')">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="total-bar"><span class="tl">Total comprado</span><span class="tv">${$p(total)}</span></div>`;
+}
+
+async function openModalCompra(id=null, materialPre='') {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  if (!obraId) { notif('Seleccioná una obra'); return; }
+  try { await loadComprasReales(obraId); } catch(e) { notif('No se pudo leer compras_reales: ' + e.message); return; }
+  const consolidado = consolidarMateriales(obraId);
+  const nombres = new Set(Object.values(consolidado).map(m => m.nombre));
+  mats.forEach(m => m.nombre && nombres.add(m.nombre));
+  document.getElementById('compra-mat-list').innerHTML = [...nombres].sort().map(n => `<option value="${_escC(n)}"></option>`).join('');
+  const provs = new Set(); Object.values(_comprasCache).flat().forEach(c => c.proveedor && provs.add(c.proveedor));
+  document.getElementById('compra-prov-list').innerHTML = [...provs].sort().map(n => `<option value="${_escC(n)}"></option>`).join('');
+
+  const c = id ? (_comprasCache[obraId]||[]).find(x => x.id === id) : null;
+  const g = k => document.getElementById('compra-' + k);
+  document.getElementById('compra-modal-title').textContent = c ? 'Editar compra' : 'Registrar compra';
+  g('id').value = c?.id || '';
+  g('fecha').value = c?.fecha || new Date().toISOString().slice(0,10);
+  g('proveedor').value = c?.proveedor || '';
+  g('material').value = c?.material || materialPre || '';
+  g('cant').value = c ? num(c.cantidad) : '';
+  g('un').value = c?.un || '';
+  g('precio').value = c ? num(c.precio_unit) : '';
+  g('total').value = c ? num(c.total) : '';
+  g('total').dataset.manual = c ? '1' : '';
+  g('factura').value = c?.factura || '';
+  g('obs').value = c?.obs || '';
+  onCompraMaterial(!c);
+  openModal('m-compra');
+  setTimeout(() => (c || materialPre ? g('cant') : g('material')).focus(), 50);
+}
+
+function onCompraMaterial(autollenar=true) {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  const nombre = document.getElementById('compra-material').value;
+  const info = document.getElementById('compra-mat-info');
+  if (!nombre.trim()) { info.textContent = ''; return; }
+  const s = calcSaldoCompras(obraId);
+  const f = s.filas.find(x => _normMat(x.nombre) === _normMat(nombre));
+  const base = mats.find(m => _normMat(m.nombre) === _normMat(nombre));
+  if (f && f.enComputo) {
+    info.innerHTML = `Computado ${f.computado} ${_escC(f.un)} · comprado ${f.comprado} · <b style="color:${f.saldo<0?'var(--re)':'var(--bl)'};">${f.saldo<0?'excedido '+(-f.saldo):'falta '+f.saldo}</b>`;
+  } else {
+    info.innerHTML = `<span style="color:var(--am);">No está en el cómputo de esta obra: se registra como compra fuera de cómputo.</span>`;
+  }
+  if (autollenar) {
+    const un = document.getElementById('compra-un'), pr = document.getElementById('compra-precio');
+    if (!un.value) un.value = f?.un || base?.unidad || '';
+    if (!pr.value && (f?.precioRef || base?.precio)) pr.value = f?.precioRef || base?.precio;
+    calcCompraTotal();
+  }
+}
+
+function calcCompraTotal() {
+  const t = document.getElementById('compra-total');
+  if (t.dataset.manual === '1') return;
+  const v = num(document.getElementById('compra-cant').value) * num(document.getElementById('compra-precio').value);
+  t.value = v ? +v.toFixed(2) : '';
+}
+
+async function saveCompra() {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  const g = k => document.getElementById('compra-' + k);
+  const id = g('id').value;
+  const material = g('material').value.trim();
+  const cantidad = num(g('cant').value);
+  let total = num(g('total').value);
+  const precio_unit = num(g('precio').value) || (cantidad ? total / cantidad : 0);
+  if (!total) total = cantidad * precio_unit;
+  // Validaciones antes del spinner
+  if (!obraId) { notif('Seleccioná una obra'); return; }
+  if (!material) { notif('Indicá el material'); return; }
+  if (!cantidad) { notif('Indicá la cantidad'); return; }
+  if (!g('fecha').value) { notif('Indicá la fecha'); return; }
+  const payload = { obra_id: obraId, fecha: g('fecha').value, material, cantidad, un: g('un').value.trim(), precio_unit, total: +total.toFixed(2), proveedor: g('proveedor').value.trim() || null, factura: g('factura').value.trim() || null, obs: g('obs').value.trim() || null };
+  const btn = document.getElementById('btn-save-compra');
+  btn.disabled = true; showBusy('Guardando compra...');
+  let ok = false;
+  try {
+    await withSync(async () => {
+      if (id) await sbPatch('compras_reales', id, payload);
+      else await sbPost('compras_reales', payload);
+    });
+    await loadComprasReales(obraId, true);
+    ok = true;
+  } catch(e) { console.error(e); }
+  finally {
+    hideBusy(); btn.disabled = false;
+  }
+  if (ok) {
+    closeModal('m-compra');
+    notif(id ? 'Compra actualizada ✓' : 'Compra registrada ✓');
+    const vSel = document.getElementById('compras-vista');
+    if (vSel.value !== 'registro' && vSel.value !== 'saldo') vSel.value = 'saldo';
+    loadCompras();
+  }
+}
+
+async function delCompra(id) {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  const c = (_comprasCache[obraId]||[]).find(x => x.id === id);
+  if (!c || !confirm(`¿Borrar la compra de ${c.material} (${$p(num(c.total))})?`)) return;
+  showBusy('Borrando...');
+  try {
+    await withSync(() => sbDelete('compras_reales', id));
+    _comprasCache[obraId] = _comprasCache[obraId].filter(x => x.id !== id);
+  } catch(e) { console.error(e); }
+  finally { hideBusy(); }
+  loadCompras();
 }
 
 function exportCompras() {
