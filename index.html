@@ -163,6 +163,8 @@ textarea{resize:vertical;min-height:55px;}
 .modal{background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:24px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;}
 .modal-title{font-family:var(--serif);font-size:17px;font-weight:500;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;}
 .modal-close{background:none;border:none;cursor:pointer;font-size:16px;color:var(--tx3);}
+.imp-incl{position:sticky;right:0;background:var(--surf);z-index:2;text-align:center;box-shadow:-2px 0 4px rgba(0,0,0,.06);}
+.imp-incl input{width:16px;height:16px;cursor:pointer;}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);}
 .rubro-block{margin-bottom:16px;}
 .rubro-hdr{background:var(--surf2);padding:8px 12px;border-radius:4px 4px 0 0;display:flex;justify-content:space-between;align-items:center;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--tx2);font-weight:500;}
@@ -776,7 +778,7 @@ textarea{resize:vertical;min-height:55px;}
 
 <!-- MODAL IMPORTAR OBRA DESDE CERTIFICADO -->
 <div class="modal-overlay" id="m-import">
-  <div class="modal" style="width:95%;max-width:1100px;max-height:90vh;overflow-y:auto;">
+  <div class="modal" id="m-import-box" style="width:98vw;max-width:98vw;max-height:95vh;overflow-y:auto;padding:18px 20px 0;">
     <div class="modal-title"><span id="imp-title">Importar obra desde certificado</span> <button class="modal-close" onclick="closeModal('m-import')">✕</button></div>
     <div id="imp-target-banner" style="display:none;margin-bottom:10px;">
       <div class="form-grid" style="grid-template-columns:2fr 1fr;margin-bottom:6px;">
@@ -810,9 +812,9 @@ textarea{resize:vertical;min-height:55px;}
       <label>Archivo Excel (.xlsx)</label>
       <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" onchange="parseImportFile()" style="padding:8px;border:2px dashed var(--border);border-radius:6px;width:100%;">
     </div>
-    <div id="imp-preview" style="margin-top:12px;max-height:400px;overflow-y:auto;"></div>
+    <div id="imp-preview" style="margin-top:12px;max-height:62vh;overflow-y:auto;"></div>
     <div id="imp-stats" style="margin-top:8px;"></div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="position:sticky;bottom:0;background:var(--surf);z-index:5;padding-bottom:14px;margin-top:10px;padding-right:76px;">
       <button class="btn" onclick="closeModal('m-import')">Cancelar</button>
       <button class="btn btn-primary" id="btn-import-save" onclick="saveImport()" disabled>Importar obra</button>
     </div>
@@ -1205,7 +1207,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-07.1';
+const APP_BUILD = '2026-10-07.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -3596,6 +3598,7 @@ function _resetImportModal() {
   const f = document.getElementById('imp-file'); if (f) f.value = '';
   document.getElementById('imp-preview').innerHTML = '';
   document.getElementById('imp-stats').innerHTML = '';
+  _impSoloAvisos = false; _impSoloUnidad = false;
   const btn = document.getElementById('btn-import-save');
   if (btn) { btn.disabled = true; btn.textContent = importTargetObraId ? 'Importar a esta obra' : 'Importar obra'; }
 }
@@ -6314,11 +6317,19 @@ function validarImport() {
     const mEq = T.match(/(\d+)\s*(?:EQUIPOS?|UNIDADES)/);
     if (mEq && +mEq[1] !== item.cant && !(item.notas || []).length) w.push({ lvl: 'warn', msg: `El texto dice "${mEq[0].toLowerCase()}" y la cantidad es ${item.cant} ${u}` });
     if (item.subtipo === 'piso_porcelanato' && /INTERIOR/.test(T) && /EXTERIOR/.test(T)) w.push({ lvl: 'warn', msg: 'Interior y exterior en un solo ítem: separá la superficie exterior (porcelanato exterior)' });
-    item._calc = null;
+    item._calc = null; item._cambioUn = '';
+    // Cambio de unidad hecho por el lector a partir del texto (ej. 1 u → 12 m²): avisa, no bloquea
+    const uExcel = normUnidad(item.unidadExcel || '');
+    if (uExcel && u && uExcel !== u) { w.push({ lvl: 'warn', tag: 'unidad', msg: `Cambio de unidad: el Excel dice ${item.cantExcel} ${item.unidadExcel} y se tomó ${item.cant} ${u} — verificá` }); item._cambioUn = `${item.cantExcel} ${item.unidadExcel}`; }
     if (coef) {
       const nC = _normN(coef.nombre);
       if (/COMPLETA/.test(nC) && item.incluir && cntCoef[coef.id] > 1) w.push({ lvl: 'warn', msg: `"${coef.nombre}" está en ${cntCoef[coef.id]} ítems: cada uno computa una instalación entera` });
       const calc = calcCantidadImport(item, coef); item._calc = calc;
+      if (calc.convertida && calc.coefU && calc.itemU && calc.coefU !== calc.itemU) {
+        const f = v => (+v).toLocaleString('es-AR', { maximumFractionDigits: 3 });
+        w.push({ lvl: 'warn', tag: 'unidad', msg: `Cambio de unidad: ${f(item.cant)} ${u} → ${f(calc.cantidad)} ${coef.unidad}${calc.notaDims || ''} — verificá` });
+        if (!item._cambioUn) item._cambioUn = `${f(item.cant)} ${u}`;
+      }
       if (calc.coefU === 'm3' && calc.itemU === 'm2') {
         if (!(calc.esp > 0)) w.push({ lvl: 'warn', msg: 'Excel en m² y tarea en m³, sin espesor en el texto: se guardarían los m² como m³' });
         else {
@@ -6610,7 +6621,7 @@ function processImportRows(rows, ws) {
   renderImportPreview();
 }
 
-let _impSoloAvisos = false;
+let _impSoloAvisos = false, _impSoloUnidad = false;
 function _coefLabel(c) { return `${c.cod} — ${c.nombre} (${c.unidad})`; }
 
 function renderImportPreview() {
@@ -6623,12 +6634,14 @@ function renderImportPreview() {
   const incl = importData.filter(i => i.incluir);
   const sinTarea = incl.filter(i => !i.coefId).length;
   const conAviso = incl.filter(i => (i.warns || []).some(w => w.lvl !== 'info')).length;
+  const conCambioUn = incl.filter(i => (i.warns || []).some(w => w.tag === 'unidad')).length;
   const colores = { err: 'var(--re)', warn: 'var(--am)', info: 'var(--bl)' };
   const iconos = { err: '⛔', warn: '⚠', info: 'ℹ' };
 
   const byRubro = {};
   importData.forEach((item, idx) => {
     if (_impSoloAvisos && !(item.warns || []).some(w => w.lvl !== 'info')) return;
+    if (_impSoloUnidad && !(item.warns || []).some(w => w.tag === 'unidad')) return;
     (byRubro[item.rubro] = byRubro[item.rubro] || []).push({ item, idx });
   });
 
@@ -6638,7 +6651,7 @@ function renderImportPreview() {
     const warn = (item.warns || []).some(w => w.lvl === 'warn');
     const bg = !item.incluir ? 'opacity:0.45;' : err ? 'background:var(--re-l);' : warn ? 'background:var(--am-l);' : '';
     const calc = item._calc;
-    const final = coef && calc ? `${(+calc.cantidad).toLocaleString('es-AR', { maximumFractionDigits: 3 })} ${esc(coef.unidad)}` : '—';
+    const final = coef && calc ? `${(+calc.cantidad).toLocaleString('es-AR', { maximumFractionDigits: 3 })} ${esc(coef.unidad)}${item._cambioUn ? `<div style="font-size:9px;color:var(--am);font-weight:600;">⇄ desde ${esc(item._cambioUn)}</div>` : ''}` : '—';
     const avisos = (item.warns || []).map(w => `<div style="color:${colores[w.lvl]};">${iconos[w.lvl]} ${esc(w.msg)}</div>`).join('');
     return `<tr style="${bg}">
       <td style="font-family:var(--mono);">${esc(item.nItem)}</td>
@@ -6651,21 +6664,22 @@ function renderImportPreview() {
       <td class="num" style="font-size:10px;white-space:nowrap;">${final}</td>
       <td style="font-size:10px;min-width:200px;">${avisos}</td>
       <td class="num">${item.costoUnit ? $p(item.costoUnit) : '—'}</td>
-      <td><input type="checkbox" ${item.incluir ? 'checked' : ''} onchange="impSetIncluir(${idx}, this.checked)"></td>
+      <td class="imp-incl"><input type="checkbox" title="Incluir en el import" ${item.incluir ? 'checked' : ''} onchange="impSetIncluir(${idx}, this.checked)"></td>
     </tr>`;
   };
 
   preview.innerHTML = datalist + `
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:11px;">
-      <label style="display:flex;gap:4px;align-items:center;"><input type="checkbox" ${_impSoloAvisos ? 'checked' : ''} onchange="_impSoloAvisos=this.checked;renderImportPreview()"> Ver solo ítems con avisos</label>
+      <label style="display:flex;gap:4px;align-items:center;text-transform:none;letter-spacing:0;font-size:11px;margin:0;"><input type="checkbox" style="width:auto;margin:0;" ${_impSoloAvisos ? 'checked' : ''} onchange="_impSoloAvisos=this.checked;renderImportPreview()"> Ver solo ítems con avisos</label>
+      ${conCambioUn || _impSoloUnidad ? `<label style="display:flex;gap:4px;align-items:center;text-transform:none;letter-spacing:0;font-size:11px;margin:0;color:var(--am);font-weight:600;"><input type="checkbox" style="width:auto;margin:0;" ${_impSoloUnidad ? 'checked' : ''} onchange="_impSoloUnidad=this.checked;renderImportPreview()"> ⇄ Ver solo cambios de unidad (${conCambioUn})</label>` : ''}
       ${sinTarea ? `<span style="display:flex;gap:4px;align-items:center;">Asignar los ${sinTarea} sin tarea a: <input id="imp-bulk-coef" list="imp-coef-list" style="width:260px;font-size:11px;"> <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="impBulkAsignar()">Asignar</button></span>` : ''}
     </div>` +
-    Object.entries(byRubro).map(([rubro, items]) => `<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${esc(rubro || 'Sin rubro')}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body" style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:230px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>Tarea asignada</th><th>Se guarda</th><th>Avisos</th><th>Costo</th><th>✓</th></tr></thead><tbody>${items.map(fila).join('')}</tbody></table></div></div>`).join('');
+    Object.entries(byRubro).map(([rubro, items]) => `<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${esc(rubro || 'Sin rubro')}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body" style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:230px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>Tarea asignada</th><th>Se guarda</th><th>Avisos</th><th>Costo</th><th class="imp-incl" title="Incluir en el import">Incluir</th></tr></thead><tbody>${items.map(fila).join('')}</tbody></table></div></div>`).join('');
   preview.scrollTop = scroll;
 
   let totalCosto = 0; incl.filter(i => i.costoUnit > 0).forEach(i => totalCosto += i.costoUnit * (i.cantExcel ?? i.cant));
-  stats.innerHTML = `<div class="stats-grid"><div class="stat"><div class="stat-label">Ítems</div><div class="stat-value">${incl.length}</div></div><div class="stat"><div class="stat-label">Sin tarea</div><div class="stat-value" style="${sinTarea ? 'color:var(--re);' : ''}">${sinTarea}</div></div><div class="stat"><div class="stat-label">Con avisos</div><div class="stat-value" style="${conAviso ? 'color:var(--am);' : ''}">${conAviso}</div></div><div class="stat"><div class="stat-label">Costo total Excel</div><div class="stat-value">${$p(totalCosto)}</div></div></div>
-    <div style="font-size:10px;color:var(--tx3);margin-top:4px;">El costo total del Excel se conserva aunque corrijas cantidades o unidades: el precio unitario se recalcula sobre la cantidad final.</div>`;
+  stats.innerHTML = `<div class="stats-grid"><div class="stat"><div class="stat-label">Ítems</div><div class="stat-value">${incl.length}</div></div><div class="stat"><div class="stat-label">Sin tarea</div><div class="stat-value" style="${sinTarea ? 'color:var(--re);' : ''}">${sinTarea}</div></div><div class="stat"><div class="stat-label">Con avisos</div><div class="stat-value" style="${conAviso ? 'color:var(--am);' : ''}">${conAviso}</div></div><div class="stat"><div class="stat-label">Cambios de unidad</div><div class="stat-value" style="${conCambioUn ? 'color:var(--am);' : ''}">${conCambioUn}</div></div><div class="stat"><div class="stat-label">Costo total Excel</div><div class="stat-value">${$p(totalCosto)}</div></div></div>
+    ${conCambioUn ? `<div style="font-size:11px;color:var(--am);margin-top:6px;">⇄ ${conCambioUn} ítems cambian de unidad respecto al Excel. Revisalos (filtro "Ver solo cambios de unidad"); no bloquean el import.</div>` : ''}<div style="font-size:10px;color:var(--tx3);margin-top:4px;">El costo total del Excel se conserva aunque corrijas cantidades o unidades: el precio unitario se recalcula sobre la cantidad final.</div>`;
   btn.disabled = sinTarea > 0 || !incl.length;
   btn.title = sinTarea ? `Hay ${sinTarea} ítems incluidos sin tarea: asignalos o destildalos` : '';
 }
