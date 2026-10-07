@@ -163,6 +163,30 @@ textarea{resize:vertical;min-height:55px;}
 .modal{background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:24px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;}
 .modal-title{font-family:var(--serif);font-size:17px;font-weight:500;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;}
 .modal-close{background:none;border:none;cursor:pointer;font-size:16px;color:var(--tx3);}
+#m-import-box{width:98vw;max-width:98vw;height:96vh;max-height:96vh;padding:14px 18px 0;display:flex;flex-direction:column;overflow:hidden;}
+#m-import-box .modal-title{margin-bottom:8px;}
+#imp-datos{flex:0 0 auto;max-height:45vh;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:0 12px;margin-bottom:8px;}
+#imp-datos>summary{cursor:pointer;padding:8px 0;font-size:11px;color:var(--tx2);list-style:none;user-select:none;}
+#imp-datos>summary::-webkit-details-marker{display:none;}
+#imp-datos>summary::before{content:'▸ ';}
+#imp-datos[open]>summary::before{content:'▾ ';}
+#imp-datos[open]{padding-bottom:10px;}
+.imp-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;}
+.imp-campos .fg{margin:0;}
+#imp-preview{flex:1 1 auto;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:8px;}
+#imp-preview:empty{display:none;}
+#imp-preview .rubro-body{overflow:visible;}
+#imp-preview table{width:100%;}
+#imp-preview thead th{position:sticky;top:0;z-index:3;background:var(--surf2);}
+#imp-preview thead th.imp-incl{z-index:4;}
+#imp-preview td{vertical-align:top;}
+.imp-foot{flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 76px 12px 0;border-top:1px solid var(--border);margin-top:8px;background:var(--surf);}
+.imp-foot #imp-stats{flex:1 1 0;min-width:0;}
+.imp-foot .btn{flex:0 0 auto;}
+.imp-foot{flex-wrap:nowrap !important;}
+.imp-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.imp-chip{border:1px solid var(--border);border-radius:14px;padding:4px 10px;font-size:11px;white-space:nowrap;background:var(--surf);}
+.imp-chip b{font-family:var(--serif);font-size:14px;font-weight:400;margin-left:4px;}
 .imp-incl{position:sticky;right:0;background:var(--surf);z-index:2;text-align:center;box-shadow:-2px 0 4px rgba(0,0,0,.06);}
 .imp-incl input{width:16px;height:16px;cursor:pointer;}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);}
@@ -778,8 +802,10 @@ textarea{resize:vertical;min-height:55px;}
 
 <!-- MODAL IMPORTAR OBRA DESDE CERTIFICADO -->
 <div class="modal-overlay" id="m-import">
-  <div class="modal" id="m-import-box" style="width:98vw;max-width:98vw;max-height:95vh;overflow-y:auto;padding:18px 20px 0;">
+  <div class="modal" id="m-import-box">
     <div class="modal-title"><span id="imp-title">Importar obra desde certificado</span> <button class="modal-close" onclick="closeModal('m-import')">✕</button></div>
+    <details id="imp-datos" open>
+    <summary id="imp-datos-sum">Datos de la obra y archivo</summary>
     <div id="imp-target-banner" style="display:none;margin-bottom:10px;">
       <div class="form-grid" style="grid-template-columns:2fr 1fr;margin-bottom:6px;">
         <div class="fg"><label>Obra destino</label><div id="imp-target-nombre" style="padding:8px 10px;background:var(--surf2);border-radius:6px;font-weight:600;"></div></div>
@@ -794,27 +820,31 @@ textarea{resize:vertical;min-height:55px;}
       </div>
       <div id="imp-target-info" style="font-size:11px;color:var(--tx2);padding:6px 8px;background:var(--surf2);border-radius:4px;"></div>
     </div>
-    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
-    <div id="imp-obra-fields">
+    <div id="imp-obra-fields" class="imp-campos">
       <div class="fg"><label>Código obra</label><input id="imp-cod" placeholder="OBR-002"></div>
       <div class="fg"><label>Nombre obra</label><input id="imp-nombre" placeholder="Vivienda JS"></div>
       <div class="fg"><label>Cliente</label><input id="imp-cliente" placeholder="Juan Pérez"></div>
       <div class="fg"><label>Ubicación</label><input id="imp-ubic" placeholder="Córdoba"></div>
-    </div>
-    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="fg"><label>Superficie (m²)</label><input id="imp-sup" type="number" placeholder="319"></div>
       <div class="fg"><label>K (coef. precio)</label><input id="imp-k" type="number" value="1.10" step="0.01"></div>
       <div class="fg"><label>Subsuelos</label><input id="imp-sub" type="number" min="0" value="0"></div>
       <div class="fg"><label>Plantas</label><input id="imp-pl" type="number" min="1" value="2"></div>
-    </div>
     </div><!-- /imp-obra-fields -->
-    <div class="fg" style="margin-top:8px;">
+    <div class="fg" style="margin-top:8px;margin-bottom:0;">
       <label>Archivo Excel (.xlsx)</label>
-      <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" onchange="parseImportFile()" style="padding:8px;border:2px dashed var(--border);border-radius:6px;width:100%;">
+      <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" onchange="parseImportFile()" style="padding:6px;border:2px dashed var(--border);border-radius:6px;width:100%;">
     </div>
-    <div id="imp-preview" style="margin-top:12px;max-height:62vh;overflow-y:auto;"></div>
-    <div id="imp-stats" style="margin-top:8px;"></div>
-    <div class="modal-footer" style="position:sticky;bottom:0;background:var(--surf);z-index:5;padding-bottom:14px;margin-top:10px;padding-right:76px;">
+    </details>
+    <div id="imp-hoja-wrap" style="display:none;flex:0 0 auto;margin-bottom:8px;">
+      <div class="form-grid" style="grid-template-columns:2fr 3fr;align-items:end;margin-bottom:0;">
+        <div class="fg" style="margin:0;"><label>Hoja del certificado</label><select id="imp-hoja" onchange="impProcesarHoja()"></select></div>
+        <label id="imp-det-wrap" style="font-size:11px;display:none;gap:5px;align-items:center;padding-bottom:8px;text-transform:none;letter-spacing:0;"><input type="checkbox" id="imp-usar-detalle" style="width:auto;margin:0;" checked onchange="impProcesarHoja()"> Tomar la cantidad de las hojas de cómputo si difiere poco (≤ 15 %); las diferencias grandes se marcan para revisar</label>
+      </div>
+      <div id="imp-detalle-info" style="font-size:10px;color:var(--tx3);margin-top:6px;"></div>
+    </div>
+    <div id="imp-preview"></div>
+    <div class="imp-foot">
+      <div id="imp-stats"></div>
       <button class="btn" onclick="closeModal('m-import')">Cancelar</button>
       <button class="btn btn-primary" id="btn-import-save" onclick="saveImport()" disabled>Importar obra</button>
     </div>
@@ -1207,7 +1237,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-07.2';
+const APP_BUILD = '2026-10-07.4';
 console.log('Cómputo de Obras — build', APP_BUILD);
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
@@ -3596,9 +3626,13 @@ let importTargetObraId = null;
 function _resetImportModal() {
   importData = [];
   const f = document.getElementById('imp-file'); if (f) f.value = '';
+  _impWB = null; _impDet = null; _impCands = [];
+  const hw = document.getElementById('imp-hoja-wrap'); if (hw) hw.style.display = 'none';
   document.getElementById('imp-preview').innerHTML = '';
   document.getElementById('imp-stats').innerHTML = '';
-  _impSoloAvisos = false; _impSoloUnidad = false;
+  _impSoloAvisos = false; _impSoloUnidad = false; _impColapsado = false;
+  const det = document.getElementById('imp-datos'); if (det) det.open = true;
+  const sum = document.getElementById('imp-datos-sum'); if (sum) sum.textContent = 'Datos de la obra y archivo';
   const btn = document.getElementById('btn-import-save');
   if (btn) { btn.disabled = true; btn.textContent = importTargetObraId ? 'Importar a esta obra' : 'Importar obra'; }
 }
@@ -5654,17 +5688,189 @@ async function exportCertPDF(certId, tipo) {
 
 let importData = [];
 
+// =====================================================================
+// IMPORT DE CÓMPUTO DETALLADO
+// Un mismo libro puede traer: la hoja del certificado (N° Item, Designación, Cant., Un., Contratista…),
+// hojas de cómputo por rubro cuyo RESUMEN lleva el código del ítem (RR2.15…) con la cantidad
+// computada, y una hoja de materiales por ítem ("Hoja1"). El listado de importación sigue siendo
+// el de siempre; acá se (1) elige la hoja del certificado, (2) toma la cantidad de las hojas
+// cuando difiere y (3) muestra los materiales de esa hoja como control.
+// =====================================================================
+let _impWB = null, _impDet = null, _impCands = [];
+
+function _impTxt(ws, r, c) {
+  const cell = ws[XLSX.utils.encode_cell({ r, c })];
+  if (!cell) return '';
+  return cell.w != null ? String(cell.w) : (cell.v != null ? String(cell.v) : '');
+}
+
+// Hojas que parecen un certificado: encabezado con "Designación" y filas con N° de ítem. Primero las que
+// traen "Contratista" y están visibles.
+function impHojasCandidatas(wb) {
+  const out = [];
+  wb.SheetNames.forEach((name, i) => {
+    const ws = wb.Sheets[name];
+    if (!ws || !ws['!ref']) return;
+    const rg = XLSX.utils.decode_range(ws['!ref']);
+    const hidden = !!(wb.Workbook && wb.Workbook.Sheets && wb.Workbook.Sheets[i] && wb.Workbook.Sheets[i].Hidden);
+    let h = -1, cItem = rg.s.c, cDesc = rg.s.c + 1, contr = false;
+    for (let r = rg.s.r; r <= Math.min(rg.e.r, rg.s.r + 25) && h < 0; r++) {
+      const celdas = [];
+      for (let c = rg.s.c; c <= Math.min(rg.e.c, rg.s.c + 40); c++) celdas.push(_normN(_impTxt(ws, r, c)));
+      if (celdas.join('|').includes('DESIGNAC')) {
+        h = r; contr = celdas.some(t => t.includes('CONTRATISTA'));
+        celdas.forEach((t, k) => { if (t.includes('DESIGNAC')) cDesc = rg.s.c + k; });
+        const k = celdas.findIndex(t => t.includes('ITEM') || t.startsWith('N°'));
+        if (k >= 0) cItem = rg.s.c + k;
+      }
+    }
+    if (h < 0) return;
+    let n = 0;
+    for (let r = h + 1; r <= rg.e.r; r++) if (parseNItem(_impTxt(ws, r, cItem)) && _impTxt(ws, r, cDesc).trim().length > 2) n++;
+    if (n) out.push({ name, n, contr, hidden });
+  });
+  out.sort((a, b) => ((b.contr ? 1000 : 0) - (b.hidden ? 5000 : 0) + b.n) - ((a.contr ? 1000 : 0) - (a.hidden ? 5000 : 0) + a.n));
+  return out;
+}
+
+// Lee las líneas de cómputo (código con prefijo en el resumen de cada hoja) y la hoja de materiales por ítem.
+function impLeerDetalle(wb, nombreCert) {
+  const UN = new Set(['m2', 'm3', 'ml', 'un', 'unid', 'gl', 'kg', 'ud']);
+  const lineas = new Map(), mats = new Map(), hojas = new Set();
+  wb.SheetNames.forEach(name => {
+    if (name === nombreCert) return;
+    const ws = wb.Sheets[name];
+    if (!ws || !ws['!ref']) return;
+    const cods = [];
+    for (const addr in ws) {
+      if (addr.charAt(0) === '!') continue;
+      const cell = ws[addr];
+      if (typeof cell.v !== 'string') continue;
+      if (!/^\s*[A-Za-z]{1,4}\s*\.?\s*\d+[.,]\d+\s*$/.test(cell.v)) continue;
+      const it = parseNItem(cell.v);
+      if (it && it.prefijo) cods.push({ pos: XLSX.utils.decode_cell(addr), it });
+    }
+    if (!cods.length) return;
+    if (cods.length > 60) {
+      // Muchos códigos = hoja consolidada. Si es la de materiales por ítem ("N° Item" + columnas "Hierro…"), se lee como control.
+      const rg = XLSX.utils.decode_range(ws['!ref']);
+      let hr = -1, cIt = -1;
+      for (let r = rg.s.r; r <= Math.min(rg.e.r, rg.s.r + 12) && hr < 0; r++) {
+        let tieneHierro = false, k = -1;
+        for (let c = rg.s.c; c <= rg.e.c; c++) {
+          const t = _normN(_impTxt(ws, r, c));
+          if (/^N[°º]?\s*ITEM$/.test(t)) k = c;
+          if (t.startsWith('HIERRO')) tieneHierro = true;
+        }
+        if (k >= 0 && tieneHierro) { hr = r; cIt = k; }
+      }
+      if (hr < 0) return;
+      const nombres = {};
+      for (let c = cIt + 1; c <= rg.e.c; c++) { const t = _impTxt(ws, hr, c).trim(); if (t) nombres[c] = t; }
+      cods.forEach(({ pos, it }) => {
+        if (pos.r <= hr || pos.c !== cIt) return;
+        const d = {};
+        Object.keys(nombres).forEach(c => { const cell = ws[XLSX.utils.encode_cell({ r: pos.r, c: +c })]; if (cell && typeof cell.v === 'number' && cell.v !== 0) d[nombres[c]] = cell.v; });
+        if (!mats.has(it.num)) mats.set(it.num, d);
+      });
+      return;
+    }
+    cods.forEach(({ pos, it }) => {
+      let planta = '', desc = null, qty = null, un = null;
+      for (let c = 0; c < pos.c; c++) { const t = _impTxt(ws, pos.r, c); if (t && /planta|ext|int/i.test(t) && isNaN(+t)) planta = t.trim(); }
+      for (let c = pos.c + 1; c <= pos.c + 7; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: pos.r, c })];
+        if (!cell) continue;
+        const v = cell.v;
+        if (desc === null && typeof v === 'string' && !UN.has(v.trim().toLowerCase()) && v.charAt(0) !== '#') { desc = v.trim(); continue; }
+        if (desc !== null && qty === null && typeof v === 'number') { qty = v; continue; }
+        if (qty !== null && un === null && typeof v === 'string' && UN.has(v.trim().toLowerCase())) { un = v.trim(); break; }
+      }
+      if (!lineas.has(it.num)) lineas.set(it.num, { hoja: name, planta, desc, qty, un, n: 1 });
+      else lineas.get(it.num).n++;
+      hojas.add(name);
+    });
+  });
+  return { lineas, mats, hojas: [...hojas] };
+}
+
+// Toma de las hojas de cómputo la cantidad de cada ítem (si el usuario lo deja activado) y deja los avisos.
+function impAplicarDetalle() {
+  const info = document.getElementById('imp-detalle-info');
+  const wrapDet = document.getElementById('imp-det-wrap');
+  importData.forEach(it => { it.detNotas = []; });
+  const det = _impDet;
+  if (!det || !(det.lineas.size || det.mats.size)) { if (info) info.innerHTML = ''; if (wrapDet) wrapDet.style.display = 'none'; return; }
+  if (wrapDet) wrapDet.style.display = det.lineas.size ? 'flex' : 'none';
+  const usar = !!document.getElementById('imp-usar-detalle')?.checked;
+  const fmt = n => (+n).toLocaleString('es-AR', { maximumFractionDigits: 3 });
+  let vinc = 0, igual = 0, tomadas = 0, difSin = 0, sinHoja = 0, conMats = 0;
+  importData.forEach(it => {
+    const ni = parseNItem(it.nItem);
+    if (!ni) return;
+    const L = det.lineas.get(ni.num), M = det.mats.get(ni.num);
+    if (!L) { sinHoja++; }
+    else {
+      vinc++;
+      const cu = normUnidad(it.unidad), lu = normUnidad(L.un);
+      if (L.qty == null) it.detNotas.push({ lvl: 'info', msg: `La hoja «${L.hoja}» tiene el código pero no la cantidad` });
+      else if (lu && cu === lu && ['m2', 'm3', 'ml'].includes(cu)) {
+        const ref = it.cantExcel ?? it.cant;
+        if (Math.abs(ref - L.qty) <= Math.max(0.01, Math.abs(ref) * 0.01)) igual++;
+        else if (usar && L.qty > 0 && Math.abs(ref - L.qty) <= Math.abs(ref) * 0.15) {
+          // Diferencia chica (≤ 15 %): se toma la de la hoja y queda registrado
+          it.cant = L.qty; tomadas++; it.detNotas.push({ lvl: 'info', msg: `Cantidad de la hoja «${L.hoja}»: ${fmt(L.qty)} ${cu} (el certificado decía ${fmt(ref)})` });
+        } else {
+          // Diferencia grande o cantidad 0 en la hoja: NO se aplica sola, se deja el certificado y se marca para revisar
+          difSin++; it.detNotas.push({ lvl: 'warn', msg: `La hoja «${L.hoja}» computa ${fmt(L.qty)} ${cu} y el certificado dice ${fmt(ref)} — diferencia grande: revisá cuál es la correcta y, si es la de la hoja, corregí la cantidad` });
+        }
+      } else if (lu === 'u' && cu === 'ml') {
+        const m = (it.desc || '').match(/\((\d+)\s*columna/i);
+        if (m && +m[1] !== L.qty) { difSin++; it.detNotas.push({ lvl: 'warn', msg: `La hoja «${L.hoja}» computa ${fmt(L.qty)} columnas y el ítem dice ${m[1]}` }); }
+        else igual++;
+      } else if (lu && cu && cu !== lu) it.detNotas.push({ lvl: 'info', msg: `La hoja «${L.hoja}» está en ${lu} y el certificado en ${cu}: no se comparan` });
+      else igual++;
+    }
+    if (M && Object.keys(M).length) {
+      conMats++;
+      const top = Object.entries(M).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${k}: ${fmt(v)}`).join(' · ');
+      it.detNotas.push({ lvl: 'info', msg: 'Materiales según la hoja de cómputo → ' + top });
+    }
+  });
+  const total = importData.length;
+  if (info) info.innerHTML = `<b>Detalle de cómputo:</b> ${det.lineas.size} líneas en ${det.hojas.length} hojas · ${vinc} de ${total} ítems vinculados` +
+    ` · ${igual} coinciden · <b style="color:${tomadas ? '#b45309' : 'inherit'};">${tomadas}</b> con cantidad tomada de la hoja` + (difSin ? ` · <b style="color:#b45309;">${difSin}</b> con diferencia sin corregir` : '') +
+    ` · ${sinHoja} sin hoja de cómputo` + (conMats ? ` · materiales de control en ${conMats}` : '');
+}
+
+function impProcesarHoja() {
+  if (!_impWB) return;
+  const sel = document.getElementById('imp-hoja');
+  const cand = _impCands[+(sel?.value || 0)];
+  const name = cand ? cand.name : _impWB.SheetNames[0];
+  const ws = _impWB.Sheets[name];
+  try {
+    _impDet = impLeerDetalle(_impWB, name);
+    processImportRows(XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }), ws);
+  } catch (err) { notif('Error al leer: ' + err.message); }
+}
+
 function parseImportFile() {
   const file = document.getElementById('imp-file').files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const wb = XLSX.read(e.target.result, {type:'binary'});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-      processImportRows(rows, ws);
-    } catch(err) { notif('Error al leer: ' + err.message); }
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      _impWB = wb;
+      _impCands = impHojasCandidatas(wb);
+      if (!_impCands.length) _impCands = [{ name: wb.SheetNames[0], n: 0 }];
+      const sel = document.getElementById('imp-hoja');
+      sel.innerHTML = _impCands.map((c, i) => `<option value="${i}">${_cEsc(c.name)} (${c.n} ítems${c.contr ? ' · con contratista' : ''}${c.hidden ? ' · oculta' : ''})</option>`).join('');
+      sel.value = '0';
+      document.getElementById('imp-hoja-wrap').style.display = wb.SheetNames.length > 1 ? '' : 'none';
+      impProcesarHoja();
+    } catch (err) { notif('Error al leer: ' + err.message); }
   };
   reader.readAsBinaryString(file);
 }
@@ -5740,20 +5946,20 @@ function detectSubtipo(t) {
   if (evalEstr) {
     // ══ FUNDACIONES ══
     if (has('BASE AISLADA') || has('ZAPATA AISLADA') || has('ZAPATA PUNTUAL') || t.match(/\bBASE\s+B\d/)) return 'zapata_puntual';
-    if (has('ZAPATA CORRIDA') || has('BASE CORRIDA')) return 'zapata_corrida';
+    if (has('ZAPATA CORRIDA') || has('BASE CORRIDA') || t.match(/^\s*Z\d*\s*[-–]/)) return 'zapata_corrida';   // "Z0 - 1,00 x 0,15"
     if (has('PLATEA')) return 'platea';
-    if ((has('VIGA') && (has('FUNDACION') || has('FUND'))) || t.match(/\bVF\d*\b/) || has('VIGA RIOSTRA') || t.match(/\bVR\d*\b/)) return 'viga_fund';
-    if (has('POZO ROMANO') || has('PILOTE')) return 'pozo_romano';
+    if ((has('VIGA') && (has('FUNDACION') || has('FUND'))) || t.match(/\bVF\d*\b/) || t.match(/^\s*VF[A-Z0-9´']?[A-Z0-9´']?\s*[-–]/) || has('VIGA RIOSTRA') || t.match(/\bVR\d*\b/)) return 'viga_fund';
+    if (has('POZO ROMANO') || has('PILOTE') || /\bPEF\b/.test(t)) return 'pozo_romano';   // PEF = pilote excavado fundido
     if (has('CABEZAL')) return 'cabezal';
 
     // ══ ENCADENADO VERTICAL (Ce) — ANTES de columnas Cn ══
-    if (t.match(/\bCE\d*\s*[-–]/) || (has('ENCADENADO') && has('VERTICAL'))) return 'encadenado_vert';
+    if (t.match(/\bCE\d*\s*[-–]/) || t.match(/^\s*CE\d*\s*\(/) || (has('ENCADENADO') && has('VERTICAL'))) return 'encadenado_vert';   // "Ce - 0,18x0,18" y "Ce (17 columnas)"
     // ══ COLUMNAS Hº (default H17) ══
     if (t.match(/\bC\d+\s*[-–]/) || (has('COLUMNA') && !has('METALIC'))) return 'columna_elab';
     // ══ ENCADENADO HORIZONTAL ══
     if (t.match(/\bEH\d*\s*[-–]/) || (has('ENCADENADO') && (has('HORIZONTAL') || has('HORIZ')))) return 'encadenado_horiz';
     // ══ VIGAS ══
-    if (t.match(/^\s*V\d*\s*[-–]/) || t.match(/\bNB\d*\s*[-–]/) || (has('VIGA') && !has('METALIC') && !has('FUND') && !has('RIOSTRA'))) return 'viga_elab';
+    if (t.match(/^\s*V(?!E\d*\s*[-–])[A-Z]?\d*[A-Z]?[´']?\s*[-–]/)   /* VE = ¿viga de encadenado?: no se asigna sola */ || t.match(/\bNB\d*\s*[-–]/) || (has('VIGA') && !has('METALIC') && !has('FUND') && !has('RIOSTRA'))) return 'viga_elab';
     // ══ LOSAS — nervurada in situ ≠ viguetas pretensadas ══
     if (has('LOSA MACIZA') || (has('LOSA') && has('MACIZA'))) return 'losa_maciza';
     if (has('NERVURADA') || has('CASETON')) return has('VISTA') || has('VISTO') ? 'losa_nervurada_vista' : 'losa_nervurada';
@@ -5845,7 +6051,7 @@ function detectSubtipo(t) {
     return 'cielorraso_yeso';
   }
   if (has('ENLUCIDO') && has('YESO')) return 'yeso';
-  if (has('ENGROSADO') && has('ENLUCIDO')) return 'yeso';
+  if (has('ENGROSADO') && (has('ENLUCIDO') || has('YESO'))) return 'yeso';
 
   // ══ PISOS ══
   if (has('ZOCALO')) return 'zocalo';
@@ -5948,7 +6154,7 @@ function detectSubtipo(t) {
   if (/SENSOR|ALARMA|SIRENA|ACCESS? POINT|REPETIDOR|SWITCH|\bPOE\b|SENALES DEBILES|DEBIL|RED DE DATOS|CAMARA DE SEGURIDAD|PORTERO/.test(t)) return 'inst_senales';
   if (has('TABLERO') && !has('PILAR')) return 'inst_elec_tablero';
   if (has('ARTEFACT')) return 'inst_elec_artefacto';
-  if (has('BOCA') || has('TOMACORRIENTE') || has('TERMOSTATO') || (has('TOMA') && has('INDIVIDUAL')) || /\bTOMA\s+(DOBLE|SIMPLE|TRIPLE|\d)/.test(t)) return 'inst_elec_boca';
+  if ((has('AMURADO') && has('CAJA')) || has('BOCA') || has('TOMACORRIENTE') || has('TERMOSTATO') || (has('TOMA') && has('INDIVIDUAL')) || /\bTOMA\s+(DOBLE|SIMPLE|TRIPLE|\d)/.test(t)) return 'inst_elec_boca';
   if (has('ELECTRIC')) return 'inst_electrica';
 
   // ══ VARIOS ══
@@ -6304,6 +6510,7 @@ function validarImport() {
     if (!coef) w.push({ lvl: 'err', msg: item.motivo || 'Sin tarea asignada' });
     else if (item.aviso && !item.manual) w.push({ lvl: 'warn', msg: item.aviso });
     (item.notas || []).forEach(n => w.push({ lvl: 'info', msg: n }));
+    (item.detNotas || []).forEach(n => w.push(n));
     if (!u) w.push({ lvl: 'warn', msg: 'El Excel no trae unidad para este ítem' });
     const mMts = T.replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*(?:MTS?|ML|METROS)\b/);
     if (item.cant === 1 && mMts ) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u} pero el texto menciona ${mMts[1]} m — ¿la cantidad real es esa?` });
@@ -6546,6 +6753,16 @@ const TEST_CASES_LECTOR = [
   ['Tabiques de hormigón armado esp 15cm', 'tabique_hormigon'],
   ['Toma doble 20A', 'inst_elec_boca'],
   ['Rev. fino interior', 'rev_fino_int'],
+  // Certificado Rossi (oct 2026)
+  ['V5a - 0,35 x 0,45', 'viga_elab'], ['VL1e - 0,25 x 0,30', 'viga_elab'], ['Vb - 0,18 x 0,18', 'viga_elab'], ['V3e - 0,18 x 0,40', 'viga_elab'], ['V5´ - 0,18 x 0,35', 'viga_elab'],
+  ['VFa - 0,35 x 0,35 en PB', 'viga_fund'],
+  ['Z0 - 1,00 x 0,15 en PSS', 'zapata_corrida'], ['Z2 - 1,60 x 0,15 PSS', 'zapata_corrida'],
+  ['P1 - PEF  - 40 diametro (7unid)', 'pozo_romano'],
+  ['Engrosado de Yeso PB', 'yeso'],
+  ['Amurado de cajas y canalización en muros', 'inst_elec_boca'],
+  ['Ventana - corrediza 2x1', 'ventana'],
+  ['Zócalo porcelanato h=10cm', 'zocalo'],
+  ['Ce (17 columnas) - 0,18x0,18', 'encadenado_vert'], ['Ce (7 columnas) - 0,18 x 0,18', 'encadenado_vert'],
 ];
 
 // N° de ítem: [texto de la celda, normalizado esperado (null = no es un ítem con parte decimal)]
@@ -6613,21 +6830,31 @@ function processImportRows(rows, ws) {
   let debugRows=[];
   for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=itemTexto(i,String(row[colMap.nItem]||'').trim()),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;currentUbicacion='Global';currentSeccion='';continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const esUbic=/^\s*(PLANTA\b|SUBSUELO|PSS\b|PB\b|PA\b)/i.test(col1);if(esUbic){const u=detectUbic(col1);if(u)currentUbicacion=u;}else{currentSeccion=col1;currentUbicacion='Global';}const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=!!parseNItem(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
     const esMetadato = /^\[0\.\d+\]/.test(col1) || /^[A-Za-z]{0,4}0[\.,]\d+$/.test(col0);
-    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?parseNItem(col0).key:'s/n',nItemOk:hasNum,desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(col1,currentSeccion),incluir:true};autoCorregirItem(it);importData.push(it);}}
+    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?parseNItem(col0).key:'s/n',nItemOk:hasNum,desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(col1,currentSeccion),incluir:true};if(/^\s*S\d+\s*[-–]/.test(col1)&&it.unidad==='ml')it.subtipo='zocalo';   /* piso S# medido en ml = zócalo (misma descripción que el piso) */
+autoCorregirItem(it);importData.push(it);}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
   marcarImportDuplicados();
   asignarCoefsImport();
+  impAplicarDetalle();   // cantidades de las hojas de cómputo + materiales de control
   validarImport();
   renderImportPreview();
 }
 
-let _impSoloAvisos = false, _impSoloUnidad = false;
+let _impSoloAvisos = false, _impSoloUnidad = false, _impColapsado = false;
 function _coefLabel(c) { return `${c.cod} — ${c.nombre} (${c.unidad})`; }
 
 function renderImportPreview() {
   const preview = document.getElementById('imp-preview'), stats = document.getElementById('imp-stats'), btn = document.getElementById('btn-import-save');
   if (!importData.length) { preview.innerHTML = '<div class="empty">Sin ítems.</div>'; btn.disabled = true; return; }
-  const scroll = preview.scrollTop;
+  if (!_impColapsado) {
+    _impColapsado = true;
+    const det = document.getElementById('imp-datos'), sum = document.getElementById('imp-datos-sum');
+    const archivo = document.getElementById('imp-file')?.files?.[0]?.name || 'archivo';
+    const nom = importTargetObraId ? (document.getElementById('imp-target-nombre')?.textContent || '') : (document.getElementById('imp-nombre')?.value || '');
+    if (sum) sum.textContent = `${nom ? nom + ' · ' : ''}${archivo} — clic para ver/editar datos de la obra`;
+    if (det) det.open = false;
+  }
+  const scroll = preview.scrollTop, scrollX = preview.scrollLeft;
   const ce = [...coefsEmpresa()].sort(sortByCod);
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   const datalist = `<datalist id="imp-coef-list">${ce.map(c => `<option value="${esc(_coefLabel(c))}"></option>`).join('')}</datalist>`;
@@ -6660,10 +6887,10 @@ function renderImportPreview() {
       <td><input type="number" step="any" value="${item.cant}" style="width:70px;font-size:11px;" onchange="impSetCant(${idx}, this.value)"></td>
       <td>${esc(item.unidad)}${item.unidadExcel && normUnidad(item.unidadExcel) !== item.unidad ? `<div style="font-size:9px;color:var(--tx3);">Excel: ${esc(item.unidadExcel)}</div>` : ''}</td>
       <td style="font-size:10px;color:var(--bl);">${esc(item.ubicacion)}</td>
-      <td style="min-width:240px;"><input list="imp-coef-list" value="${coef ? esc(_coefLabel(coef)) : ''}" placeholder="— sin tarea: elegí una —" style="width:100%;font-size:11px;${coef ? '' : 'border-color:var(--re);'}" onchange="impSetCoef(${idx}, this.value)"></td>
+      <td style="min-width:250px;"><input list="imp-coef-list" value="${coef ? esc(_coefLabel(coef)) : ''}" placeholder="— sin tarea: elegí una —" style="width:100%;font-size:11px;${coef ? '' : 'border-color:var(--re);'}" onchange="impSetCoef(${idx}, this.value)"></td>
       <td class="num" style="font-size:10px;white-space:nowrap;">${final}</td>
-      <td style="font-size:10px;min-width:200px;">${avisos}</td>
-      <td class="num">${item.costoUnit ? $p(item.costoUnit) : '—'}</td>
+      <td style="font-size:10px;min-width:170px;max-width:230px;">${avisos}</td>
+      <td class="num" style="white-space:nowrap;">${item.costoUnit ? $p(item.costoUnit) : '—'}</td>
       <td class="imp-incl"><input type="checkbox" title="Incluir en el import" ${item.incluir ? 'checked' : ''} onchange="impSetIncluir(${idx}, this.checked)"></td>
     </tr>`;
   };
@@ -6674,12 +6901,13 @@ function renderImportPreview() {
       ${conCambioUn || _impSoloUnidad ? `<label style="display:flex;gap:4px;align-items:center;text-transform:none;letter-spacing:0;font-size:11px;margin:0;color:var(--am);font-weight:600;"><input type="checkbox" style="width:auto;margin:0;" ${_impSoloUnidad ? 'checked' : ''} onchange="_impSoloUnidad=this.checked;renderImportPreview()"> ⇄ Ver solo cambios de unidad (${conCambioUn})</label>` : ''}
       ${sinTarea ? `<span style="display:flex;gap:4px;align-items:center;">Asignar los ${sinTarea} sin tarea a: <input id="imp-bulk-coef" list="imp-coef-list" style="width:260px;font-size:11px;"> <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="impBulkAsignar()">Asignar</button></span>` : ''}
     </div>` +
-    Object.entries(byRubro).map(([rubro, items]) => `<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${esc(rubro || 'Sin rubro')}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body" style="overflow-x:auto;"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:230px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>Tarea asignada</th><th>Se guarda</th><th>Avisos</th><th>Costo</th><th class="imp-incl" title="Incluir en el import">Incluir</th></tr></thead><tbody>${items.map(fila).join('')}</tbody></table></div></div>`).join('');
-  preview.scrollTop = scroll;
+    Object.entries(byRubro).map(([rubro, items]) => `<div class="rubro-block" style="margin-bottom:8px;"><div class="rubro-hdr"><span>${esc(rubro || 'Sin rubro')}</span><span style="font-size:10px;">${items.length} ítems</span></div><div class="rubro-body"><table style="font-size:11px;"><thead><tr><th>N°</th><th style="min-width:200px;">Designación</th><th>Cant.</th><th>Un.</th><th>Ubic.</th><th>Tarea asignada</th><th>Se guarda</th><th>Avisos</th><th>Costo</th><th class="imp-incl" title="Incluir en el import">Incluir</th></tr></thead><tbody>${items.map(fila).join('')}</tbody></table></div></div>`).join('');
+  preview.scrollTop = scroll; preview.scrollLeft = scrollX;
 
   let totalCosto = 0; incl.filter(i => i.costoUnit > 0).forEach(i => totalCosto += i.costoUnit * (i.cantExcel ?? i.cant));
-  stats.innerHTML = `<div class="stats-grid"><div class="stat"><div class="stat-label">Ítems</div><div class="stat-value">${incl.length}</div></div><div class="stat"><div class="stat-label">Sin tarea</div><div class="stat-value" style="${sinTarea ? 'color:var(--re);' : ''}">${sinTarea}</div></div><div class="stat"><div class="stat-label">Con avisos</div><div class="stat-value" style="${conAviso ? 'color:var(--am);' : ''}">${conAviso}</div></div><div class="stat"><div class="stat-label">Cambios de unidad</div><div class="stat-value" style="${conCambioUn ? 'color:var(--am);' : ''}">${conCambioUn}</div></div><div class="stat"><div class="stat-label">Costo total Excel</div><div class="stat-value">${$p(totalCosto)}</div></div></div>
-    ${conCambioUn ? `<div style="font-size:11px;color:var(--am);margin-top:6px;">⇄ ${conCambioUn} ítems cambian de unidad respecto al Excel. Revisalos (filtro "Ver solo cambios de unidad"); no bloquean el import.</div>` : ''}<div style="font-size:10px;color:var(--tx3);margin-top:4px;">El costo total del Excel se conserva aunque corrijas cantidades o unidades: el precio unitario se recalcula sobre la cantidad final.</div>`;
+  const chip = (lbl, val, color) => `<span class="imp-chip">${lbl}<b style="${color ? 'color:' + color + ';' : ''}">${val}</b></span>`;
+  stats.innerHTML = `<div class="imp-chips">${chip('Ítems', incl.length)}${chip('Sin tarea', sinTarea, sinTarea ? 'var(--re)' : '')}${chip('Con avisos', conAviso, conAviso ? 'var(--am)' : '')}${chip('⇄ Cambios de unidad', conCambioUn, conCambioUn ? 'var(--am)' : '')}${chip('Costo total Excel', $p(totalCosto))}</div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:4px;">El costo total del Excel se conserva aunque corrijas cantidades o unidades.${sinTarea ? ` <b style="color:var(--re);">Asigná o destildá los ${sinTarea} ítems sin tarea para poder importar.</b>` : ''}</div>`;
   btn.disabled = sinTarea > 0 || !incl.length;
   btn.title = sinTarea ? `Hay ${sinTarea} ítems incluidos sin tarea: asignalos o destildalos` : '';
 }
