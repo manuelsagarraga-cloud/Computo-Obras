@@ -362,7 +362,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-12.2</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-12.3</span></span>
     </div>
   </div>
 
@@ -1237,7 +1237,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-12.2';
+const APP_BUILD = '2026-10-12.3';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2194,10 +2194,20 @@ function computeObra(obraId) {
           precioUnit: infMat.precio, subtotal: barrasInf * infMat.precio, matFound: true });
       }
     }
+    if (armData.ref && !armData.armTipo) {
+      const refMat = mats.find(m => m.cod === (armData.refDiam || 'MAT-003'));
+      const mlRef = num(armData.ref);
+      const barrasRef = Math.ceil(mlRef / 12);
+      if (refMat && barrasRef > 0) {
+        matItems.push({ nombre: refMat.nombre + ' (refuerzo)', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
+          cantidadBase: mlRef, cantidadComercial: barrasRef,
+          precioUnit: refMat.precio, subtotal: barrasRef * refMat.precio, matFound: true });
+      }
+    }
     // Alambre para ataduras en cualquier elemento con hierros
-    if ((armData.est || armData.ppal || armData.sup || armData.inf) && !armData.armTipo) {
+    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
-      const mlTot = num(armData.est||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0);
+      const mlTot = num(armData.est||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0) + num(armData.ref||0);
       if (alMat && mlTot > 0) {
         const kgAl = +(mlTot * 0.03).toFixed(2);
         matItems.push({ nombre: alMat.nombre||'Alambre negro nº17', unidad: 'kg', unComercial: 'kg', divisor: 1,
@@ -2559,7 +2569,7 @@ function tipoEstructural(cod) {
 
 // Calcula ML de estribos y hierros principales dados los datos de dimensiones
 function calcArmadura(tipo, dims) {
-  const { ladoA=0, ladoB=0, ml=0, sepEst=0.25, cantPpal=4, cantSup=2, cantInf=2, diam=0.006, sepX=0.20, sepY=0.20, ancho=0, largo=0, alto=0, sep=0.20, cant=1, armTipo='hierros', mallaTipo='MAT-008', hierroDiam='MAT-002', diamPpal='MAT-003', cantElem=1 } = dims;
+  const { ladoA=0, ladoB=0, ml=0, sepEst=0.25, cantPpal=4, cantSup=2, cantInf=2, diam=0.006, sepX=0.20, sepY=0.20, ancho=0, largo=0, alto=0, sep=0.20, cant=1, armTipo='hierros', mallaTipo='MAT-008', hierroDiam='MAT-002', diamPpal='MAT-003', cantElem=1, refMl=0, refLargo=0, refSep=0.20, refDiam='MAT-003' } = dims;
   const rec2 = 2 * RECUB;
   let resultado = {};
 
@@ -2715,9 +2725,290 @@ function calcArmadura(tipo, dims) {
       cantX, cantY,
       resumen: `${ladoA}×${ladoB}m, e=${ml*100}cm | ${cantX} hierros X, ${cantY} hierros Y`
     };
+    // Refuerzos (bastones) sobre apoyos: dato de la planilla de armadura. Chandías no da regla propia;
+    // si no se carga el largo se asume luz/2 (≈ luz/4 a cada lado del apoyo).
+    if (refMl > 0) {
+      const luz = Math.min(ladoA, ladoB);
+      const largoRef = refLargo > 0 ? refLargo : luz / 2;
+      const sepR = refSep > 0 ? refSep : 0.20;
+      const cantRef = Math.ceil(refMl / sepR);
+      resultado.mlRef = +(cantRef * largoRef).toFixed(3);
+      resultado.cantRef = cantRef;
+      resultado.refLargo = +largoRef.toFixed(3);
+      resultado.refDiam = refDiam;
+      resultado.resumen += ` | ${cantRef} refuerzos de ${largoRef.toFixed(2)}m c/${sepR*100}cm`;
+    }
   }
 
   return resultado;
+}
+
+// =====================================================================
+// GRÁFICOS DE ARMADURA — esquema de cada elemento con hierros, estribos y anclajes
+// Criterios: los mismos que usa calcArmadura (RECUB, ANCLAJE, EMPALME, luz + luz/6)
+// y las tablas de Chandías (7.6 ganchos, 7.9 dobladuras).
+// =====================================================================
+const DIAM_LABEL = { 'MAT-001':'Ø6', 'MAT-002':'Ø8', 'MAT-003':'Ø10', 'MAT-004':'Ø12', 'MAT-005':'Ø16', 'MAT-006':'Ø20' };
+// Chandías Tabla 7.6 — acero ADN-420: longitud suplementaria por DOS ganchos (mm)
+const CHANDIAS_GANCHO_MM = { 'MAT-001':125, 'MAT-002':166, 'MAT-003':208, 'MAT-004':250, 'MAT-005':334, 'MAT-006':417 };
+// Chandías Tabla 7.9 — Δ2 por una dobladura a 45° según altura total de la viga H (cm → cm)
+const CHANDIAS_DOBLADURA_45 = [[25,8],[30,12],[35,13],[40,14],[45,16],[50,18],[55,20],[60,22],[65,25],[70,27],[75,28],[80,31],[85,33],[90,35],[95,37],[100,39]];
+function chandiasDobladura45(Hcm) {
+  let r = CHANDIAS_DOBLADURA_45[0][1];
+  for (const [h, d] of CHANDIAS_DOBLADURA_45) { if (Hcm >= h) r = d; }
+  return r;
+}
+const _fm = (n, d=2) => (+n).toLocaleString('es-AR', { maximumFractionDigits: d });
+const _cMain = '#c0392b', _cEst = 'var(--bl)', _cRef = 'var(--gr)', _cHor = 'var(--tx3)';
+const _S = {
+  line: (x1,y1,x2,y2,c,w=1.6,dash) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:${c};stroke-width:${w};stroke-linecap:round;${dash?`stroke-dasharray:${dash};`:''}"/>`,
+  rect: (x,y,w,h,c,fill='none',sw=1.2,dash) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" style="stroke:${c};fill:${fill};stroke-width:${sw};${dash?`stroke-dasharray:${dash};`:''}"/>`,
+  path: (d,c,w=1.6,fill='none',dash) => `<path d="${d}" style="stroke:${c};stroke-width:${w};fill:${fill};stroke-linecap:round;stroke-linejoin:round;${dash?`stroke-dasharray:${dash};`:''}"/>`,
+  dot:  (cx,cy,r,fill) => `<circle cx="${cx}" cy="${cy}" r="${r}" style="fill:${fill};stroke:none"/>`,
+  text: (x,y,s,o={}) => `<text x="${x}" y="${y}" style="font-family:var(--mono);font-size:${o.size||10}px;fill:${o.c||'var(--tx2)'};text-anchor:${o.a||'start'};paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round;${o.b?'font-weight:700;':''}">${s}</text>`
+};
+function _dimH(x1,x2,y,label) { return _S.line(x1,y,x2,y,'var(--tx3)',1) + _S.line(x1,y-4,x1,y+4,'var(--tx3)',1) + _S.line(x2,y-4,x2,y+4,'var(--tx3)',1) + _S.text((x1+x2)/2,y-5,label,{a:'middle',size:10}); }
+function _dimV(x,y1,y2,label,left) { return _S.line(x,y1,x,y2,'var(--tx3)',1) + _S.line(x-4,y1,x+4,y1,'var(--tx3)',1) + _S.line(x-4,y2,x+4,y2,'var(--tx3)',1) + _S.text(left?x-6:x+6,(y1+y2)/2+3,label,{a:left?'end':'start',size:10}); }
+function _leyenda(x, y, items) {
+  return items.map((it, i) => {
+    const yy = y + i*15;
+    const sw = it.dash ? _S.line(x,yy-3,x+18,yy-3,it.c,2,it.dash) : (it.dot ? _S.dot(x+9,yy-3,3.5,it.c) : _S.line(x,yy-3,x+18,yy-3,it.c,2.4));
+    return sw + _S.text(x+24, yy, it.t, {size:10});
+  }).join('');
+}
+// puntos de barras en una sección rectangular (esquinas primero, luego medios)
+function _puntosSeccion(cx, cy, w, h, n) {
+  const pts = [[cx-w/2,cy-h/2],[cx+w/2,cy-h/2],[cx-w/2,cy+h/2],[cx+w/2,cy+h/2]];
+  const extra = Math.max(0, n - 4);
+  if (extra >= 2) { if (w >= h) pts.push([cx,cy-h/2],[cx,cy+h/2]); else pts.push([cx-w/2,cy],[cx+w/2,cy]); }
+  if (extra >= 4) { if (w >= h) pts.push([cx-w/2,cy],[cx+w/2,cy]); else pts.push([cx,cy-h/2],[cx,cy+h/2]); }
+  return pts.slice(0, Math.max(4, Math.min(n, 8)));
+}
+
+function armDiagramaSVG(tipo, v) {
+  const W = 560, Hh = 262;
+  let b = '';
+  const dl = DIAM_LABEL[v.diam] || 'Ø10';
+  const gancho = CHANDIAS_GANCHO_MM[v.diam] || 208;
+  let notas = [];
+
+  if (tipo === 'columna') {
+    const A = v.la || 0.25, B = v.lb || 0.25, H = v.ml || 2.6, sep = v.sep || 0.25, np = v.np || 4;
+    const ex = 70, ey = 28, ew = 64, eh = 150, base = ey + eh;
+    b += _S.rect(ex-28, base, ew+56, 22, _cHor, 'none', 1, '4 3') + _S.text(ex+ew+34, base+16, 'zapata / base', {a:'start',c:'var(--tx3)',size:9});
+    b += _S.rect(ex, ey, ew, eh, _cHor, 'var(--bg)');
+    const n = Math.min(Math.ceil(H/sep)+1, 16);
+    for (let i = 0; i < n; i++) { const y = ey + 6 + i*((eh-12)/(n-1)); b += _S.line(ex+6, y, ex+ew-6, y, _cEst, 1.2); }
+    const xl = ex+9, xr = ex+ew-9, ytop = ey-16, ybot = base+14;
+    b += _S.path(`M${xl} ${ytop} L${xl} ${ybot} L${xl-24} ${ybot}`, _cMain, 2.4);
+    b += _S.path(`M${xr} ${ytop} L${xr} ${ybot} L${xr+24} ${ybot}`, _cMain, 2.4);
+    b += _S.text(ex-2, ytop-3, 'espera / empalme', {a:'start',c:'var(--tx3)',size:9});
+    b += _S.text(ex-30, ybot+13, 'pata 25 cm', {a:'start',c:_cMain,size:9});
+    b += _dimV(ex+ew+44, ey, base, `H = ${_fm(H)} m`, false);
+    // sección
+    const sc = Math.min(110/A, 110/B), w = A*sc, h = B*sc, cx = 370, cy = 100;
+    b += _S.rect(cx-w/2-5, cy-h/2-5, w+10, h+10, _cHor, 'var(--bg)');
+    b += _S.rect(cx-w/2, cy-h/2, w, h, _cEst, 'none', 2);
+    _puntosSeccion(cx, cy, w, h, np).forEach(p => { b += _S.dot(p[0], p[1], 4.5, _cMain); });
+    b += _S.text(cx, cy+h/2+26, `${_fm(A*100,0)} × ${_fm(B*100,0)} cm`, {a:'middle',size:11,b:true});
+    b += _leyenda(290, 205, [{c:_cMain,t:`${np} ${dl} long. con pata de anclaje`},{c:_cEst,t:`Estribos Ø6 c/${_fm(sep*100,0)} cm`}]);
+    notas = [`Pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra) · empalme 0,60 m si H > 12 m · estribo = perímetro + 12,5 cm de gancho`,
+             `Chandías (Tabla 7.6, ADN-420): gancho ${dl} = ${gancho} mm por dos ganchos`];
+  }
+
+  else if (tipo === 'viga') {
+    const A = v.la || 0.20, B = v.lb || 0.40, L = v.ml || 4, sep = v.sep || 0.25, ns = v.ns || 2, ni = v.ni || 2;
+    const bx = 36, bw = 350, by = 60, bh = 74;
+    b += _S.rect(bx-26, by-14, 26, bh+28, _cHor, 'var(--bg)') + _S.rect(bx+bw, by-14, 26, bh+28, _cHor, 'var(--bg)');
+    b += _S.text(bx-13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9}) + _S.text(bx+bw+13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9});
+    b += _S.rect(bx, by, bw, bh, _cHor, 'var(--bg)');
+    const n = Math.min(Math.ceil(L/sep)+1, 24);
+    for (let i = 0; i < n; i++) { const x = bx + 8 + i*((bw-16)/(n-1)); b += _S.line(x, by+7, x, by+bh-7, _cEst, 1.1); }
+    const x1 = bx+8, x2 = bx+bw-8;
+    for (let i = 0; i < Math.min(ni,3); i++) { const y = by+bh-10-i*6; b += _S.path(`M${x1} ${y-20} L${x1} ${y} L${x2} ${y} L${x2} ${y-20}`, _cMain, 2.2); }
+    for (let i = 0; i < Math.min(ns,3); i++) { const y = by+10+i*6; b += _S.path(`M${x1+4} ${y+20} L${x1+4} ${y} L${x2-4} ${y} L${x2-4} ${y+20}`, _cRef, 2.2); }
+    // dobladura 45° (hierro doblado) — esquema
+    b += _S.path(`M${bx+95} ${by+bh-10} L${bx+150} ${by+10}`, _cMain, 1.6, 'none', '5 3');
+    b += _S.text(bx+60, by+bh+20, 'dobladura 45° (Δ₂)', {c:_cMain,size:9});
+    b += _S.text((x1+x2)/2, by-20, `Perchas / hierros superiores: ${ns} ${dl}`, {a:'middle',c:_cRef,size:10,b:true});
+    b += _S.text(x2, by+bh+20, `Hierros inferiores: ${ni} ${dl}`, {a:'end',c:_cMain,size:10,b:true});
+    b += _dimH(bx, bx+bw, by+bh+52, `L = ${_fm(L)} m   →   hierro = luz + luz/6 = ${_fm(L+L/6)} m`);
+    // sección
+    const sc = Math.min(70/A, 95/B), w = A*sc, h = B*sc, cx = 490, cy = 110;
+    b += _S.rect(cx-w/2, cy-h/2, w, h, _cHor, 'var(--bg)');
+    b += _S.rect(cx-w/2+5, cy-h/2+5, w-10, h-10, _cEst, 'none', 2);
+    for (let i = 0; i < Math.min(ns,4); i++) b += _S.dot(cx-w/2+8+i*((w-16)/Math.max(1,Math.min(ns,4)-1||1)), cy-h/2+8, 3.8, _cRef);
+    for (let i = 0; i < Math.min(ni,4); i++) b += _S.dot(cx-w/2+8+i*((w-16)/Math.max(1,Math.min(ni,4)-1||1)), cy+h/2-8, 3.8, _cMain);
+    b += _S.text(cx, cy+h/2+18, `${_fm(A*100,0)} × ${_fm(B*100,0)} cm`, {a:'middle',size:11,b:true});
+    const H = Math.round(B*100);
+    notas = [`Longitud de cada hierro = <b>luz + luz/6</b> (Chandías: incluye ganchos, dobladuras y empalmes) · empalme 0,60 m si pasa de 12 m`,
+             `Chandías: gancho ${dl} (ADN-420) = ${gancho} mm por dos ganchos · cada dobladura a 45° en viga de ${H} cm suma Δ₂ = ${chandiasDobladura45(H)} cm (Tabla 7.9) — ya contemplado en el 1/6`,
+             `Perchas: Chandías las toma como 2 Ø8 sup. (≈ 0,80 kg por m de luz)`];
+  }
+
+  else if (tipo === 'zapata') {
+    const Bw = v.la || 0.6, Ah = v.lb || 0.3, L = v.ml || 5, sep = v.sep || 0.25, np = v.np || 4;
+    // corte transversal
+    const sc = Math.min(150/Bw, 90/Ah), w = Bw*sc, h = Ah*sc, x0 = 30, y0 = 90;
+    b += _S.rect(x0+w/2-14, y0-46, 28, 46, _cHor, 'var(--bg)') + _S.text(x0+w/2, y0-52, 'muro', {a:'middle',c:'var(--tx3)',size:9});
+    b += _S.rect(x0, y0, w, h, _cHor, 'var(--bg)');
+    b += _S.rect(x0+6, y0+5, w-12, h-10, _cEst, 'none', 1.8);
+    const nn = Math.min(np, 6);
+    for (let i = 0; i < nn; i++) b += _S.dot(x0+10+i*((w-20)/Math.max(1,nn-1)), y0+h-10, 3.8, _cMain);
+    b += _S.text(x0+w/2, y0+h+18, `corte: B = ${_fm(Bw*100,0)} cm · A = ${_fm(Ah*100,0)} cm`, {a:'middle',size:10,b:true});
+    // elevación longitudinal
+    const lx = 250, lw = 290, lh = Math.max(46, Math.min(Ah*sc, 80)), ly = 70;
+    b += _S.rect(lx, ly, lw, lh, _cHor, 'var(--bg)');
+    const m = Math.min(Math.ceil(L/sep)+1, 22);
+    for (let i = 0; i < m; i++) { const x = lx+8+i*((lw-16)/(m-1)); b += _S.line(x, ly+6, x, ly+lh-6, _cEst, 1.1); }
+    for (let i = 0; i < Math.min(np,4); i++) {
+      const y = ly+lh-8-i*((lh-16)/3);
+      const up = i < 2;
+      b += _S.path(`M${lx+8} ${up?y-16:y+16} L${lx+8} ${y} L${lx+lw-8} ${y} L${lx+lw-8} ${up?y-16:y+16}`, _cMain, 2.2);
+    }
+    b += _S.text(lx+lw/2, ly-8, 'elevación longitudinal', {a:'middle',c:'var(--tx3)',size:9});
+    b += _dimH(lx, lx+lw, ly+lh+26, `L = ${_fm(L)} m`);
+    b += _S.text(lx+10, ly+lh+44, 'pata de anclaje 25 cm c/extremo', {c:_cMain,size:9});
+    b += _leyenda(30, 200, [{c:_cMain,t:`${np} ${dl} longitudinales`},{c:_cEst,t:`Estribos Ø6 c/${_fm(sep*100,0)} cm`}]);
+    notas = [`Pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra) · estribo = perímetro + 12,5 cm`,
+             `Chandías (Tabla 7.6, ADN-420): gancho ${dl} = ${gancho} mm por dos ganchos`];
+  }
+
+  else if (tipo === 'zapata_puntual') {
+    const Aw = v.la || 1.2, Lg = v.lb || 1.2, Al = v.ml || 0.4, sep = v.sep || 0.2;
+    const sc = Math.min(160/Aw, 150/Lg), w = Aw*sc, h = Lg*sc, px = 30, py = 40;
+    b += _S.rect(px, py, w, h, _cHor, 'var(--bg)');
+    const nx = Math.min(Math.ceil(Lg/sep)+1, 14), ny = Math.min(Math.ceil(Aw/sep)+1, 14);
+    for (let i = 0; i < nx; i++) { const y = py+6+i*((h-12)/Math.max(1,nx-1)); b += _S.line(px+6, y, px+w-6, y, _cMain, 1.4); }
+    for (let i = 0; i < ny; i++) { const x = px+6+i*((w-12)/Math.max(1,ny-1)); b += _S.line(x, py+6, x, py+h-6, _cRef, 1.4); }
+    b += _S.rect(px+w/2-10, py+h/2-10, 20, 20, _cHor, 'var(--bg)', 1.2, '3 2');
+    b += _S.text(px+w/2, py-10, 'planta — parrilla', {a:'middle',c:'var(--tx3)',size:9});
+    b += _S.text(px+w/2, py+h+16, `${_fm(Aw)} × ${_fm(Lg)} m`, {a:'middle',size:10,b:true});
+    // corte
+    const cx0 = 270, cw = 220, ch = Math.max(40, Math.min(Al*cw/Aw*1.2, 90)), cy0 = 130;
+    b += _S.rect(cx0+cw/2-12, cy0-60, 24, 60, _cHor, 'var(--bg)');
+    [cx0+cw/2-8, cx0+cw/2+8].forEach(x => { b += _S.path(`M${x} ${cy0-72} L${x} ${cy0+ch-14}`, _cMain, 2); });
+    b += _S.text(cx0+cw/2, cy0-78, 'arranque de columna', {a:'middle',c:'var(--tx3)',size:9});
+    b += _S.rect(cx0, cy0, cw, ch, _cHor, 'var(--bg)');
+    const yb = cy0+ch-10, ph = Math.min(28, ch-14);
+    b += _S.path(`M${cx0+8} ${yb-ph} L${cx0+8} ${yb} L${cx0+cw-8} ${yb} L${cx0+cw-8} ${yb-ph}`, _cMain, 2.4);
+    for (let i = 0; i < 9; i++) b += _S.dot(cx0+22+i*((cw-44)/8), yb-7, 2.6, _cRef);
+    b += _S.text(cx0+cw/2, cy0+ch+18, `corte — alto ${_fm(Al)} m`, {a:'middle',size:10,b:true});
+    b += _S.text(cx0+8, yb-ph-5, 'pata 25 cm', {c:_cMain,size:9});
+    b += _leyenda(30, 222, [{c:_cMain,t:`barras en X (${dl}) c/${_fm(sep*100,0)} cm, con patas`},{c:_cRef,t:'barras en Y'}]);
+    notas = [`Parrilla en dos direcciones · barra = lado + <b>25 cm por extremo</b> de pata de anclaje · recubrimiento 2,5 cm`];
+  }
+
+  else if (tipo === 'tabique_hormigon') {
+    const e = v.la || 0.2, Ht = v.lb || 2.6, Lt = v.ml || 4, sep = v.sep || 0.2, sep2 = v.sep2 || v.sep || 0.2;
+    const sc = Math.min(300/Lt, 160/Ht), w = Lt*sc, h = Ht*sc, px = 30, py = 30;
+    b += _S.rect(px, py, w, h, _cHor, 'var(--bg)');
+    if (v.armTipo === 'malla') {
+      for (let x = px+8; x < px+w-6; x += 12) b += _S.line(x, py+6, x, py+h-6, _cRef, 0.9);
+      for (let y = py+8; y < py+h-6; y += 12) b += _S.line(px+6, y, px+w-6, y, _cMain, 0.9);
+      b += _S.text(px, py-8, 'elevación — malla SIMA', {a:'start',c:'var(--tx3)',size:9});
+    } else {
+      const nx = Math.min(Math.ceil(Ht/sep)+1, 16), ny = Math.min(Math.ceil(Lt/sep2)+1, 22);
+      for (let i = 0; i < nx; i++) { const y = py+8+i*((h-16)/Math.max(1,nx-1)); b += _S.path(`M${px+2} ${y-7} L${px+2} ${y} L${px+w-2} ${y} L${px+w-2} ${y-7}`, _cMain, 1.4); }
+      for (let i = 0; i < ny; i++) { const x = px+8+i*((w-16)/Math.max(1,ny-1)); b += _S.path(`M${x-7} ${py+h+8} L${x} ${py+h+8} L${x} ${py+6} L${x+0.01} ${py+6}`, _cRef, 1.4); }
+      b += _S.text(px, py-8, 'elevación — barras horizontales (rojo) y verticales (verde)', {a:'start',c:'var(--tx3)',size:9});
+    }
+    b += _dimH(px, px+w, py+h+24, `L = ${_fm(Lt)} m`) + _dimV(px+w+16, py, py+h, `${_fm(Ht)} m`, false);
+    // corte horizontal
+    const tx = 440, tw = Math.max(18, Math.min(e*160, 60)), ty = 60, th = 110;
+    b += _S.rect(tx, ty, tw, th, _cHor, 'var(--bg)');
+    for (let i = 0; i < 8; i++) b += _S.dot(tx+tw/2, ty+10+i*((th-20)/7), 2.8, _cMain);
+    b += _S.text(tx+tw/2, ty+th+16, `e = ${_fm(e*100,0)} cm`, {a:'middle',size:10,b:true});
+    b += _S.text(tx+tw/2, ty-10, 'corte', {a:'middle',c:'var(--tx3)',size:9});
+    b += _S.text(30, 244, v.armTipo === 'malla' ? 'Malla SIMA con 10% de solape · hojas 3 × 2,4 m' : `Barras ${dl} c/${_fm(sep*100,0)} cm (horiz.) y c/${_fm(sep2*100,0)} cm (vert.) · pata de anclaje 25 cm c/extremo`, {size:10});
+    notas = [v.armTipo === 'malla' ? `Malla SIMA: m² = alto × largo × 1,10 · hojas = m² / 7,2` : `Barras = largo/alto + <b>25 cm por extremo</b> de anclaje en columnas/encadenados`];
+  }
+
+  else if (tipo === 'pozo') {
+    const D = v.la || 0.8, P = v.ml || 4, sep = v.sep || 0.25, np = v.np || 6;
+    const sc = Math.min(110/D, 170/P), w = Math.max(D*sc, 50), h = P*sc, px = 60, py = 34;
+    b += _S.rect(px, py, w, h, _cHor, 'var(--bg)');
+    const n = Math.min(Math.ceil(P/sep)+1, 16);
+    for (let i = 0; i < n; i++) { const y = py+6+i*((h-12)/(n-1)); b += _S.line(px+5, y, px+w-5, y, _cEst, 1.2); }
+    const nb = Math.min(np, 5);
+    for (let i = 0; i < nb; i++) {
+      const x = px+9+i*((w-18)/Math.max(1,nb-1));
+      const dir = i < nb/2 ? -1 : 1;
+      b += _S.path(`M${x} ${py-14} L${x} ${py+h+12} L${x+dir*14} ${py+h+12}`, _cMain, 2);
+    }
+    b += _S.text(px-4, py-18, 'espera', {a:'end',c:'var(--tx3)',size:9});
+    b += _dimV(px+w+22, py, py+h, `${_fm(P)} m`, false);
+    const cx = 350, cy = 105, r = 60;
+    b += _S.dot(cx, cy, r, 'var(--bg)') + `<circle cx="${cx}" cy="${cy}" r="${r}" style="fill:none;stroke:${_cHor};stroke-width:1.2"/>`;
+    b += `<circle cx="${cx}" cy="${cy}" r="${r-8}" style="fill:none;stroke:${_cEst};stroke-width:2"/>`;
+    for (let i = 0; i < Math.min(np, 12); i++) { const a = i*2*Math.PI/Math.min(np,12); b += _S.dot(cx+(r-8)*Math.cos(a), cy+(r-8)*Math.sin(a), 4, _cMain); }
+    b += _S.text(cx, cy+r+20, `Ø ${_fm(D*100,0)} cm`, {a:'middle',size:11,b:true});
+    b += _leyenda(260, 208, [{c:_cMain,t:`${np} ${dl} longitudinales (pata 25 cm)`},{c:_cEst,t:`Zuncho Ø6 c/${_fm(sep*100,0)} cm`}]);
+    notas = [`Pata de anclaje <b>25 cm por extremo</b> · zuncho circular = π × (Ø − 2 × 2,5 cm) + 12,5 cm`];
+  }
+
+  else if (tipo === 'platea' || tipo === 'losa_maciza') {
+    const X = v.la || 4, Y = v.lb || 3, e = v.ml || 0.15, sx = v.sepX || 0.2, sy = v.sepY || 0.2;
+    const sc = Math.min(260/X, 140/Y), w = X*sc, h = Y*sc, px = 24, py = 30;
+    b += _S.rect(px, py, w, h, _cHor, 'var(--bg)');
+    const nx = Math.min(Math.ceil(Y/sx)+1, 18), ny = Math.min(Math.ceil(X/sy)+1, 24);
+    for (let i = 0; i < nx; i++) { const y = py+5+i*((h-10)/Math.max(1,nx-1)); b += _S.line(px+4, y, px+w-4, y, _cMain, 1.2); }
+    for (let i = 0; i < ny; i++) { const x = px+5+i*((w-10)/Math.max(1,ny-1)); b += _S.line(x, py+4, x, py+h-4, _cRef, 1.2, '4 2'); }
+    b += _S.text(px+w/2, py-10, 'planta', {a:'middle',c:'var(--tx3)',size:9});
+    b += _dimH(px, px+w, py+h+26, `X = ${_fm(X)} m`) + _dimV(px+w+14, py, py+h, `Y = ${_fm(Y)} m`, false);
+    const hayRef = (v.refMl || 0) > 0;
+    const luz = Math.min(X, Y);
+    const refL = v.refLargo || luz/2;
+    if (hayRef) {
+      const rl = Math.min(refL*sc/2, w/2-8);
+      const nr = 7;
+      for (let i = 0; i < nr; i++) { const x = px+16+i*((w-32)/(nr-1)); b += _S.line(x, py, x, py+Math.min(rl, h-6), _cRef, 3.2); }
+      b += _S.text(px+w/2, py+Math.min(rl, h-6)+14, 'refuerzo sobre apoyo (bastones)', {a:'middle',c:_cRef,size:9,b:true});
+    }
+    // corte
+    const cx0 = 340, cw = 200, th = Math.max(14, Math.min(e*200, 40)), cy0 = 112;
+    b += _S.rect(cx0-16, cy0-14, 16, th+44, _cHor, 'var(--bg)') + _S.rect(cx0+cw, cy0-14, 16, th+44, _cHor, 'var(--bg)');
+    b += _S.rect(cx0, cy0, cw, th, _cHor, 'var(--bg)');
+    const yb = cy0+th-5;
+    b += _S.path(`M${cx0+6} ${yb-14} L${cx0+6} ${yb} L${cx0+cw-6} ${yb} L${cx0+cw-6} ${yb-14}`, _cMain, 2.4);
+    b += _S.text(cx0+cw/2, cy0+th+26, `hierro inf. = luz + luz/6 = ${_fm(luz+luz/6)} m`, {a:'middle',c:_cMain,size:9,b:true});
+    b += _S.text(cx0+cw/2, cy0-24, 'corte', {a:'middle',c:'var(--tx3)',size:9});
+    b += _S.text(cx0+cw/2, cy0+th+42, `espesor ${_fm(e*100,0)} cm`, {a:'middle',size:10,b:true});
+    if (hayRef) {
+      const rl = Math.min((refL/luz)*cw/2, cw/2-12);
+      const ys = cy0+5;
+      b += _S.path(`M${cx0+cw-rl} ${ys+12} L${cx0+cw-rl} ${ys} L${cx0+cw+12} ${ys} L${cx0+cw+12} ${ys+th+10}`, _cRef, 2.4);
+      b += _S.text(cx0+cw+12, ys-8, `bastón ${_fm(refL)} m`, {a:'end',c:_cRef,size:9,b:true});
+    }
+    b += _leyenda(24, 238, [{c:_cMain,t:'barras X (inferiores)'},{c:_cRef,t:'barras Y (dash)',dash:'4 2'}]);
+    notas = [`Chandías: cada hierro de losa/platea = <b>luz + luz/6</b> (incluye ganchos, dobladuras y empalmes); Chandías no da una regla propia para refuerzos sobre apoyos`,
+             hayRef ? `Refuerzo cargado: lo que figure en la planilla de armadura. Si dejás el largo vacío se asume luz/2 (≈ luz/4 a cada lado del apoyo, criterio usual)` : `Si la losa lleva refuerzos (bastones sobre apoyos), cargalos abajo: ml de apoyos, largo de cada bastón y separación`];
+  }
+
+  if (!b) return '';
+  return `<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;" role="img" aria-label="Esquema de armadura">${b}</svg>` +
+    `<div style="font-size:10px;color:var(--tx3);line-height:1.6;margin-top:6px;">${notas.map(n => '• ' + n).join('<br>')}</div>`;
+}
+
+// Lee las dimensiones cargadas y redibuja el esquema (usa valores típicos si todavía no se cargó nada)
+function renderArmDiagrama() {
+  const cont = document.getElementById('arm-diagrama');
+  if (!cont) return;
+  const sel = document.getElementById('med-tarea-sel');
+  const coef = sel ? coefs.find(c => c.id === sel.value) : null;
+  const tipo = coef ? tipoEstructural(coef.cod) : null;
+  if (!tipo) { cont.innerHTML = ''; return; }
+  const g = id => num(document.getElementById(id)?.value);
+  const v = {
+    la: g('dim-la'), lb: g('dim-lb'), ml: g('dim-ml'), sep: g('dim-sep'), sep2: g('dim-sep2'),
+    sepX: g('dim-sep'), sepY: g('dim-sep2'),
+    np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0,
+    diam: document.getElementById('dim-diam-ppal')?.value || document.getElementById('dim-hierro-diam')?.value || 'MAT-003',
+    armTipo: document.getElementById('dim-arm-tipo')?.value || 'hierros',
+    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo')
+  };
+  if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
+  cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
 // IG helper
@@ -2986,6 +3277,23 @@ function onTareaChange() {
       ${ig('dim-ml','Espesor (m)','0.20','0.01')}
       ${ig('dim-sep','Sep. hierros X (m)','0.20')}
       ${ig('dim-sep2','Sep. hierros Y (m)','0.20')}
+      <div style="grid-column:1/-1;font-size:10px;color:var(--gr);background:var(--gr-l);padding:6px 10px;border-radius:4px;margin-top:4px;">
+        Refuerzos sobre apoyos (bastones) — opcional. Chandías no da una regla propia: se cargan según la planilla de armadura.
+      </div>
+      ${ig('dim-ref-ml','Long. total de apoyos con refuerzo (ml)')}
+      ${ig('dim-ref-largo','Largo de cada bastón (m) — vacío = luz/2')}
+      ${ig('dim-ref-sep','Sep. de bastones (m)','0.20')}
+      <div class="ig-item">
+        <div class="ig-label">Ø refuerzo</div>
+        <select class="ig-input" id="dim-ref-diam" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
+          <option value="MAT-001">Ø6mm</option>
+          <option value="MAT-002">Ø8mm</option>
+          <option value="MAT-003" selected>Ø10mm</option>
+          <option value="MAT-004">Ø12mm</option>
+          <option value="MAT-005">Ø16mm</option>
+          <option value="MAT-006">Ø20mm</option>
+        </select>
+      </div>
       <div class="ig-item" style="grid-column:1/-1;">
         <div class="ig-label">Resultado calculado</div>
         <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
@@ -3030,6 +3338,12 @@ function onTareaChange() {
 
   else {
     wrap.innerHTML = `<div class="ig-item"><div class="ig-label">Cantidad (${coef.unidad})</div><input class="ig-input" id="dim-res" type="number" placeholder="0.00" step="0.01" style="color:var(--gr);font-weight:600;"></div>`;
+  }
+
+  // Esquema de armadura del elemento (se redibuja al cambiar cualquier dato)
+  if (tipo) {
+    wrap.insertAdjacentHTML('afterbegin', '<div id="arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>');
+    renderArmDiagrama();
   }
 }
 
@@ -3157,6 +3471,12 @@ function formatArmDesc(rawDesc) {
     parts.push(`Hierros inf: ${ml.toFixed(1)} ml → ${Math.ceil(ml/12)} barras`);
   }
 
+  // Refuerzos sobre apoyos (losas)
+  if (d.ref) {
+    const ml = num(d.ref);
+    parts.push(`Refuerzos ${DIAM_LABEL[d.refDiam]||''}: ${ml.toFixed(1)} ml → ${Math.ceil(ml/12)} barras`);
+  }
+
   // Hierros X/Y (plateas, zapata puntual, tabiques)
   if (d.x && !d.armTipo) {
     const ml = num(d.x);
@@ -3193,6 +3513,7 @@ function calcDimEstructural() {
   if (!coef) return;
   const tipo = tipoEstructural(coef.cod);
   if (!tipo) return;
+  renderArmDiagrama();
 
   const g = id => num(document.getElementById(id)?.value);
   let dims = {};
@@ -3208,7 +3529,7 @@ function calcDimEstructural() {
     dims = { ancho:g('dim-la')||0.20, largo:g('dim-ml'), alto:g('dim-lb'), sep:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, armTipo, mallaTipo, hierroDiam };
   }
   else if (tipo === 'pozo') dims = { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
-  else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20 };
+  else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('dim-ref-diam')?.value||'MAT-003' };
 
   const r = calcArmadura(tipo, dims);
   if (!r.m3) return;
@@ -3224,6 +3545,7 @@ function calcDimEstructural() {
   if (r.mlInf) html += `<b>ML hierros inf:</b> ${r.mlInf} ml → ${Math.ceil(r.mlInf/12)} barras 12m<br>`;
   if (r.mlX) html += `<b>ML hierros X:</b> ${r.mlX} ml (${r.cantX} barras) → ${Math.ceil(r.mlX/12)} paquetes<br>`;
   if (r.mlY) html += `<b>ML hierros Y:</b> ${r.mlY} ml (${r.cantY} barras) → ${Math.ceil(r.mlY/12)} paquetes<br>`;
+  if (r.mlRef) html += `<b>Refuerzos s/apoyos (${DIAM_LABEL[r.refDiam]||'Ø10'}):</b> ${r.cantRef} bastones × ${r.refLargo} m = ${r.mlRef} ml → ${Math.ceil(r.mlRef/12)} barras 12m<br>`;
   if (r.mlTotal) html += `<b>ML total:</b> ${r.mlTotal} ml → <b>${r.barras12m} barras 12m</b><br>`;
   if (r.m2Malla) html += `<b>Malla SIMA:</b> ${r.m2Malla} m² → <b>${r.cantHojas} hojas</b> (3×2.4m)<br>`;
   if (r.resumen) html += `<span style="color:var(--tx3);font-size:10px;">${r.resumen}</span>`;
@@ -3262,6 +3584,7 @@ async function saveMedicion(keepOpen) {
     if (r.mlInf) extras.push(`inf:${r.mlInf}`);
     if (r.mlX) extras.push(`x:${r.mlX}`);
     if (r.mlY) extras.push(`y:${r.mlY}`);
+    if (r.mlRef) { extras.push(`ref:${r.mlRef}`); extras.push(`refDiam:${r.refDiam}`); }
     if (r.mlTotal) extras.push(`mlTotal:${r.mlTotal}`);
     if (r.barras12m) extras.push(`barras:${r.barras12m}`);
     if (r.armTipo) extras.push(`armTipo:${r.armTipo}`);
@@ -4687,10 +5010,14 @@ function consolidarMateriales(obraId, medsFiltro) {
       const iMat = mats.find(m => m.cod === (armData.diamPpal||'MAT-003'));
       if (iMat) addConsolidado(iMat, num(armData.inf), '(inf)');
     }
-    if ((armData.est || armData.ppal || armData.sup || armData.inf) && !armData.armTipo) {
+    if (armData.ref && !armData.armTipo) {
+      const rMat = mats.find(m => m.cod === (armData.refDiam||'MAT-003'));
+      if (rMat) addConsolidado(rMat, num(armData.ref), '(refuerzo)');
+    }
+    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
       if (alMat) {
-        const mlTot = num(armData.est||0)+num(armData.ppal||0)+num(armData.sup||0)+num(armData.inf||0);
+        const mlTot = num(armData.est||0)+num(armData.ppal||0)+num(armData.sup||0)+num(armData.inf||0)+num(armData.ref||0);
         const kgAl = mlTot * 0.03;
         const keyAl = alMat.nombre||'Alambre negro nº17';
         if (!consolidado[keyAl]) consolidado[keyAl] = { nombre: keyAl, unBase:'kg', unComercial:'kg', divisor:1, cantBase:0, cantComercial:0, precio:alMat.precio, rubros:new Set() };
