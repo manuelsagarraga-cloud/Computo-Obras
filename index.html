@@ -280,7 +280,7 @@ textarea{resize:vertical;min-height:55px;}
 .readonly-mode [onclick*="delObra"],
 .readonly-mode [onclick*="saveImport"] { display:none !important; }
 .readonly-mode .inline-num:not([readonly]),
-.readonly-mode select:not(#sel-empresa):not(#sel-obra-cert):not(#sel-obra-comp):not(#sel-obra-pres):not(#sel-obra-med):not(#sel-obra-compras):not(#sel-obra-mo-precios):not(#sel-obra-arch),
+.readonly-mode select:not(#sel-empresa):not(#sel-obra-cert):not(#sel-obra-comp):not(#sel-obra-pres):not(#sel-obra-med):not(#sel-obra-compras):not(#sel-obra-mo-precios):not(#sel-obra-sustento):not(#sel-obra-arch),
 .readonly-mode input[onchange*="updateCertItem"] { pointer-events:none; opacity:.6; }
 .readonly-badge{display:inline-block;background:var(--am-l);color:var(--am);padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600;letter-spacing:.05em;margin-top:4px;}
 .sidebar-credit{font-size:8px;opacity:.3;line-height:1.4;padding:0 18px;margin-bottom:4px;}
@@ -348,6 +348,7 @@ textarea{resize:vertical;min-height:55px;}
   <div class="nav-item" onclick="nav('compras')"><span>◫</span> Lista de compras</div>
   <div class="nav-item" onclick="nav('cronograma')"><span>▭</span> Cronograma</div>
   <div class="nav-item" onclick="nav('mo-precios')"><span>▣</span> Precios MO</div>
+  <div class="nav-item" onclick="nav('sustento')"><span>ⓘ</span> Información de sustento</div>
   <div class="nav-item" onclick="nav('certificados')"><span>◐</span> Certificados</div>
   <div class="nav-item" onclick="nav('historial')"><span>⊙</span> Historial</div>
   <div class="nav-sec">Ayuda</div>
@@ -362,7 +363,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-12.3</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-12.4</span></span>
     </div>
   </div>
 
@@ -467,7 +468,7 @@ textarea{resize:vertical;min-height:55px;}
     <!-- MANO DE OBRA -->
     <div id="page-manoobra" class="page">
       <div class="card">
-        <div class="card-header"><div class="card-title">Mano de obra — UOCRA Zona A</div><button class="btn btn-primary" onclick="openModal('m-mo')">+ Categoría</button></div>
+        <div class="card-header"><div class="card-title">Mano de obra — UOCRA Zona A <span style="font-size:10px;font-weight:400;color:var(--tx3);">· solo referencia (jornal básico sin cargas): no suma en ningún total</span></div><button class="btn btn-primary" onclick="openModal('m-mo')">+ Categoría</button></div>
         <div class="tbl-wrap"><table><thead><tr><th>Categoría</th><th>Descripción</th><th>Jornal ($/día)</th><th>Rendim.</th><th>Fecha</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-mo"></tbody></table></div>
       </div>
     </div>
@@ -570,20 +571,30 @@ textarea{resize:vertical;min-height:55px;}
     <!-- PRECIOS MO POR TAREA -->
     <div id="page-mo-precios" class="page">
       <div class="card" style="margin-bottom:12px;">
-        <div class="form-grid" style="grid-template-columns:2fr 1fr;margin-bottom:0;">
+        <div class="form-grid" style="grid-template-columns:1fr;margin-bottom:0;">
           <div class="fg"><label>Obra</label><select id="sel-obra-mo-precios" onchange="loadMOPrecios()"></select></div>
-          <div style="display:flex;align-items:flex-end;">
-            <button class="btn btn-primary" style="width:100%;" onclick="saveMOPrecios()">Guardar precios MO</button>
-          </div>
         </div>
       </div>
       <div class="card" style="margin-bottom:12px;background:var(--am-l);border-color:#E8D5A0;">
         <div style="font-size:11px;color:var(--am);line-height:1.7;">
-          <b>Precio unitario:</b> se multiplica por la cantidad medida → total por tarea.<br>
-          <b>Precio global:</b> monto fijo que cobra el gremio por esa tarea independientemente de la cantidad. Si ponés global, tiene prioridad sobre el unitario.
+          <b>La mano de obra de la app es el precio del contratista.</b> Cada medición tiene su precio: <b>por unidad</b> (se multiplica por la cantidad) o <b>global</b> (monto fijo, típico en tareas GL).<br>
+          Una medición sin precio figura en $0 y se marca en rojo. Los jornales y la referencia UOCRA están en <b>Información de sustento</b> y no suman en ningún total.
         </div>
       </div>
       <div id="mo-precios-body"></div>
+    </div>
+
+    <!-- INFORMACIÓN DE SUSTENTO -->
+    <div id="page-sustento" class="page">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="form-grid" style="grid-template-columns:1fr;margin-bottom:0;">
+          <div class="fg"><label>Obra</label><select id="sel-obra-sustento" onchange="loadSustento()"></select></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:12px;background:var(--bl-l);">
+        <div style="font-size:11px;color:var(--bl);line-height:1.7;">Pantalla de <b>solo lectura</b>: compara el precio del contratista con lo que daría el cálculo por jornales y cuadrilla (UOCRA). Sirve para negociar y justificar precios; <b>no entra en presupuesto, certificados ni dashboard</b>.</div>
+      </div>
+      <div id="sustento-body"></div>
     </div>
 
     <!-- CERTIFICADOS -->
@@ -693,17 +704,27 @@ textarea{resize:vertical;min-height:55px;}
   </div>
 </div>
 
+<datalist id="dl-contratistas"></datalist>
 <div class="modal-overlay" id="m-medicion">
   <div class="modal">
     <div class="modal-title">Nueva medición <button class="modal-close" onclick="closeModal('m-medicion')">✕</button></div>
     <div class="form-grid">
       <div class="fg"><label>Tarea</label>
         <input id="med-tarea-filter" placeholder="Buscar tarea..." oninput="filterTareas()" style="margin-bottom:4px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;width:100%;box-sizing:border-box;">
-        <select id="med-tarea-sel" onchange="onTareaChange()" size="6" style="width:100%;font-size:11px;"></select></div>
+        <select id="med-tarea-sel" onchange="onTareaChange();moModalSync('med')" size="6" style="width:100%;font-size:11px;"></select></div>
       <div class="fg"><label>Ubicación</label><select id="med-ubicacion"><option value="Global">Global (sin planta específica)</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:8px;"><label>Descripción (opcional)</label><input id="med-desc" placeholder="Ej: Muro frente N"></div>
     <div id="med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
+    <div class="card" style="margin:10px 0 0;padding:10px;background:var(--am-l);border-color:#E8D5A0;">
+      <div style="font-size:11px;font-weight:600;color:var(--am);margin-bottom:6px;">Mano de obra · precio del contratista</div>
+      <div class="form-grid" style="grid-template-columns:1.4fr 1fr 1fr;margin-bottom:4px;">
+        <div class="fg"><label>Contratista</label><input id="med-mo-contr" list="dl-contratistas" placeholder="Nombre"></div>
+        <div class="fg"><label>Precio por <span id="med-mo-un">un.</span> ($)</label><input id="med-mo-precio" type="number" step="any" placeholder="0" oninput="moModalTotal('med')"></div>
+        <div class="fg"><label>Modo</label><select id="med-mo-tipo" onchange="moModalTotal('med')"><option value="unitario">Por unidad</option><option value="global">Global (monto fijo)</option></select></div>
+      </div>
+      <div style="font-size:10px;color:var(--tx3);display:flex;justify-content:space-between;align-items:center;gap:8px;"><span id="med-mo-total"></span></div>
+    </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal('m-medicion')">Cancelar</button><button class="btn" onclick="saveMedicion(true)" style="border-color:var(--gr);color:var(--gr);">Guardar + otra</button><button class="btn btn-primary" onclick="saveMedicion(false)">Agregar y cerrar</button></div>
   </div>
 </div>
@@ -713,7 +734,7 @@ textarea{resize:vertical;min-height:55px;}
   <div class="modal" style="width:600px;">
     <div class="modal-title">Editar medición <button class="modal-close" onclick="closeModal('m-edit-med')">✕</button></div>
     <div class="form-grid">
-      <div class="fg"><label>Tarea</label><select id="edit-med-tarea" onchange="onEditTareaChange()"></select></div>
+      <div class="fg"><label>Tarea</label><select id="edit-med-tarea" onchange="onEditTareaChange();moModalSync('edit',editingMedId)"></select></div>
       <div class="fg"><label>Ubicación</label><select id="edit-med-ubic"><option value="Global">Global</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:8px;"><label>Descripción</label><input id="edit-med-desc"></div>
@@ -722,7 +743,16 @@ textarea{resize:vertical;min-height:55px;}
       <div class="fg"><label>Cantidad</label><input id="edit-med-cant" type="number" step="0.001"></div>
       <div class="fg"><label>Revisión actual</label><input id="edit-med-rev" readonly style="background:var(--bg);color:var(--tx3);"></div>
     </div>
-    <div class="fg"><label>Nota de revisión (qué cambió)</label><input id="edit-med-rev-nota" placeholder="Ej: Se cambió dimensión por replanteo"></div>
+    <div class="card" style="margin:10px 0 0;padding:10px;background:var(--am-l);border-color:#E8D5A0;">
+      <div style="font-size:11px;font-weight:600;color:var(--am);margin-bottom:6px;">Mano de obra · precio del contratista</div>
+      <div class="form-grid" style="grid-template-columns:1.4fr 1fr 1fr;margin-bottom:4px;">
+        <div class="fg"><label>Contratista</label><input id="edit-mo-contr" list="dl-contratistas" placeholder="Nombre"></div>
+        <div class="fg"><label>Precio por <span id="edit-mo-un">un.</span> ($)</label><input id="edit-mo-precio" type="number" step="any" placeholder="0" oninput="moModalTotal('edit')"></div>
+        <div class="fg"><label>Modo</label><select id="edit-mo-tipo" onchange="moModalTotal('edit')"><option value="unitario">Por unidad</option><option value="global">Global (monto fijo)</option></select></div>
+      </div>
+      <div style="font-size:10px;color:var(--tx3);display:flex;justify-content:space-between;align-items:center;gap:8px;"><span id="edit-mo-total"></span><button class="btn" style="font-size:10px;padding:3px 8px;" onclick="moAplicarATarea()" title="Copia este precio y contratista a las demás mediciones de esta tarea en la obra que todavía no tienen precio">Aplicar a las demás mediciones de esta tarea sin precio</button></div>
+    </div>
+    <div class="fg" style="margin-top:8px;"><label>Nota de revisión (qué cambió)</label><input id="edit-med-rev-nota" placeholder="Ej: Se cambió dimensión por replanteo"></div>
     <div class="modal-footer">
       <button class="btn" style="color:var(--re);" onclick="deleteMedFromEdit()">Eliminar ítem</button>
       <div style="flex:1;"></div>
@@ -897,7 +927,8 @@ textarea{resize:vertical;min-height:55px;}
         <div class="card-title" style="margin-bottom:10px;">Novedades — Julio 2026</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.9;">
           <b>Import de Excel más inteligente:</b> convierte m² a m³ usando el espesor de la descripción (ej. "e=10cm"), pasa ml de capa aisladora a m² (ancho de muro 0,20 m, anotado en la descripción), calcula m³ de estructuras desde las dimensiones del texto respetando "N unid", y cuando un ítem lista varias secciones distintas (ej. vigas "(30x35),(35x40)…") conserva la cantidad del Excel y lo marca para validación manual. Todo cálculo queda anotado en la descripción del ítem.<br>
-          <b>Precios de mano de obra automáticos:</b> si el Excel trae costo unitario por ítem, el import lo carga solo en "Precios MO" de la obra (como monto global, conservando el total del contratista aunque cambie la unidad) y el certificado base nace con esos precios. La referencia UOCRA queda solo como valor base cuando no hay precio cargado.<br>
+          <b>Mano de obra = precio del contratista (nuevo):</b> cada medición tiene su precio (por unidad o global) y su contratista; esa es la MO de presupuesto, dashboard, cartera y certificados. Los jornales y la referencia UOCRA pasaron a <b>Información de sustento</b> (solo lectura) y ya no suman en ningún total. Una medición sin precio figura en $0 y se marca en rojo. El import de Excel guarda el precio ya convertido a nuestra unidad (y conserva el precio y la unidad del Excel).<br>
+          <b>Certificados:</b> un borrador usa siempre el precio vigente de cada medición; al <b>Emitir certificado</b> los precios y contratistas se congelan (si después cambia el precio, el emitido no se mueve). Un emitido se puede reabrir a borrador.<br>
           <b>Hormigón elaborado H21 por defecto:</b> salvo que el ítem diga "in situ", las tareas de hormigón se asignan a su versión con Hº elaborado H21. Todas las tareas tienen ahora sus tres variantes (in situ / H17 / H21).<br>
           <b>Botón "✓ Revisar" en Mediciones:</b> audita todos los ítems estructurales de la obra y lista los que tienen incoherencia entre las dimensiones del texto y la cantidad cargada — sin revisar uno por uno.<br>
           <b>Export a Excel mejorado:</b> respeta los filtros activos, agrupa por rubro en orden de obra y agrega cabecera con los datos de la obra.<br>
@@ -943,7 +974,7 @@ textarea{resize:vertical;min-height:55px;}
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">4</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar precios de mano de obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Precios MO</b>. Seleccionar la obra. Para cada tarea ingresar el precio real acordado con el contratista: por m2 en <b>Precio unit.</b> o monto total fijo en <b>Total fijo</b>. El total fijo tiene prioridad.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar precios de mano de obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Se puede cargar de tres formas: (1) al crear o editar una medición (campos <b>Contratista</b> y <b>Precio</b>; el botón <i>Aplicar a las demás mediciones de esta tarea sin precio</i> copia el precio al resto); (2) en el menu lateral &rarr; <b>Precios MO</b>, una fila por medición, con contratista, modo (por unidad / global) y precio; (3) automaticamente al importar un Excel con costo unitario. El contador <b>Sin precio de MO</b> te dice cuantas mediciones faltan. Para comparar con jornales y cuadrilla: <b>Informacion de sustento</b>.</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">5</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
@@ -955,7 +986,7 @@ textarea{resize:vertical;min-height:55px;}
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--am);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">7</div></div>
-            <div style="padding:0 0 0 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Certificar avance</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Certificados</b>. Crear nuevo certificado con el periodo, ingresar porcentaje de avance por tarea y exportar el PDF al cliente o al contratista con el coeficiente K aplicado.</div></div>
+            <div style="padding:0 0 0 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Certificar avance</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Certificados</b>. Los precios vienen de la medicion (borrador) y se congelan con <b>Emitir certificado</b>. Crear nuevo certificado con el periodo, ingresar porcentaje de avance por tarea y exportar el PDF al cliente o al contratista con el coeficiente K aplicado.</div></div>
           </div>
         </div>
       </div>
@@ -1073,11 +1104,11 @@ textarea{resize:vertical;min-height:55px;}
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">LO QUE CALCULA EL SISTEMA AUTOMATICAMENTE</div>
-            <div style="font-size:11px;color:var(--tx2);">El presupuesto muestra una columna MO con el costo de referencia UOCRA. Se calcula asi: cantidad de la medicion dividido el rendimiento diario del coeficiente, multiplicado por el jornal de la cuadrilla (Oficial + Ayudante segun el rubro). Es un valor de referencia tecnica, no el precio real del mercado.</div>
+            <div style="font-size:11px;color:var(--tx2);">La mano de obra del presupuesto NO se calcula: es el precio que acordaste con el contratista para cada medicion (precio por unidad x cantidad, o monto global). El calculo por jornales y cuadrilla (UOCRA) se conserva solo como referencia en <b>Informacion de sustento</b>, para comparar y negociar, y no suma en ningun total.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CARGAR EL PRECIO REAL DEL CONTRATISTA</div>
-            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Precios MO</b> &rarr; seleccionar la obra. Aparece una tabla con todas las tareas de la obra. Para cada una hay dos campos:<br><br><b>Precio unit.</b>: lo que cobra el gremio por cada m2 o m3 (ej: $5.000/m2 de revoque). El sistema multiplica por la cantidad.<br><br><b>Total fijo</b>: monto fijo por toda la tarea sin importar la cantidad (ej: $300.000 por hacer todo el piso). Este tiene prioridad sobre el unitario. Ideal cuando el contratista cobra por la tarea completa.</div>
+            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Precios MO</b> &rarr; seleccionar la obra. Hay una fila por medicion con: <b>Contratista</b>, <b>Precio por</b> (por unidad o global) y <b>Precio</b>.<br><br><b>Por unidad</b>: lo que cobra el gremio por cada m2, m3 o ml (ej: $5.000/m2 de revoque). El sistema multiplica por la cantidad de ESA medicion, asi que si la cantidad cambia el total se actualiza solo.<br><br><b>Global</b>: monto fijo por toda la tarea (ej: $300.000 por hacer todo el piso). Es lo habitual en tareas en GL.<br><br>Tambien se carga desde el modal de la medicion (nueva o editar). El contador <b>Sin precio de MO</b> muestra cuantas mediciones faltan.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">TAREAS SIN MATERIALES (INSTALACIONES Y HERRERIA)</div>
@@ -1126,7 +1157,7 @@ textarea{resize:vertical;min-height:55px;}
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Computo automatico</td><td style="padding:7px 8px;color:var(--tx2);">Lista de materiales calculados (solo lectura)</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Presupuesto</td><td style="padding:7px 8px;color:var(--tx2);">Costo total por rubro con materiales y MO</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales</td><td style="padding:7px 8px;color:var(--tx2);">Base de precios, exportar e importar Excel</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mano de obra</td><td style="padding:7px 8px;color:var(--tx2);">Categorias UOCRA con jornal de referencia</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mano de obra</td><td style="padding:7px 8px;color:var(--tx2);">Categorias UOCRA con jornal: solo referencia (Informacion de sustento)</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Consumos</td><td style="padding:7px 8px;color:var(--tx2);">Consumos de materiales de cada tarea (recetas), agrupados por rubro</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Indices CAC</td><td style="padding:7px 8px;color:var(--tx2);">Indice mensual para congelado de precios</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Archivos</td><td style="padding:7px 8px;color:var(--tx2);">Fotos y planos por obra</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
@@ -1145,7 +1176,7 @@ textarea{resize:vertical;min-height:55px;}
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
             <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">La MO muestra $0 en el presupuesto</div>
-            <div style="font-size:11px;color:var(--tx2);">Normal al principio. Ir a <b>Precios MO</b>, seleccionar la obra y cargar el precio acordado con cada contratista en la columna correspondiente.</div>
+            <div style="font-size:11px;color:var(--tx2);">La medicion no tiene precio de contratista cargado (se marca "sin precio" en rojo). Ir a <b>Precios MO</b>, seleccionar la obra y cargar el precio de cada medicion, o editar la medicion (&#9998;) y completar Contratista y Precio. Si ya tenias precios y desaparecieron, falta correr el SQL_04 en Supabase.</div>
           </div>
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
             <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">Archivos, Compras, Precios MO o Certificados aparecen vacios</div>
@@ -1237,7 +1268,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-12.3';
+const APP_BUILD = '2026-10-12.4';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -1463,9 +1494,101 @@ async function sbPatch(table, id, data) {
   if (!r.ok) throw new Error(`PATCH ${table}: ${r.status}`);
   return r.json();
 }
+// Upsert en lote por id (una sola request)
+async function sbUpsertLote(table, rows) {
+  if (!rows.length) return [];
+  const out = [];
+  for (let i = 0; i < rows.length; i += 200) {
+    const h = { ...getSBHeaders(), 'Prefer': 'resolution=merge-duplicates,return=representation' };
+    const r = await sbFetch(`${SB_URL}/rest/v1/${table}?on_conflict=id`, { method:'POST', headers:h, body:JSON.stringify(rows.slice(i, i+200)) });
+    if (!r.ok) { const t = await r.text(); throw new Error(`UPSERT ${table}: ${r.status} ${t}`); }
+    out.push(...await r.json());
+  }
+  return out;
+}
 async function sbDelete(table, id) {
   const r = await sbFetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method:'DELETE', headers:getSBHeaders() });
   if (!r.ok) throw new Error(`DELETE ${table}: ${r.status}`);
+}
+
+
+// =====================================================================
+// MANO DE OBRA POR PRECIO DE CONTRATISTA
+// Un precio por medición (mo_precios.med_id). UOCRA/jornales = solo referencia.
+// =====================================================================
+let moPrecios = [];          // filas de mo_precios con med_id
+let _moByMed = {};           // med_id -> fila
+let moPreciosOK = true;      // false si la columna med_id no existe (falta correr SQL_04)
+
+function indexMoPrecios() {
+  _moByMed = {};
+  moPrecios.forEach(r => { if (r.med_id) _moByMed[r.med_id] = r; });
+}
+async function loadMoPrecios() {
+  try {
+    const all = [];
+    for (let off = 0; off < 20000; off += 1000) {
+      const part = await sbGet('mo_precios', `med_id=not.is.null&limit=1000&offset=${off}`);
+      all.push(...(part || []));
+      if (!part || part.length < 1000) break;
+    }
+    moPrecios = all; moPreciosOK = true;
+  } catch (e) { moPrecios = []; moPreciosOK = false; console.warn('mo_precios.med_id no disponible — correr SQL_04', e); }
+  indexMoPrecios();
+}
+// Resolver ÚNICO de MO: precio de contratista × cantidad (o global).
+// Devuelve { total, unit, tipo, precio, contratista, unidad, sinPrecio, row }
+function resolverMO(med, coef, cantidad) {
+  const cant = cantidad != null ? num(cantidad) : num(med && med.cantidad);
+  const r = med ? _moByMed[med.id] : null;
+  if (r && num(r.precio) > 0) {
+    const total = r.tipo === 'global' ? num(r.precio) : num(r.precio) * cant;
+    return { total, unit: cant > 0 ? total / cant : 0, tipo: r.tipo, precio: num(r.precio),
+             contratista: r.contratista || '', unidad: (coef && coef.unidad) || r.unidad || '', sinPrecio: false, row: r };
+  }
+  return { total: 0, unit: 0, tipo: null, precio: 0, contratista: (r && r.contratista) || '', unidad: (coef && coef.unidad) || '', sinPrecio: true, row: r || null };
+}
+// Guardar/actualizar el precio de una medición (un solo registro por med_id)
+async function guardarMoPrecio(med, patch) {
+  const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
+  const obraId = med.obraId || med.obra_id;
+  const ex = _moByMed[med.id];
+  const data = { ...patch, updated_at: new Date().toISOString() };
+  if (ex && ex.id) {
+    const r = await sbPatch('mo_precios', ex.id, data);
+    Object.assign(ex, (r && r[0]) || data);
+  } else {
+    const row = { obra_id: obraId, med_id: med.id,
+                  tipo: 'unitario', unidad: coef ? String(coef.unidad||'').toLowerCase() : '', ...data };
+    const r = await sbPost('mo_precios', row);
+    const nr = (Array.isArray(r) ? r[0] : r) || row;
+    moPrecios.push(nr);
+  }
+  indexMoPrecios();
+}
+// En la base el precio se borra solo (FK ON DELETE CASCADE); acá solo el cache local
+function borrarMoPrecio(medId) {
+  moPrecios = moPrecios.filter(r => r.med_id !== medId);
+  indexMoPrecios();
+}
+// Upsert en lote (import): rows con id propio o nuevos
+async function upsertMoPreciosLote(rows) {
+  if (!rows.length) return;
+  const nuevos = [], viejos = [];
+  rows.forEach(r => { (_moByMed[r.med_id] ? viejos : nuevos).push(r); });
+  if (nuevos.length) {
+    for (let i = 0; i < nuevos.length; i += 200) {
+      const res = await sbPost('mo_precios', nuevos.slice(i, i + 200));
+      moPrecios.push(...(res || []));
+    }
+  }
+  for (const r of viejos) {
+    const ex = _moByMed[r.med_id];
+    const { med_id, ...resto } = r;
+    await sbPatch('mo_precios', ex.id, resto);
+    Object.assign(ex, resto);
+  }
+  indexMoPrecios();
 }
 
 // =====================================================================
@@ -1871,6 +1994,7 @@ async function loadAllData() {
   meds = (med || []).map(x => ({...x, obraId: x.obra_id, coefId: x.coef_id, desc: x.descripcion}));
   indicesCac = idx || [];
   preciosEmpresa = pe || [];
+  await loadMoPrecios();
 
   // Si las tablas están vacías, sembrar datos por defecto
   if (!mats.length) await seedMateriales();
@@ -2050,7 +2174,7 @@ function findMat(ref) {
 
 function popSelects() {
   const oe = obrasEmpresa();
-  ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-cert','sel-obra-crono'].forEach(id => {
+  ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-sustento','sel-obra-cert','sel-obra-crono'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
     el.innerHTML = oe.length
       ? oe.map(o => `<option value="${o.id}">${o.cod} — ${o.nombre}</option>`).join('')
@@ -2219,7 +2343,7 @@ function computeObra(obraId) {
     // Filtrar materiales con cantidad 0
     const matItemsFilt = matItems.filter(i => i.cantidadBase > 0 || i.cantidadComercial > 0);
     const totalMats = matItemsFilt.reduce((s, i) => s + i.subtotal, 0);
-    let totalMO = 0, moDesc = '';
+    let moRef = 0, moRefDesc = '';
     const moRend = num(coef.moRend || coef.mo_rend);
 
     // Cuadrilla: usa cuadrilla jsonb si existe, sino cae en mo_id simple (compatibilidad)
@@ -2235,10 +2359,10 @@ function computeObra(obraId) {
         if (!moReg) return;
         const cant = num(miembro.cant) || 1;
         const subtotalMO = jornales * cant * moReg.jornal;
-        totalMO += subtotalMO;
+        moRef += subtotalMO;
         partes.push(`${cant} ${moReg.cat} × ${$p(moReg.jornal)}/día`);
       });
-      moDesc = `${jornales.toFixed(2)} jorn. · Cuadrilla: ${partes.join(' + ')}`;
+      moRefDesc = `${jornales.toFixed(2)} jorn. · Cuadrilla: ${partes.join(' + ')}`;
     } else {
       // Fallback: mo_id simple
       const moId = coef.moId || coef.mo_id;
@@ -2246,11 +2370,15 @@ function computeObra(obraId) {
       const rend = moRend || (moReg ? moReg.rend : 1);
       if (moReg && rend > 0) {
         const jornales = cantidad / rend;
-        totalMO = jornales * moReg.jornal;
-        moDesc = `${jornales.toFixed(2)} jornales × ${$p(moReg.jornal)}/día (${moReg.cat})`;
+        moRef = jornales * moReg.jornal;
+        moRefDesc = `${jornales.toFixed(2)} jornales × ${$p(moReg.jornal)}/día (${moReg.cat})`;
       }
     }
-    rubros[coef.rubro].items.push({ med, coef, cantidad, cantDesp, matItems: matItemsFilt, totalMats, totalMO, moDesc, total: totalMats + totalMO });
+    const rMO = resolverMO(med, coef, cantidad);
+    const totalMO = rMO.total;
+    const moDesc = rMO.sinPrecio ? '' : (rMO.tipo === 'global' ? `Global${rMO.contratista ? ' · ' + rMO.contratista : ''}` : `${$p(rMO.precio)}/${rMO.unidad}${rMO.contratista ? ' · ' + rMO.contratista : ''}`);
+    const moSinPrecio = rMO.sinPrecio && (moRef > 0 || coefMats.length === 0);
+    rubros[coef.rubro].items.push({ med, coef, cantidad, cantDesp, matItems: matItemsFilt, totalMats, totalMO, moDesc, moRef, moRefDesc, moSinPrecio, moContratista: rMO.contratista, moPrecioUnit: rMO.unit, moTipo: rMO.tipo, total: totalMats + totalMO });
   });
   // Ordenar items dentro de cada rubro por código de tarea
   Object.values(rubros).forEach(r => r.items.sort((a,b) => sortByCod(a.coef||{cod:'999'}, b.coef||{cod:'999'})));
@@ -2264,7 +2392,7 @@ function nav(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Consumos de materiales', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Lista de compras', cronograma:'Cronograma ↔ Cómputo', 'mo-precios':'Precios mano de obra', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
+  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Consumos de materiales', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Lista de compras', cronograma:'Cronograma ↔ Cómputo', 'mo-precios':'Precios mano de obra', sustento:'Información de sustento', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
   document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
   const renders = {
@@ -2287,6 +2415,7 @@ function nav(page) {
     compras: () => { popSelects(); loadCompras(); },
     cronograma: () => { popSelects(); cronoInit(); },
     'mo-precios': () => { popSelects(); loadMOPrecios(); },
+    sustento: () => { popSelects(); loadSustento(); },
     certificados: () => { popSelects(); loadCertificados(); }
   };
   (renders[page] || (() => {}))();
@@ -2438,6 +2567,7 @@ async function saveObra() {
 async function delObra(id) {
   if (!confirm('¿Eliminar esta obra y todo lo asociado (mediciones, certificados)?')) return;
   await withSync(async () => {
+    moPrecios = moPrecios.filter(r => r.obra_id !== id); indexMoPrecios();
     await sbDelete('obras', id);
     obras = obras.filter(o => o.id !== id);
     meds = meds.filter(m => (m.obraId||m.obra_id) !== id);
@@ -2471,7 +2601,80 @@ function filterTareas() {
   sel.innerHTML = rubrosOrden.map(rubro =>
     `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
   ).join('');
-  if (filtered.length) { sel.selectedIndex = 0; onTareaChange(); }
+  if (filtered.length) { sel.selectedIndex = 0; onTareaChange(); moModalSync('med'); }
+}
+
+
+// ---- Modal de medición: precio de MO + contratista ----
+let _ultContratista = '';
+function refreshContratistasDL() {
+  const dl = document.getElementById('dl-contratistas');
+  if (dl) dl.innerHTML = moContratistasConocidos().map(c => `<option value="${String(c).replace(/"/g,'&quot;')}">`).join('');
+}
+function moCoefDeModal(p) {
+  const id = p === 'med' ? document.getElementById('med-tarea-sel')?.value : document.getElementById('edit-med-tarea')?.value;
+  return coefs.find(c => c.id === id);
+}
+function moObraDeModal(p) {
+  if (p === 'med') return document.getElementById('sel-obra-med')?.value;
+  const m = meds.find(x => x.id === editingMedId); return m ? (m.obraId || m.obra_id) : '';
+}
+function moModalTotal(p) {
+  const coef = moCoefDeModal(p);
+  const el = document.getElementById(p + '-mo-total'); if (!el) return;
+  const precio = num(document.getElementById(p + '-mo-precio').value);
+  const tipo = document.getElementById(p + '-mo-tipo').value;
+  const cant = num(document.getElementById(p === 'med' ? 'dim-res' : 'edit-med-cant')?.value);
+  if (!precio) { el.innerHTML = '<span style="color:var(--re);">Sin precio: la MO de esta medición figurará en $0</span>'; return; }
+  const tot = tipo === 'global' ? precio : precio * cant;
+  el.innerHTML = tipo === 'global' ? `MO total: <b>${$p(tot)}</b> (monto fijo)` : `MO total: <b>${$p(tot)}</b> (${$p(precio)} × ${cant.toLocaleString('es-AR',{maximumFractionDigits:3})} ${coef?coef.unidad:''})`;
+}
+// Prefill: precio de otra medición de la misma tarea en la obra, o el último contratista usado
+function moModalSync(p, medActual) {
+  const coef = moCoefDeModal(p); if (!coef) return;
+  refreshContratistasDL();
+  const un = document.getElementById(p + '-mo-un'); if (un) un.textContent = coef.unidad;
+  const obraId = moObraDeModal(p);
+  const prev = meds.filter(m => (m.obraId||m.obra_id) === obraId && (m.coefId||m.coef_id) === coef.id && (!medActual || m.id !== medActual) && _moByMed[m.id] && num(_moByMed[m.id].precio) > 0).pop();
+  const r = prev ? _moByMed[prev.id] : null;
+  document.getElementById(p + '-mo-contr').value = r ? (r.contratista||'') : _ultContratista;
+  document.getElementById(p + '-mo-precio').value = r ? num(r.precio) : '';
+  document.getElementById(p + '-mo-tipo').value = r ? (r.tipo === 'global' ? 'global' : 'unitario') : (/^(gl|global)$/i.test(coef.unidad||'') ? 'global' : 'unitario');
+  moModalTotal(p);
+}
+function moLeerModal(p) {
+  return { contratista: document.getElementById(p + '-mo-contr').value.trim(),
+           precio: num(document.getElementById(p + '-mo-precio').value),
+           tipo: document.getElementById(p + '-mo-tipo').value };
+}
+async function moGuardarDesdeModal(med, f) {
+  if (!(f.precio > 0) && !f.contratista) return;
+  if (f.contratista) _ultContratista = f.contratista;
+  const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
+  await guardarMoPrecio(med, { precio: f.precio, tipo: f.tipo, contratista: f.contratista, unidad: coef ? String(coef.unidad||'').toLowerCase() : '', fuente: 'manual' });
+  refreshContratistasDL();
+}
+// Atajo: copia precio y contratista a las demás mediciones de la misma tarea sin precio
+async function moAplicarATarea() {
+  const med = meds.find(m => m.id === editingMedId); if (!med) return;
+  const f = moLeerModal('edit');
+  if (!(f.precio > 0)) { notif('Primero cargá el precio'); return; }
+  if (f.tipo === 'global') { notif('El atajo solo aplica a precios por unidad'); return; }
+  const coefId = document.getElementById('edit-med-tarea').value;
+  const obraId = med.obraId || med.obra_id;
+  const objetivo = meds.filter(m => (m.obraId||m.obra_id) === obraId && (m.coefId||m.coef_id) === coefId && m.id !== med.id && !(_moByMed[m.id] && num(_moByMed[m.id].precio) > 0));
+  if (!objetivo.length) { notif('No hay otras mediciones de esta tarea sin precio'); return; }
+  if (!confirm(`Se aplicará ${$p(f.precio)}${f.contratista ? ' · ' + f.contratista : ''} a ${objetivo.length} medición(es) de esta tarea sin precio. ¿Continuar?`)) return;
+  const coef = coefs.find(c => c.id === coefId);
+  showBusy('Aplicando precio…');
+  try {
+    await withSync(async () => {
+      await upsertMoPreciosLote(objetivo.map(m => ({
+        obra_id: obraId, med_id: m.id, tipo: 'unitario', precio: f.precio,
+        unidad: String(coef?.unidad||'').toLowerCase(), contratista: f.contratista || null, fuente: 'manual' })));
+    });
+    notif(`Precio aplicado a ${objetivo.length} medición(es) ✓`);
+  } catch(e) {} finally { hideBusy(); }
 }
 
 function openModalMedicion() {
@@ -2495,6 +2698,7 @@ function openModalMedicion() {
   document.getElementById('med-desc').value = '';
   document.getElementById('med-tarea-filter').value = '';
   onTareaChange();
+  moModalSync('med');
   openModal('m-medicion');
 }
 
@@ -3606,6 +3810,7 @@ async function saveMedicion(keepOpen) {
     const med = res[0] || data;
     meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion});
     registrarAuditoria('mediciones', med.id, 'INSERT', null, data, obraId);
+    await moGuardarDesdeModal(meds[meds.length-1], moLeerModal('med'));
     loadMediciones(); notif('Medición agregada ✓');
     if (keepOpen) {
       // Limpiar solo dims, mantener tarea y ubicación
@@ -3613,6 +3818,7 @@ async function saveMedicion(keepOpen) {
       const wrap = document.getElementById('med-dims-wrap');
       wrap.querySelectorAll('input[type=number]').forEach(i => { if (!i.readOnly) i.value = ''; });
       onTareaChange();
+      moModalSync('med');
     } else {
       closeModal('m-medicion');
     }
@@ -3682,6 +3888,7 @@ async function delMed(id) {
     const med = meds.find(m => m.id === id);
     const valorPrevio = med ? { coef_id: med.coef_id||med.coefId, descripcion: med.desc||med.descripcion, cantidad: med.cantidad, ubicacion: med.ubicacion } : null;
     await sbDelete('mediciones', id);
+    borrarMoPrecio(id);
     if (med) registrarAuditoria('mediciones', id, 'DELETE', valorPrevio, null, med.obraId||med.obra_id);
     meds = meds.filter(m => m.id !== id);
     loadMediciones(); notif('Eliminado ✓ (registrado en historial)');
@@ -3705,6 +3912,10 @@ async function dupMed(medId) {
     };
     const res = await sbPost('mediciones', data);
     meds.push({...res[0]||data, obraId: data.obra_id, coefId: data.coef_id, desc: data.descripcion});
+    const exP = _moByMed[medId];
+    if (exP && num(exP.precio) > 0) {
+      await guardarMoPrecio(meds[meds.length-1], { precio: exP.precio, tipo: exP.tipo, contratista: exP.contratista || '', unidad: exP.unidad || '', fuente: 'manual' });
+    }
     loadMediciones(); notif('Medición duplicada ✓');
   });
 }
@@ -3956,6 +4167,16 @@ function openEditMed(medId) {
   document.getElementById('edit-med-cant').value = num(med.cantidad);
   document.getElementById('edit-med-rev').value = med.revision || 'Rev00';
   document.getElementById('edit-med-rev-nota').value = '';
+  (function(){ // MO de esta medición
+    refreshContratistasDL();
+    const r = _moByMed[medId];
+    const cf = coefs.find(c => c.id === (med.coefId || med.coef_id));
+    document.getElementById('edit-mo-un').textContent = cf ? cf.unidad : 'un.';
+    document.getElementById('edit-mo-contr').value = r ? (r.contratista||'') : '';
+    document.getElementById('edit-mo-precio').value = r && num(r.precio) ? num(r.precio) : '';
+    document.getElementById('edit-mo-tipo').value = r && r.tipo === 'global' ? 'global' : 'unitario';
+    moModalTotal('edit');
+  })();
 
   // Cargar widget de dimensiones si la tarea es estructural
   const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
@@ -4221,8 +4442,21 @@ async function saveEditMed() {
   const oldUbic = med.ubicacion || 'Global';
   const changed = newCoefId !== oldCoefId || newDesc !== oldDesc || newCant !== oldCant || newUbic !== oldUbic;
 
-  if (!changed && !revNota) {
+  const moF = moLeerModal('edit');
+  const moEx = _moByMed[editingMedId];
+  const moChanged = (moEx ? (num(moEx.precio) !== moF.precio || (moEx.contratista||'') !== moF.contratista || (moEx.tipo === 'global' ? 'global' : 'unitario') !== moF.tipo)
+                          : (moF.precio > 0 || !!moF.contratista));
+
+  if (!changed && !revNota && !moChanged) {
     closeModal('m-edit-med');
+    return;
+  }
+  if (!changed && !revNota && moChanged) {
+    // Solo cambió el precio de MO: no genera nueva revisión de la medición
+    try {
+      await withSync(async () => { await moGuardarDesdeModal(med, moF); });
+      closeModal('m-edit-med'); loadMediciones(); notif('Precio de mano de obra guardado ✓');
+    } catch(e) {}
     return;
   }
 
@@ -4244,6 +4478,7 @@ async function saveEditMed() {
     const valorPrevio = { coef_id: oldCoefId, descripcion: oldDesc, cantidad: oldCant, ubicacion: oldUbic };
     await sbPatch('mediciones', editingMedId, patch);
     registrarAuditoria('mediciones', editingMedId, 'UPDATE', valorPrevio, patch, med.obraId||med.obra_id);
+    if (moChanged) await moGuardarDesdeModal(med, moF);
 
     // Actualizar local
     med.coefId = newCoefId;
@@ -4294,7 +4529,7 @@ function loadComputo() {
               <div class="med-name">${item.med.etiqueta ? '<span style="font-family:var(--mono);font-size:10px;background:var(--surf2);padding:1px 5px;border-radius:3px;margin-right:5px;color:var(--tx2);">'+item.med.etiqueta+'</span>' : ''}${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' — <span style="color:var(--tx3);">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>':''}</div>
               <div class="med-meta"><span>${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:3})} ${item.coef.unidad}</span><span style="color:var(--am);">+${desperdicio}% → ${item.cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</span><span style="color:var(--tx3);">▾ ver detalle</span></div>
             </div>
-            <div style="text-align:right;"><div style="font-size:12px;font-weight:500;">${$p(item.total)}</div><div style="font-size:9px;color:var(--tx3);margin-top:2px;">mat+MO</div></div>
+            <div style="text-align:right;"><div style="font-size:12px;font-weight:500;">${$p(item.total)}</div><div style="font-size:9px;color:var(--tx3);margin-top:2px;">mat+MO${item.moSinPrecio?' <span style="color:var(--re);">· MO sin precio</span>':''}</div></div>
           </div>
           <div class="med-body" id="mb-${rubro.replace(/\s/g,'-')}-${idx}">
             <div class="mat-result-title">Materiales necesarios</div>
@@ -4306,7 +4541,8 @@ function loadComputo() {
                   <span style="font-size:11px;color:var(--gr);">${mi.precioUnit?$p(mi.subtotal):'<span style="color:var(--re);font-size:10px;">sin precio</span>'}</span>
                 </span>
               </div>`).join('')}
-            ${item.totalMO>0?`<div class="mo-result"><div class="mo-result-title">Mano de obra</div><div style="display:flex;justify-content:space-between;font-size:11px;"><span>${item.moDesc}</span><span style="font-weight:500;color:var(--am);">${$p(item.totalMO)}</span></div></div>`:''}
+            ${item.totalMO>0?`<div class="mo-result"><div class="mo-result-title">Mano de obra (precio de contratista)</div><div style="display:flex;justify-content:space-between;font-size:11px;"><span>${item.moDesc}</span><span style="font-weight:500;color:var(--am);">${$p(item.totalMO)}</span></div></div>`
+              : item.moSinPrecio ? `<div class="mo-result"><div class="mo-result-title" style="color:var(--re);">Mano de obra: sin precio</div><div style="font-size:11px;color:var(--tx3);">Cargá el precio en la medición (✎) o en <b>Precios MO</b>.${item.moRef>0?' Referencia UOCRA: '+$p(item.moRef)+' (no suma).':''}</div></div>`:''}
           </div>
         </div>`).join('')}
       </div>
@@ -4334,33 +4570,22 @@ function loadPres() {
   if (!Object.keys(rubros).length) { body.innerHTML = '<div class="empty">Sin mediciones para esta obra.</div>'; return; }
   const pctGG = num(document.getElementById('pct-gg').value) / 100;
   const pctUtil = num(document.getElementById('pct-util').value) / 100;
-  const precios_mo = getMOPrecios(obraId);
   let cosMats = 0, cosMO = 0, n = 1, rubroRows = '';
+  const sinPrecioN = Object.values(rubros).reduce((s,rb)=>s+rb.items.filter(i=>i.moSinPrecio).length,0);
 
   const rubrosOrdenPres = ordenRubros(Object.keys(rubros));
   rubrosOrdenPres.forEach(rubro => {
     const data = rubros[rubro];
     const rMats = data.items.reduce((s,i) => s+i.totalMats, 0);
-    // MO: usar precios ingresados si existen, sino el calculado por UOCRA
-    const rMO = data.items.reduce((s,item) => {
-      const key = item.coef.id + '_' + item.med.id;
-      const p = precios_mo[key] || {};
-      const pGlob = p.global || 0;
-      const pUnit = p.unit || 0;
-      const moIngresado = pGlob > 0 ? pGlob : (pUnit > 0 ? pUnit * item.cantidad : item.totalMO);
-      return s + moIngresado;
-    }, 0);
+    // MO: precio de contratista (resolverMO). Sin precio = $0 marcado.
+    const rMO = data.items.reduce((s,item) => s + item.totalMO, 0);
     cosMats += rMats; cosMO += rMO;
     rubroRows += `<div style="margin-bottom:14px;">
       <div class="rubro-hdr" style="border-radius:4px 4px 0 0;"><span>${rubro}</span><span class="rt">Mat: ${$p(rMats)} · MO: ${$p(rMO)}</span></div>
       <div class="rubro-body"><table><thead><tr><th>Ítem</th><th>Tarea</th><th>Cant.</th><th>Unid.</th><th>Materiales</th><th>M.O.</th><th>Total</th></tr></thead>
       <tbody>${data.items.map(item => {
-        const key = item.coef.id + '_' + item.med.id;
-        const p = precios_mo[key] || {};
-        const pGlob = p.global || 0;
-        const pUnit = p.unit || 0;
-        const moItem = pGlob > 0 ? pGlob : (pUnit > 0 ? pUnit * item.cantidad : item.totalMO);
-        const moLabel = pGlob > 0 ? '<span style="font-size:9px;color:var(--gr);">(global)</span>' : pUnit > 0 ? '<span style="font-size:9px;color:var(--gr);">(unit.)</span>' : '<span style="font-size:9px;color:var(--tx3);">(UOCRA)</span>';
+        const moItem = item.totalMO;
+        const moLabel = item.moSinPrecio ? '<span style="font-size:9px;color:var(--re);">sin precio</span>' : item.moTipo === 'global' ? '<span style="font-size:9px;color:var(--gr);">(global)</span>' : item.moTipo ? '<span style="font-size:9px;color:var(--gr);">(unit.)</span>' : '';
         return `<tr>
           <td style="color:var(--tx3);">${n++}</td>
           <td class="hi">${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' — '+formatArmDesc(item.med.desc||item.med.descripcion):''}</td>
@@ -4380,6 +4605,7 @@ function loadPres() {
       <div><div class="pl">Presupuesto de obra</div><div class="pt">${obra.nombre}</div><div style="margin-top:8px;font-size:11px;opacity:.6;">${obra.cliente||''} · ${obra.ubic||''}</div></div>
       <div class="pm"><div>${obra.cod}</div><div>${new Date().toLocaleDateString('es-AR')}</div>${obra.sup?`<div>${obra.sup} m²</div>`:''}</div>
     </div>
+    ${sinPrecioN ? `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--re);font-size:12px;">⚠ ${sinPrecioN} medición${sinPrecioN>1?'es':''} sin precio de mano de obra: figuran en $0. Cargalos en <b>Precios MO</b>.</div>` : ''}
     ${rubroRows}
     <div class="card" style="margin-top:12px;"><table><tbody>
       <tr><td>Costo materiales</td><td class="num">${$p(cosMats)}</td><td class="num" style="color:var(--tx3);font-size:10px;">${cd?Math.round(cosMats/cd*100)+'%':''}</td></tr>
@@ -5403,109 +5629,74 @@ function exportCompras() {
 }
 
 // =====================================================================
-// PRECIOS MO POR TAREA — guardados en Supabase tabla mo_precios
+// PRECIOS MO — un precio de contratista por cada medición
 // =====================================================================
-// Cache en memoria para evitar múltiples fetches
-let _moPreciosCache = {}; // { obraId: { key: {unit, global} } }
-
-function getMOPrecios(obraId) {
-  return _moPreciosCache[obraId] || {};
+function moContratistasConocidos() {
+  return [...new Set(moPrecios.map(r => (r.contratista||'').trim()).filter(Boolean))].sort();
 }
-
-async function loadMOPreciosCache(obraId) {
-  if (_moPreciosCache[obraId]) return; // ya cargado
-  try {
-    const rows = await sbGet('mo_precios', `obra_id=eq.${obraId}`);
-    const map = {};
-    (rows||[]).forEach(r => { map[r.coef_id] = { unit: num(r.precio), global: r.tipo==='global' ? num(r.precio) : 0, tipo: r.tipo, id: r.id }; });
-    _moPreciosCache[obraId] = map;
-  } catch { _moPreciosCache[obraId] = {}; }
+function moDatalistHTML() {
+  return `<datalist id="dl-contratistas">${moContratistasConocidos().map(c => `<option value="${String(c).replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
 }
-
-async function setMOPrecio(obraId, key, tipo, val) {
-  if (!_moPreciosCache[obraId]) _moPreciosCache[obraId] = {};
-  const cache = _moPreciosCache[obraId];
-  const precio = num(val);
-  const existing = cache[key];
-  try {
-    if (existing && existing.id) {
-      // Actualizar fila existente
-      await sbPatch('mo_precios', existing.id, { precio, tipo });
-      existing.tipo = tipo;
-      existing[tipo === 'global' ? 'global' : 'unit'] = precio;
-      if (tipo === 'global') existing.unit = 0; else existing.global = 0;
-    } else {
-      // Crear fila nueva
-      const res = await sbPost('mo_precios', { obra_id: obraId, coef_id: key, precio, tipo });
-      const newId = Array.isArray(res) ? res[0]?.id : res?.id;
-      cache[key] = { unit: tipo==='unitario' ? precio : 0, global: tipo==='global' ? precio : 0, tipo, id: newId };
-    }
-  } catch(e) { notif('Error guardando precio MO: ' + e.message); }
+function moResumenSinPrecio(obraId) {
+  const r = computeObra(obraId);
+  let n = 0, total = 0;
+  Object.values(r).forEach(rb => rb.items.forEach(i => { total++; if (i.moSinPrecio) n++; }));
+  return { n, total };
 }
 
 async function loadMOPrecios() {
   const obraId = document.getElementById('sel-obra-mo-precios')?.value;
   const body = document.getElementById('mo-precios-body');
   if (!obraId) { body.innerHTML = '<div class="empty">Seleccioná una obra.</div>'; return; }
-
-  body.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>';
-  await loadMOPreciosCache(obraId);
-
+  if (!moPreciosOK) {
+    body.innerHTML = '<div class="card" style="border-left:3px solid var(--re);">Falta correr <b>SQL_04_mo_precios.sql</b> en Supabase.</div>';
+    return;
+  }
   const rubros = computeObra(obraId);
   if (!Object.keys(rubros).length) {
     body.innerHTML = '<div class="empty">Sin mediciones para esta obra. Cargá mediciones primero.</div>';
     return;
   }
-
-  const precios = getMOPrecios(obraId);
+  const rs = moResumenSinPrecio(obraId);
+  let totMO = 0;
+  refreshContratistasDL();
   let html = '';
-
-  const rubrosOrdCert = ordenRubros(Object.keys(rubros));
-  rubrosOrdCert.forEach(rubro => {
+  ordenRubros(Object.keys(rubros)).forEach(rubro => {
     const data = rubros[rubro];
+    const rubroMO = data.items.reduce((s,i) => s + i.totalMO, 0);
+    totMO += rubroMO;
+    const rid = rubro.replace(/\s/g,'_');
     html += `<div class="rubro-block">
-      <div class="rubro-hdr"><span>${rubro}</span></div>
-      <div class="rubro-body">
+      <div class="rubro-hdr"><span>${rubro}</span>
+        <span style="font-size:10px;margin-left:12px;">
+          <input class="inline-num" type="text" list="dl-contratistas" style="width:130px;font-size:10px;" placeholder="Contratista del rubro" id="mo-contr-${rid}"
+            onkeydown="if(event.key==='Enter')moAplicarContrRubro('${obraId}','${rubro}',this.value)">
+          <button class="btn-icon" style="font-size:10px;" title="Aplicar contratista a todo el rubro" onclick="moAplicarContrRubro('${obraId}','${rubro}',document.getElementById('mo-contr-${rid}').value)">✓</button>
+        </span>
+        <span class="rt">MO: ${$p(rubroMO)}</span></div>
+      <div class="rubro-body" style="overflow-x:auto;">
         <table>
           <thead><tr>
-            <th>Tarea</th><th>Cant.</th><th>Unid.</th><th style="font-size:9px;color:var(--bl);">Ref. UOCRA</th>
-            <th>Precio unit. ($/unid)</th><th>Precio global ($)</th><th>Total MO calculado</th>
+            <th>Tarea</th><th>Cant.</th><th>Un.</th><th>Contratista</th><th>Precio por</th><th>Precio ($)</th><th>Total MO</th>
           </tr></thead>
           <tbody>
             ${data.items.map(item => {
-              const key = item.coef.id + '_' + item.med.id;
-              const p = precios[key] || {};
-              const pUnit = p.unit || 0;
-              const pGlob = p.global || 0;
-              const totalMO = pGlob > 0 ? pGlob : pUnit * item.cantidad;
-              const uocraRef = item.totalMO || 0;
-              const uocraUnit = item.cantidad > 0 ? (uocraRef / item.cantidad) : 0;
-              return `<tr>
-                <td class="hi">${item.coef.nombre}${(item.med.desc||item.med.descripcion) ? ' — <span style="color:var(--tx3);">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>' : ''}</td>
+              const med = item.med, mid = med.id;
+              const r = _moByMed[mid] || {};
+              const tipo = r.tipo === 'global' ? 'global' : 'unitario';
+              const sp = item.moSinPrecio;
+              return `<tr id="mo-row-${mid}">
+                <td class="hi">${item.coef.nombre}${(med.desc||med.descripcion) ? ' — <span style="color:var(--tx3);">'+formatArmDesc(med.desc||med.descripcion)+'</span>' : ''}</td>
                 <td class="num">${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
                 <td>${item.coef.unidad}</td>
-                <td style="font-size:10px;color:var(--bl);" title="Cálculo UOCRA: ${item.moDesc||''}">
-                  ${uocraRef > 0 ? $p(uocraUnit)+'/'+item.coef.unidad : '<span style="color:var(--tx3);">libre</span>'}
-                </td>
-                <td>
-                  <input class="inline-num" type="number" style="width:110px;${pGlob>0?'opacity:.35;':'color:var(--am);'}" placeholder="0"
-                    value="${pUnit&&!pGlob?pUnit:''}"
-                    data-mo-key="${key}" data-mo-tipo="unitario"
-                    onchange="updateMOPrecio('${obraId}','${key}','unitario',this.value)"
-                    title="Precio por ${item.coef.unidad}">
-                  <span style="font-size:9px;color:var(--tx3);">/ ${item.coef.unidad}</span>
-                </td>
-                <td>
-                  <input class="inline-num" type="number" style="width:120px;${pGlob>0?'color:var(--gr);font-weight:700;':''}" placeholder="0"
-                    value="${pGlob||''}"
-                    data-mo-key="${key}" data-mo-tipo="global"
-                    onchange="updateMOPrecio('${obraId}','${key}','global',this.value)"
-                    title="Monto fijo total por toda la tarea">
-                  ${pGlob>0?'<span style="font-size:9px;color:var(--gr);">✓ global</span>':'<span style="font-size:9px;color:var(--tx3);">total fijo</span>'}
-                </td>
-                <td class="num hi" style="color:var(--am);" id="mo-total-${key}">
-                  ${totalMO > 0 ? $p(totalMO) : '—'}
-                </td>
+                <td><input class="inline-num" type="text" list="dl-contratistas" style="width:130px;" placeholder="contratista" value="${(r.contratista||'').replace(/"/g,'&quot;')}"
+                    onchange="updateMoFila('${obraId}','${mid}','contratista',this.value)"></td>
+                <td><select class="inline-num" style="width:92px;" onchange="updateMoFila('${obraId}','${mid}','tipo',this.value)">
+                    <option value="unitario" ${tipo==='unitario'?'selected':''}>cada ${item.coef.unidad}</option>
+                    <option value="global" ${tipo==='global'?'selected':''}>global</option></select></td>
+                <td><input class="inline-num" type="number" step="any" style="width:110px;${sp?'border-color:var(--re);':'color:var(--am);'}" placeholder="0" value="${r.precio?num(r.precio):''}"
+                    onchange="updateMoFila('${obraId}','${mid}','precio',this.value)"></td>
+                <td class="num hi" style="color:var(--am);" id="mo-total-${mid}">${sp ? '<span style="color:var(--re);font-size:10px;">sin precio</span>' : $p(item.totalMO)}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -5513,62 +5704,103 @@ async function loadMOPrecios() {
       </div>
     </div>`;
   });
-
-  body.innerHTML = html;
+  const head = `<div class="stats-grid" style="margin-bottom:12px;">
+      <div class="stat"><div class="stat-label">Mediciones</div><div class="stat-value" style="font-size:16px;">${rs.total}</div></div>
+      <div class="stat"><div class="stat-label">Sin precio de MO</div><div class="stat-value" style="font-size:16px;color:${rs.n?'var(--re)':'var(--gr)'};" id="mo-sinprecio-n">${rs.n}</div></div>
+      <div class="stat"><div class="stat-label">Total MO (contratista)</div><div class="stat-value" style="font-size:16px;color:var(--am);" id="mo-total-obra">${$p(totMO)}</div></div>
+    </div>`;
+  body.innerHTML = head + html;
 }
 
-async function updateMOPrecio(obraId, key, tipo, val) {
-  await setMOPrecio(obraId, key, tipo, num(val));
-
-  // Limpiar el campo opuesto visualmente
-  const p = getMOPrecios(obraId)[key] || {};
-  const pUnit = tipo === 'unitario' ? num(val) : 0;
-  const pGlob = tipo === 'global' ? num(val) : 0;
-
-  // Si pusieron precio global, limpiar el unitario visualmente y viceversa
-  if (tipo === 'global' && num(val) > 0) {
-    const unitInput = document.querySelector(`[data-mo-key="${key}"][data-mo-tipo="unitario"]`);
-    if (unitInput) unitInput.value = '';
+async function updateMoFila(obraId, medId, campo, valor) {
+  const med = meds.find(m => m.id === medId);
+  if (!med) return;
+  const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
+  const cant = num(med.cantidad);
+  const ex = _moByMed[medId];
+  const patch = {};
+  if (campo === 'contratista') patch.contratista = String(valor||'').trim();
+  else if (campo === 'precio') { patch.precio = num(valor); patch.fuente = 'manual'; patch.precio_origen = null; patch.unidad_origen = null; if (!ex) patch.tipo = (coef && /^(gl|global)$/i.test(coef.unidad||'')) ? 'global' : 'unitario'; }
+  else if (campo === 'tipo') {
+    patch.tipo = valor;
+    // conservar el total: convertir el precio al cambiar de modo
+    if (ex && num(ex.precio) > 0 && cant > 0 && ex.tipo !== valor) patch.precio = valor === 'global' ? num(ex.precio) * cant : num(ex.precio) / cant;
   }
-  if (tipo === 'unitario' && num(val) > 0) {
-    const globInput = document.querySelector(`[data-mo-key="${key}"][data-mo-tipo="global"]`);
-    if (globInput) globInput.value = '';
-  }
-
-  // Encontrar la cantidad de esa medición
+  try {
+    await withSync(async () => { await guardarMoPrecio(med, patch); });
+  } catch(e) { return; }
+  // refresco puntual de la fila y los contadores
   const rubros = computeObra(obraId);
-  let cantidad = 0;
-  Object.values(rubros).forEach(data => {
-    data.items.forEach(item => {
-      if ((item.coef.id + '_' + item.med.id) === key) cantidad = item.cantidad;
-    });
-  });
-
-  const total = pGlob > 0 ? pGlob : pUnit * cantidad;
-  const cell = document.getElementById(`mo-total-${key}`);
-  if (cell) cell.innerHTML = total > 0 ? `<b>${$p(total)}</b>` : '—';
+  let totMO = 0, sp = 0;
+  Object.values(rubros).forEach(rb => rb.items.forEach(i => {
+    totMO += i.totalMO; if (i.moSinPrecio) sp++;
+    if (i.med.id === medId) {
+      const c = document.getElementById('mo-total-' + medId);
+      if (c) c.innerHTML = i.moSinPrecio ? '<span style="color:var(--re);font-size:10px;">sin precio</span>' : $p(i.totalMO);
+      const row = document.getElementById('mo-row-' + medId);
+      const pi = row && row.querySelector('input[type=number]');
+      if (pi && campo === 'tipo') pi.value = _moByMed[medId]?.precio ? num(_moByMed[medId].precio) : '';
+    }
+  }));
+  const n1 = document.getElementById('mo-sinprecio-n'); if (n1) { n1.textContent = sp; n1.style.color = sp ? 'var(--re)' : 'var(--gr)'; }
+  const n2 = document.getElementById('mo-total-obra'); if (n2) n2.textContent = $p(totMO);
 }
 
-function saveMOPrecios() {
-  notif('Precios MO guardados ✓');
+async function moAplicarContrRubro(obraId, rubro, contratista) {
+  contratista = String(contratista||'').trim();
+  if (!contratista) { notif('Escribí el nombre del contratista'); return; }
+  const data = computeObra(obraId)[rubro];
+  if (!data) return;
+  showBusy('Aplicando contratista…');
+  try {
+    await withSync(async () => {
+      for (const it of data.items) await guardarMoPrecio(it.med, { contratista });
+    });
+    notif(`Contratista "${contratista}" aplicado a ${data.items.length} mediciones ✓`);
+  } catch(e) {} finally { hideBusy(); }
   loadMOPrecios();
 }
 
-// Función que calcula el total de MO de una obra usando los precios ingresados
-function calcTotalMOObra(obraId) {
-  const precios = getMOPrecios(obraId);
+function saveMOPrecios() { loadMOPrecios(); notif('Los precios se guardan al editar cada celda ✓'); }
+
+// =====================================================================
+// INFORMACIÓN DE SUSTENTO — solo lectura. UOCRA / jornales: nunca suman.
+// =====================================================================
+function loadSustento() {
+  const obraId = document.getElementById('sel-obra-sustento')?.value;
+  const body = document.getElementById('sustento-body');
+  if (!obraId) { body.innerHTML = '<div class="empty">Seleccioná una obra.</div>'; return; }
   const rubros = computeObra(obraId);
-  let total = 0;
-  Object.values(rubros).forEach(data => {
-    data.items.forEach(item => {
-      const key = item.coef.id + '_' + item.med.id;
-      const p = precios[key] || {};
-      const pGlob = p.global || 0;
-      const pUnit = p.unit || 0;
-      total += pGlob > 0 ? pGlob : pUnit * item.cantidad;
-    });
+  if (!Object.keys(rubros).length) { body.innerHTML = '<div class="empty">Sin mediciones para esta obra.</div>'; return; }
+  let tRef = 0, tCon = 0, html = '';
+  ordenRubros(Object.keys(rubros)).forEach(rubro => {
+    const data = rubros[rubro];
+    html += `<div class="rubro-block"><div class="rubro-hdr"><span>${rubro}</span></div>
+      <div class="rubro-body" style="overflow-x:auto;"><table>
+      <thead><tr><th>Tarea</th><th>Cant.</th><th>Un.</th><th>Cálculo de referencia (jornales / cuadrilla)</th><th>Ref. UOCRA total</th><th>Ref. $/un.</th><th>Contratista $/un.</th><th>Dif.</th></tr></thead><tbody>
+      ${data.items.map(i => {
+        tRef += i.moRef; tCon += i.totalMO;
+        const refU = i.cantidad > 0 ? i.moRef / i.cantidad : 0;
+        const conU = i.moPrecioUnit;
+        const dif = (refU > 0 && conU > 0) ? ((conU - refU) / refU * 100) : null;
+        const cDif = dif == null ? 'var(--tx3)' : (Math.abs(dif) <= 15 ? 'var(--gr)' : (dif > 0 ? 'var(--re)' : 'var(--bl)'));
+        return `<tr>
+          <td class="hi">${i.coef.nombre}${(i.med.desc||i.med.descripcion)?' — <span style="color:var(--tx3);">'+formatArmDesc(i.med.desc||i.med.descripcion)+'</span>':''}</td>
+          <td class="num">${i.cantidad.toLocaleString('es-AR',{maximumFractionDigits:2})}</td><td>${i.coef.unidad}</td>
+          <td style="font-size:10px;color:var(--tx3);">${i.moRefDesc || 'sin cuadrilla / libre'}</td>
+          <td class="num" style="color:var(--bl);">${i.moRef>0?$p(i.moRef):'—'}</td>
+          <td class="num" style="color:var(--bl);">${refU>0?$p(refU):'—'}</td>
+          <td class="num" style="color:var(--am);">${conU>0?$p(conU):(i.moSinPrecio?'<span style="color:var(--re);font-size:10px;">sin precio</span>':'—')}</td>
+          <td class="num" style="color:${cDif};font-weight:600;">${dif==null?'—':(dif>=0?'+':'')+dif.toFixed(0)+'%'}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table></div></div>`;
   });
-  return total;
+  body.innerHTML = `<div class="stats-grid" style="margin-bottom:12px;">
+      <div class="stat"><div class="stat-label">Referencia UOCRA (no suma)</div><div class="stat-value" style="font-size:16px;color:var(--bl);">${$p(tRef)}</div></div>
+      <div class="stat"><div class="stat-label">MO por contratista (suma)</div><div class="stat-value" style="font-size:16px;color:var(--am);">${$p(tCon)}</div></div>
+      <div class="stat"><div class="stat-label">Diferencia</div><div class="stat-value" style="font-size:16px;">${tRef>0?(((tCon-tRef)/tRef*100)>=0?'+':'')+((tCon-tRef)/tRef*100).toFixed(0)+'%':'—'}</div></div>
+    </div>` + html;
 }
 
 
@@ -5658,6 +5890,21 @@ async function loadCertificados() {
   if (certs.length) renderCertDetalle(certs[certs.length-1].id);
 }
 
+// Costo unitario efectivo de un ítem de certificado:
+//  · certificado EMITIDO  -> congelado (cert_items.costo_unit)
+//  · BORRADOR             -> precio vigente de la medición (mo_precios), salvo precio_manual
+function certItemCostoUnit(item) {
+  if (!item) return 0;
+  const cert = certs.find(c => c.id === item.cert_id);
+  if (cert && cert.estado === 'emitido') return num(item.costo_unit);
+  if (item.precio_manual) return num(item.costo_unit);
+  const med = meds.find(m => m.id === item.med_id);
+  if (!med) return num(item.costo_unit);
+  const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
+  const r = resolverMO(med, coef, med.cantidad);
+  return r.sinPrecio ? num(item.costo_unit) : r.unit;
+}
+
 function calcCertItemMonto(item, tipo) {
   // Buscar medición y coeficiente
   const med = meds.find(m => m.id === item.med_id);
@@ -5669,7 +5916,7 @@ function calcCertItemMonto(item, tipo) {
   const pctActual = num(item.pct_actual) / 100;
   // Monto actual = (cantBase * pctActual + ed * pctED) * costoUnit
   const cantCertificada = cantBase * pctActual + ed * pctED;
-  const costoUnit = num(item.costo_unit);
+  const costoUnit = certItemCostoUnit(item);
   return cantCertificada * costoUnit;
 }
 
@@ -5705,9 +5952,9 @@ async function renderCertDetalle(certId) {
 
   // Agrupar mediciones por rubro para el cert
   const rubrosComp = computeObra(obraId);
-  // Precios MO de la obra: fuente por defecto para costo_unit (backlog #3)
-  await loadMOPreciosCache(obraId);
-  const preciosMOCert = getMOPrecios(obraId);
+  const emitido = cert.estado === 'emitido';
+  const dis = emitido ? 'disabled' : '';
+  let sinPrecioCert = 0;
   const obraMeds = meds.filter(m => (m.obraId || m.obra_id) === obraId);
 
   let totalCostoActual = 0, totalCostoAcum = 0, totalPrecioActual = 0;
@@ -5722,16 +5969,14 @@ async function renderCertDetalle(certId) {
       const medId = med.id;
       // Buscar o crear item en cert
       let cItem = certItems.find(i => i.cert_id === certId && i.med_id === medId);
-      // Default de costo unitario: 1) precio ya guardado en el cert, 2) Precios MO de la obra, 3) referencia UOCRA
-      const pMOc = preciosMOCert[compItem.coef.id + '_' + medId] || {};
-      const defCostoUnit = pMOc.global > 0 ? pMOc.global / (num(med.cantidad)||1)
-        : pMOc.unit > 0 ? pMOc.unit
-        : num(compItem.totalMO) / (num(med.cantidad)||1);
-      const costoUnit = cItem ? num(cItem.costo_unit) : defCostoUnit;
+      // Costo unitario: emitido = congelado; borrador = precio vigente de la medición (salvo ajuste manual)
+      const costoUnit = cItem ? certItemCostoUnit(cItem) : compItem.moPrecioUnit;
+      const esManual = !!(cItem && cItem.precio_manual && !emitido);
+      if (!emitido && compItem.moSinPrecio && !(cItem && cItem.precio_manual)) sinPrecioCert++;
       const pctAct = cItem ? num(cItem.pct_actual) : 0;
       const ed = cItem ? num(cItem.economia_demasia) : 0;
       const pctED = cItem ? num(cItem.pct_ed) : 0;
-      const contratista = cItem ? (cItem.contratista||'') : '';
+      const contratista = cItem ? (cItem.contratista || (emitido ? '' : compItem.moContratista||'')) : (compItem.moContratista||'');
       const cantBase = num(med.cantidad);
       const cantTotal = cantBase + ed;
       const cantCertAct = cantBase * (pctAct/100) + ed * (pctED/100);
@@ -5752,19 +5997,20 @@ async function renderCertDetalle(certId) {
         <td class="hi" style="font-size:11px;">${nombreTarea}${desc?' <span style="color:var(--tx3);font-size:10px;">— '+desc+'</span>':''}</td>
         <td class="num" style="font-size:10px;">${cantBase.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
         <td style="font-size:10px;">${coef?.unidad||''}</td>
-        <td><input class="inline-num" type="text" style="width:90px;" placeholder="contratista"
-          value="${contratista}"
+        <td><input class="inline-num" type="text" style="width:90px;" placeholder="contratista" ${dis}
+          value="${String(contratista).replace(/"/g,'&quot;')}"
           onchange="updateCertItem('${certId}','${medId}','contratista',this.value,'${obraId}')"></td>
-        <td><input class="inline-num" type="number" style="width:80px;" placeholder="0"
-          value="${costoUnit||''}"
-          onchange="updateCertItem('${certId}','${medId}','costo_unit',this.value,'${obraId}')"></td>
-        <td><input class="inline-num" type="number" style="width:55px;" placeholder="0" min="0" max="100"
+        <td><input class="inline-num" type="number" step="any" style="width:80px;${esManual?'color:var(--am);':''}" placeholder="${compItem.moSinPrecio&&!emitido?'sin precio':'0'}" ${dis}
+          value="${costoUnit?+num(costoUnit).toFixed(2):''}"
+          title="${emitido?'Precio congelado al emitir':(esManual?'Ajuste manual en este certificado (no sigue el precio vigente)':'Precio vigente de la medición')}"
+          onchange="updateCertItem('${certId}','${medId}','costo_unit',this.value,'${obraId}')">${esManual?`<button class="btn-icon" style="font-size:10px;" title="Volver al precio vigente" onclick="certUsarPrecioVigente('${certId}','${medId}','${obraId}')">↺</button>`:''}</td>
+        <td><input class="inline-num" type="number" style="width:55px;" placeholder="0" min="0" max="100" ${dis}
           value="${pctAct||''}"
           onchange="updateCertItem('${certId}','${medId}','pct_actual',this.value,'${obraId}')">%</td>
-        <td><input class="inline-num" type="number" style="width:60px;" placeholder="0"
+        <td><input class="inline-num" type="number" style="width:60px;" placeholder="0" ${dis}
           value="${ed||''}"
           onchange="updateCertItem('${certId}','${medId}','economia_demasia',this.value,'${obraId}')"></td>
-        <td><input class="inline-num" type="number" style="width:45px;" placeholder="0" min="0" max="100"
+        <td><input class="inline-num" type="number" style="width:45px;" placeholder="0" min="0" max="100" ${dis}
           value="${pctED||''}"
           onchange="updateCertItem('${certId}','${medId}','pct_ed',this.value,'${obraId}')">%</td>
         <td class="num" style="color:var(--tx3);font-size:10px;">${pctPrev.toFixed(0)}%</td>
@@ -5780,7 +6026,7 @@ async function renderCertDetalle(certId) {
       <div class="rubro-hdr">
         <span>${rubro}</span>
         <span style="font-size:10px;margin-left:12px;">
-          <input class="inline-num" type="text" style="width:120px;font-size:10px;" placeholder="Contratista rubro"
+          <input class="inline-num" type="text" style="width:120px;font-size:10px;" placeholder="Contratista rubro" ${dis}
             id="def-contr-${rubro.replace(/\s/g,'_')}"
             title="Escribí y presioná Enter para aplicar a todo el rubro"
             onkeydown="if(event.key==='Enter')applyContrRubro('${certId}','${rubro}',this.value,'${obraId}')">
@@ -5826,6 +6072,9 @@ async function renderCertDetalle(certId) {
         <span class="${cert.estado==='emitido'?'tag tg':'tag ta'}">${cert.estado==='emitido'?'Emitido':'Borrador'}</span>
       </div>
     </div>
+    ${emitido
+      ? `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--gr);font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;"><span>🔒 Certificado emitido: los precios están congelados y no cambian si se modifica el precio de la medición.</span><button class="btn" onclick="reabrirCert('${certId}')">Reabrir a borrador</button></div>`
+      : `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--am);font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;"><span>✎ Borrador: usa el precio <b>vigente</b> de cada medición.${sinPrecioCert?` <b style="color:var(--re);">${sinPrecioCert} ítem${sinPrecioCert>1?'s':''} sin precio de MO.</b>`:''} Al emitir, los precios se congelan.</span><button class="btn btn-primary" onclick="emitirCert('${certId}')">Emitir certificado</button></div>`}
 
     <div class="stats-grid" style="margin-bottom:14px;">
       <div class="stat"><div class="stat-label">MO costo período</div><div class="stat-value" style="font-size:16px;">${$p(totalCostoActual)}</div><div class="stat-sub">a contratista</div></div>
@@ -5846,6 +6095,7 @@ async function renderCertDetalle(certId) {
 
 async function applyContrRubro(certId, rubro, contratista, obraId) {
   if (!contratista) return;
+  if (certs.find(c => c.id === certId)?.estado === 'emitido') { notif('Certificado emitido: reabrilo a borrador para editar'); return; }
   const rubros = computeObra(obraId);
   const data = rubros[rubro];
   if (!data) return;
@@ -5858,37 +6108,29 @@ async function applyContrRubro(certId, rubro, contratista, obraId) {
   renderCertDetalle(certId);
 }
 
-// Costo unitario default para un ítem de certificado:
-// 1) Precios MO de la obra (global prorrateado o unitario), 2) referencia UOCRA
+// Costo unitario default para un ítem de certificado: precio vigente de la medición
 function defaultCostoUnitCert(obraId, medId) {
   const med = meds.find(m => m.id === medId);
   if (!med) return 0;
-  const cant = num(med.cantidad) || 1;
   const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
-  if (coef) {
-    const p = getMOPrecios(obraId)[coef.id + '_' + medId] || {};
-    if (p.global > 0) return p.global / cant;
-    if (p.unit > 0) return p.unit;
-  }
-  // Último recurso: referencia UOCRA calculada por computeObra
-  const rubros = computeObra(obraId);
-  for (const data of Object.values(rubros)) {
-    for (const it of data.items) {
-      if (it.med.id === medId) return num(it.totalMO) / cant;
-    }
-  }
-  return 0;
+  return resolverMO(med, coef, med.cantidad).unit;
 }
 
 async function updateCertItem(certId, medId, campo, valor, obraId) {
+  if (certs.find(c => c.id === certId)?.estado === 'emitido') { notif('Certificado emitido: reabrilo a borrador para editar'); return; }
   await withSync(async () => {
     let item = certItems.find(i => i.cert_id === certId && i.med_id === medId);
     if (item) {
+      const patch = {};
       item[campo] = campo === 'contratista' ? valor : num(valor);
-      await sbPatch('cert_items', item.id, { [campo]: item[campo] });
+      patch[campo] = item[campo];
+      if (campo === 'costo_unit') { item.precio_manual = true; patch.precio_manual = true; }
+      await sbPatch('cert_items', item.id, patch);
     } else {
-      const newItem = { cert_id: certId, med_id: medId, contratista: '', costo_unit: 0, pct_actual: 0, economia_demasia: 0, pct_ed: 0 };
+      const newItem = { cert_id: certId, med_id: medId, contratista: '', costo_unit: 0, pct_actual: 0, economia_demasia: 0, pct_ed: 0, precio_manual: false };
       newItem[campo] = campo === 'contratista' ? valor : num(valor);
+      if (campo === 'costo_unit') newItem.precio_manual = true;
+      if (campo !== 'contratista') { const m0 = meds.find(m => m.id === medId); newItem.contratista = (m0 && _moByMed[m0.id] && _moByMed[m0.id].contratista) || ''; }
       // Prefill del costo unitario con el default (Precios MO → UOCRA) para que
       // no se pierda al crear el ítem tocando otro campo (ej. % actual)
       if (campo !== 'costo_unit') newItem.costo_unit = defaultCostoUnitCert(obraId, medId);
@@ -5906,6 +6148,69 @@ async function updateCertItem(certId, medId, campo, valor, obraId) {
     if (elAct) elAct.textContent = montoAct ? $p(montoAct) : '—';
     if (elAcum) elAcum.textContent = (montoPrev+montoAct) ? $p(montoPrev+montoAct) : '—';
   });
+}
+
+async function certUsarPrecioVigente(certId, medId, obraId) {
+  const item = certItems.find(i => i.cert_id === certId && i.med_id === medId);
+  if (!item) return;
+  try {
+    await withSync(async () => {
+      item.precio_manual = false;
+      item.costo_unit = defaultCostoUnitCert(obraId, medId);
+      await sbPatch('cert_items', item.id, { precio_manual: false, costo_unit: item.costo_unit });
+    });
+  } catch(e) { return; }
+  renderCertDetalle(certId);
+}
+
+// Emitir = congelar el costo_unit y el contratista de TODOS los ítems del cert en un solo lote
+async function emitirCert(certId) {
+  const cert = certs.find(c => c.id === certId);
+  if (!cert || cert.estado === 'emitido') return;
+  const obraId = cert.obra_id;
+  const items = certItems.filter(i => i.cert_id === certId);
+  const sinPrecio = items.filter(i => certItemCostoUnit(i) <= 0 && (num(i.pct_actual) > 0 || num(i.pct_ed) > 0)).length;
+  const msg = `¿Emitir el certificado n° ${cert.numero}?\n\nLos precios de cada ítem quedan congelados y no se podrán editar (podés reabrirlo a borrador).` +
+              (sinPrecio ? `\n\n⚠ ${sinPrecio} ítem(s) con avance tienen precio $0.` : '');
+  if (!confirm(msg)) return;
+  showBusy('Emitiendo certificado…');
+  try {
+    await withSync(async () => {
+      const filas = items.map(i => ({
+        id: i.id, cert_id: i.cert_id, med_id: i.med_id,
+        contratista: i.contratista || ((_moByMed[i.med_id] && _moByMed[i.med_id].contratista) || ''),
+        costo_unit: certItemCostoUnit(i),
+        pct_actual: i.pct_actual, economia_demasia: i.economia_demasia, pct_ed: i.pct_ed,
+        precio_manual: !!i.precio_manual
+      }));
+      if (filas.length) await sbUpsertLote('cert_items', filas);
+      await sbPatch('certificados', certId, { estado: 'emitido' });
+      filas.forEach(f => { const it = certItems.find(x => x.id === f.id); if (it) Object.assign(it, f); });
+      cert.estado = 'emitido';
+    });
+    notif(`Certificado ${cert.numero} emitido ✓ (${items.length} ítems congelados)`);
+  } catch(e) { /* withSync ya notificó */ } finally { hideBusy(); }
+  loadCertificados();
+}
+
+async function reabrirCert(certId) {
+  const cert = certs.find(c => c.id === certId);
+  if (!cert || cert.estado !== 'emitido') return;
+  if (!confirm(`¿Reabrir el certificado n° ${cert.numero} a borrador?\n\nVuelve a usar el precio vigente de cada medición (salvo ajustes manuales).`)) return;
+  try {
+    await withSync(async () => {
+      await sbPatch('certificados', certId, { estado: 'borrador' });
+      cert.estado = 'borrador';
+      // los ítems congelados pasan a ajuste manual para no perder lo certificado
+      const items = certItems.filter(i => i.cert_id === certId);
+      const filas = items.map(i => ({ ...i, precio_manual: true }));
+      if (filas.length) await sbUpsertLote('cert_items', filas.map(f => ({
+        id: f.id, cert_id: f.cert_id, med_id: f.med_id, contratista: f.contratista, costo_unit: f.costo_unit,
+        pct_actual: f.pct_actual, economia_demasia: f.economia_demasia, pct_ed: f.pct_ed, precio_manual: true })));
+      items.forEach(i => { i.precio_manual = true; });
+    });
+  } catch(e) {}
+  loadCertificados();
 }
 
 function openModalNuevoCert() {
@@ -5982,7 +6287,7 @@ async function exportCert(certId, tipo) {
     data.items.forEach(compItem => {
       const med = compItem.med;
       const item = certItems.find(i => i.cert_id === certId && i.med_id === med.id);
-      const costoUnit = item ? num(item.costo_unit) : 0;
+      const costoUnit = item ? certItemCostoUnit(item) : 0;
       const precioUnit = esCliente ? costoUnit * k : costoUnit;
       const pctAct = item ? num(item.pct_actual) : 0;
       const ed = item ? num(item.economia_demasia) : 0;
@@ -6037,7 +6342,7 @@ async function exportCertPDF(certId, tipo) {
       const med = compItem.med;
       const item = certItems.find(i => i.cert_id === certId && i.med_id === med.id);
       if (!item && !num(item?.costo_unit)) return;
-      const costoUnit = item ? num(item.costo_unit) : 0;
+      const costoUnit = item ? certItemCostoUnit(item) : 0;
       const precioUnit = esCliente ? costoUnit * k : costoUnit;
       const pctAct = item ? num(item.pct_actual) : 0;
       const ed = item ? num(item.economia_demasia) : 0;
@@ -7467,20 +7772,32 @@ async function saveImport() {
       (ciRes || ciBatch).forEach(ci => certItems.push(ci));
     }
 
-    // 6b. Trasladar los precios de MO del Excel a "Precios MO" de la obra.
-    // Se guarda como monto GLOBAL por ítem (costoUnit × cant del Excel): el total queda
-    // idéntico aunque la unidad haya cambiado (ej: Excel en m², nuestro cómputo en m³).
+    // 6b. Precio de MO del Excel -> mo_precios (un precio por medición, en NUESTRA unidad).
+    // total Excel = costoUnit × cant del Excel; precio unitario = total ÷ cantidad nuestra
+    // (el total queda idéntico aunque la unidad haya cambiado, ej: Excel en m², nuestro en m³).
+    // Tareas en GL: se guarda el monto global. Se conserva el precio/unidad de origen.
     const moBatch = mediciones
       .filter(med => med.item.costoUnit > 0)
-      .map(med => ({
-        obra_id: obraId,
-        coef_id: med.coef_id + '_' + med.id,
-        tipo: 'global',
-        precio: +(med.item.costoUnit * (med.item.cantExcel ?? med.item.cant)).toFixed(2)
-      }));
+      .map(med => {
+        const coefM = coefs.find(c => c.id === med.coef_id);
+        const uNuestra = String(coefM?.unidad || '').toLowerCase();
+        const totalExcel = med.item.costoUnit * (med.item.cantExcel ?? med.item.cant);
+        const cantN = num(med.cantidad);
+        const esGL = /^(gl|global)$/.test(uNuestra) || cantN <= 0;
+        return {
+          obra_id: obraId,
+          med_id: med.id,
+          tipo: esGL ? 'global' : 'unitario',
+          precio: esGL ? totalExcel : totalExcel / cantN,
+          unidad: uNuestra,
+          contratista: med.item.contratista || null,
+          precio_origen: med.item.costoUnit,
+          unidad_origen: med.item.unidadExcel || null,
+          fuente: 'import'
+        };
+      });
     if (moBatch.length > 0) {
-      await sbPost('mo_precios', moBatch);
-      delete _moPreciosCache[obraId]; // forzar recarga
+      await upsertMoPreciosLote(moBatch);
     }
 
     closeModal('m-import');
@@ -8190,7 +8507,6 @@ function exportPresPDF() {
   const rubros = computeObra(obraId);
   const pctGG = num(document.getElementById('pct-gg').value) / 100;
   const pctUtil = num(document.getElementById('pct-util').value) / 100;
-  const precios_mo = getMOPrecios(obraId);
   if (!Object.keys(rubros).length) { notif('Sin mediciones para exportar'); return; }
 
   let cosMats = 0, cosMO = 0, n = 1, html = '';
@@ -8200,19 +8516,13 @@ function exportPresPDF() {
   rubrosOrd.forEach(rubro => {
     const data = rubros[rubro];
     const rMats = data.items.reduce((s,i) => s+i.totalMats, 0);
-    const rMO = data.items.reduce((s,item) => {
-      const key = item.coef.id + '_' + item.med.id;
-      const p = precios_mo[key] || {};
-      return s + (p.global > 0 ? p.global : p.unit > 0 ? p.unit * item.cantidad : item.totalMO);
-    }, 0);
+    const rMO = data.items.reduce((s,item) => s + item.totalMO, 0);
     cosMats += rMats; cosMO += rMO;
     html += `<div class="rubro-hdr"><span>${rubro}</span><span>Mat: ${$p(rMats)} · MO: ${$p(rMO)}</span></div>
     <table><thead><tr><th>#</th><th>Tarea</th><th class="num">Cant.</th><th>Un.</th>
       <th class="num">Materiales</th><th class="num">M.O.</th><th class="num">Total</th></tr></thead><tbody>`;
     data.items.forEach(item => {
-      const key = item.coef.id + '_' + item.med.id;
-      const p = precios_mo[key] || {};
-      const moItem = p.global > 0 ? p.global : p.unit > 0 ? p.unit * item.cantidad : item.totalMO;
+      const moItem = item.totalMO;
       html += `<tr>
         <td style="color:#999;">${n++}</td>
         <td class="hi">${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' <span style="color:#999;font-weight:400;">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>':''}</td>
@@ -8283,18 +8593,10 @@ async function renderCartera() {
   const rubrosDiv = document.getElementById('cartera-rubros');
   if (!oe.length) { body.innerHTML = '<div class="empty">Sin obras cargadas.</div>'; return; }
 
-  // Cargar los precios MO reales de cada obra (misma prioridad que presupuesto/certificados)
-  for (const o of oe) { try { await loadMOPreciosCache(o.id); } catch(e) {} }
-
   const rows = oe.map(o => {
     const r = computeObra(o.id);
-    const precios = getMOPrecios(o.id);
     const tMat = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.totalMats, 0), 0);
-    const tMO  = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => {
-      const p = precios[i.coef.id + '_' + i.med.id] || {};
-      const mo = p.global > 0 ? p.global : p.unit > 0 ? p.unit * num(i.med.cantidad) : num(i.totalMO);
-      return ss + mo;
-    }, 0), 0);
+    const tMO  = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.totalMO, 0), 0);
     const total = tMat + tMO;
     const sup = num(o.sup) || 0;
     return { o, tMat, tMO, total, sup,
