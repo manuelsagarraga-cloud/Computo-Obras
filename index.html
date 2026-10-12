@@ -362,7 +362,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;">build 2026-07-10.1</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-12.2</span></span>
     </div>
   </div>
 
@@ -1237,8 +1237,9 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-07.4';
+const APP_BUILD = '2026-10-12.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
+document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
   hideBusy();
@@ -1757,7 +1758,7 @@ async function init() {
       if (guardada && empresas.find(e => e.id === guardada)) {
         currentEmpresa = guardada;
       } else {
-        document.getElementById('loading-overlay').classList.add('hidden');
+        hideBusy();
         mostrarSelectorEmpresa();
         return;
       }
@@ -1785,7 +1786,7 @@ async function init() {
     await arrancarApp();
   } catch(e) {
     setSyncBadge('err', '● Error de conexión');
-    document.getElementById('loading-overlay').classList.add('hidden');
+    hideBusy();
     notif('Error de conexión. Recargá la página o verificá tu internet.');
     console.error(e);
   }
@@ -1820,25 +1821,36 @@ async function elegirEmpresa(empId) {
   localStorage.setItem('currentEmpresa', empId);
   const ov = document.getElementById('empresa-selector-overlay');
   if (ov) ov.style.display = 'none';
-  document.getElementById('loading-overlay').classList.remove('hidden');
-  document.getElementById('loading-overlay').style.display = 'flex';
+  showBusy('Conectando con la base de datos...');
   setSyncBadge('loading', '● Conectando');
-  await arrancarApp();
+  try {
+    await arrancarApp();
+  } catch (e) {
+    setSyncBadge('err', '● Error de conexión');
+    notif('Error de conexión. Recargá la página o verificá tu internet.');
+    console.error(e);
+  }
 }
 
 // Carga de datos y render inicial (común a admin y usuario de empresa)
 async function arrancarApp() {
-  applyBranding();
-  updateUserBadge();
-  await loadAllData();
-  setSyncBadge('ok', '● Sincronizado');
-  document.getElementById('loading-overlay').classList.add('hidden');
-  renderDash();
-  renderObras();
-  renderMats();
-  renderMO();
-  renderCoefs();
-  popSelects();
+  // hideBusy() en finally: limpia también el display inline que deja elegirEmpresa().
+  // Antes solo se agregaba la clase .hidden y el style.display='flex' inline la pisaba
+  // → el overlay "Conectando con la base de datos..." quedaba colgado sobre la app cargada.
+  try {
+    applyBranding();
+    updateUserBadge();
+    await loadAllData();
+    setSyncBadge('ok', '● Sincronizado');
+    renderDash();
+    renderObras();
+    renderMats();
+    renderMO();
+    renderCoefs();
+    popSelects();
+  } finally {
+    hideBusy();
+  }
 }
 
 async function loadAllData() {
@@ -2722,6 +2734,76 @@ function toggleArmTabique() {
   calcDimEstructural();
 }
 
+// ── Carga por dimensiones (Opción A) o cantidad directa (Opción B) para tareas de solo m² / m³ ──
+const DIMS_MURO   = ['5.1','5.2','5.3','5.4','5.5','5.6','5.7','5.8','5.9','5.10','5.11','6.2','6.3','6.4','7.1','7.2','7.3','7.4','7.5','7.6','7.7','7.9','7.10','7.11','7.12','7.13','7.14','7.15','12.1','12.2','12.3','12.4','12.5','12.6','12.7','12.8','12.9','13.1','13.2','13.5'];
+const DIMS_HORIZ  = ['4.9','4.31','4.32','4.33','4.34','6.1','6.5','7.16','8.5','9.1','9.2','9.3','9.4','9.5','9.7','10.1','10.2','10.3','10.4','10.5','10.6','10.8','11.1','11.2','11.5','11.6','11.7','11.8','11.9','11.10','11.11','11.12','11.13','11.14','11.15','13.3','15.8','17.4','17.5'];
+const DIMS_ESPESOR= ['8.1','8.2','8.3','8.4','8.6','8.7','9.6','9.8'];
+const DIMS_SUELO  = ['2.1','2.2','2.3','2.4','2.5','2.6'];
+const DIMS_CIMIENTO=['3.1','3.7'];
+const DIMS_DIRECTO= ['4.10','4.26','4.27','7.8','13.4','13.6'];
+function dimsConfig(coef) {
+  const u = String(coef.unidad||'').toLowerCase();
+  if (u !== 'm2' && u !== 'm3') return null;
+  const c = String(coef.cod||'');
+  const unL = u === 'm3' ? 'M³' : 'M²';
+  if (DIMS_DIRECTO.includes(c))   return { k:'directo', un:unL, labels:null };
+  if (DIMS_MURO.includes(c))      return { k:'muro', un:unL, labels:['Alto de muro (m)','Largo de muro (m)'], vanos:true };
+  if (DIMS_HORIZ.includes(c))     return { k:'horiz', un:unL, labels:['Largo (m)','Ancho (m)'] };
+  if (DIMS_ESPESOR.includes(c))   return { k:'espesor', un:unL, labels:['Ancho (m)','Largo (m)','Espesor (m)'] };
+  if (DIMS_SUELO.includes(c))     return { k:'suelo', un:unL, labels:['Ancho (m)','Largo (m)','Profundidad / alto (m)'] };
+  if (DIMS_CIMIENTO.includes(c))  return { k:'cimiento', un:unL, labels:['Ancho (m)','Alto (m)','Largo (m)'] };
+  // Cualquier otra tarea m²/m³ que se agregue después: comportamiento genérico
+  return { k:'gen', un:unL, labels: u==='m3' ? ['Largo (m)','Ancho (m)','Alto / Esp. (m)'] : ['Largo (m)','Ancho (m)'] };
+}
+function setDimModo(m) {
+  window._dimModo = m;
+  try { localStorage.setItem('dimModo', m); } catch(e) {}
+  const f = document.getElementById('dim-fields');
+  if (f) f.style.display = (m === 'A') ? 'contents' : 'none';
+  ['A','B'].forEach(x => {
+    const b = document.getElementById('dim-modo-'+x);
+    if (!b) return;
+    const on = x === m;
+    b.style.background = on ? 'var(--bl)' : 'transparent';
+    b.style.color = on ? '#fff' : 'var(--tx2)';
+    b.style.borderColor = on ? 'var(--bl)' : 'var(--border)';
+  });
+  if (m === 'B') ['dim-a','dim-b','dim-c','dim-vanos'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+}
+function dimsWidgetHTML(cfg) {
+  const step = cfg.un === 'M³' ? '0.001' : '0.01';
+  const inp = (id, lab) => `<div class="ig-item" style="flex:1;min-width:90px;"><div class="ig-label">${lab}</div><input class="ig-input" id="${id}" type="number" step="0.01" placeholder="0.00" oninput="calcDimAcum()"></div>`;
+  const hayDims = !!cfg.labels;
+  const fields = hayDims ? `<div id="dim-fields" style="display:contents;">
+      ${cfg.labels.map((l,i) => inp(['dim-a','dim-b','dim-c'][i], l)).join('')}
+      ${cfg.vanos ? inp('dim-vanos','Vanos a descontar (m²)') : ''}
+    </div>` : '';
+  const modoBtns = hayDims ? `<div style="display:flex;gap:6px;margin-bottom:8px;">
+      <button type="button" id="dim-modo-A" class="btn btn-sm" onclick="setDimModo('A')" style="border:1px solid var(--border);">A · Por dimensiones</button>
+      <button type="button" id="dim-modo-B" class="btn btn-sm" onclick="setDimModo('B')" style="border:1px solid var(--border);">B · ${cfg.un} directo</button>
+    </div>` : '';
+  return `
+      <div style="grid-column:1/-1;">
+        ${modoBtns}
+        <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap;">
+          ${fields}
+          <div class="ig-item" style="flex:0.8;min-width:90px;">
+            <div class="ig-label">${hayDims ? '= ' : ''}${cfg.un}</div>
+            <input class="ig-input" id="dim-linea" type="number" step="${step}" placeholder="0.00" style="color:var(--bl);font-weight:600;" oninput="calcDimAcum()">
+          </div>
+          <div style="padding-bottom:2px;">
+            <button class="btn btn-sm" type="button" onclick="agregarLineaDim()" style="white-space:nowrap;height:32px;">+ Sumar</button>
+          </div>
+        </div>
+        <div id="dim-lineas-lista" style="display:none;margin-bottom:6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 10px;font-size:10px;"></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);">Total ${cfg.un}</div>
+          <input class="ig-input" id="dim-res" type="number" step="${step}" placeholder="0.00" style="color:var(--gr);font-weight:700;font-size:13px;max-width:120px;" oninput="window._dimLineas=[];renderLineasDim()">
+        </div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:3px;">${hayDims ? 'Opción A: completá las dimensiones' + (cfg.vanos ? ' (y los vanos, si hay)' : '') + '. Opción B: escribí directamente los ' + cfg.un + '. ' : ''}Podés sumar varias superficies con “+ Sumar”.</div>
+      </div>`;
+}
+
 function onTareaChange() {
   const coefId = document.getElementById('med-tarea-sel').value;
   const coef = coefs.find(c => c.id === coefId);
@@ -2911,39 +2993,15 @@ function onTareaChange() {
       <div class="ig-item"><div class="ig-label">M³ (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
   }
 
-  else if (coef.unidad === 'M2' || coef.unidad === 'M3') {
-    const esM3 = coef.unidad === 'M3';
-    const unLabel = esM3 ? 'M³' : 'M²';
-    const step = esM3 ? '0.001' : '0.01';
-    wrap.innerHTML = `
-      <div style="grid-column:1/-1;">
-        <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px;">
-          <div class="ig-item" style="flex:1;">
-            <div class="ig-label">Largo (m)</div>
-            <input class="ig-input" id="dim-a" type="number" step="0.01" placeholder="0.00" oninput="calcDimAcum()">
-          </div>
-          <div class="ig-item" style="flex:1;">
-            <div class="ig-label">Ancho (m)</div>
-            <input class="ig-input" id="dim-b" type="number" step="0.01" placeholder="0.00" oninput="calcDimAcum()">
-          </div>
-          ${esM3 ? `<div class="ig-item" style="flex:1;"><div class="ig-label">Alto/Esp. (m)</div><input class="ig-input" id="dim-c" type="number" step="0.001" placeholder="0.00" oninput="calcDimAcum()"></div>` : ''}
-          <div class="ig-item" style="flex:0.8;">
-            <div class="ig-label">= ${unLabel}</div>
-            <input class="ig-input" id="dim-linea" type="number" step="${step}" placeholder="0.00" style="color:var(--bl);font-weight:600;" oninput="calcDimAcum()">
-          </div>
-          <div style="padding-bottom:2px;">
-            <button class="btn btn-sm" onclick="agregarLineaDim()" style="white-space:nowrap;height:32px;">+ Sumar</button>
-          </div>
-        </div>
-        <div id="dim-lineas-lista" style="display:none;margin-bottom:6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 10px;font-size:10px;"></div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);">Total ${unLabel}</div>
-          <input class="ig-input" id="dim-res" type="number" step="${step}" placeholder="0.00" style="color:var(--gr);font-weight:700;font-size:13px;max-width:120px;" oninput="window._dimLineas=[];renderLineasDim()">
-        </div>
-        <div style="font-size:9px;color:var(--tx3);margin-top:3px;">Podés sumar varias superficies con el botón, o escribir el total directamente.</div>
-      </div>`;
-    // Inicializar acumulador
+  else if (dimsConfig(coef)) {
+    const cfg = dimsConfig(coef);
+    wrap.innerHTML = dimsWidgetHTML(cfg);
     window._dimLineas = [];
+    if (cfg.labels) {
+      let m = window._dimModo;
+      if (!m) { try { m = localStorage.getItem('dimModo'); } catch(e) {} }
+      setDimModo(m === 'B' ? 'B' : 'A');
+    }
   }
 
   else if ((num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)))) {
@@ -2983,37 +3041,41 @@ function calcDim() {
   if (res) res.value = c ? +(a*b*c).toFixed(4) : +(a*b).toFixed(4);
 }
 
-// Calcula la línea actual L×A×H y la muestra en el campo de resultado parcial
+// Calcula la línea actual (a×b[×c] − vanos) y, si no hay líneas sumadas, la copia al total
 function calcDimAcum() {
-  const a = num(document.getElementById('dim-a')?.value);
-  const b = num(document.getElementById('dim-b')?.value);
-  const c = num(document.getElementById('dim-c')?.value);
-  const linea = document.getElementById('dim-linea');
+  const g = id => document.getElementById(id);
+  const linea = g('dim-linea');
   if (!linea) return;
-  // Si se completaron dimensiones, calcular automáticamente
-  if (a > 0 && b > 0) {
-    linea.value = c > 0 ? +(a*b*c).toFixed(4) : +(a*b).toFixed(4);
+  const a = num(g('dim-a')?.value), b = num(g('dim-b')?.value), c = num(g('dim-c')?.value);
+  const vanos = num(g('dim-vanos')?.value);
+  const hayC = !!g('dim-c');
+  const tocoDims = ['dim-a','dim-b','dim-c','dim-vanos'].some(id => g(id) && g(id).value !== '');
+  if (tocoDims) {
+    let v = 0;
+    if (a > 0 && b > 0 && (!hayC || c > 0)) v = hayC ? a*b*c : a*b - vanos;
+    linea.value = v > 0 ? +v.toFixed(4) : '';
   }
+  const res = g('dim-res');
+  if (res && !(window._dimLineas && window._dimLineas.length)) res.value = linea.value;
+}
+
+// Texto de la línea actual (ej: 2.7×5.4 −3.6 vanos)
+function dimDescActual(val) {
+  const g = id => document.getElementById(id);
+  const a = num(g('dim-a')?.value), b = num(g('dim-b')?.value), c = num(g('dim-c')?.value), vanos = num(g('dim-vanos')?.value);
+  if (a && b) return [a, b, c].filter(x => x).join('×') + (vanos ? ` −${vanos} vanos` : '');
+  return `${val}`;
 }
 
 // Agrega la línea actual al acumulador
 function agregarLineaDim() {
-  const a = num(document.getElementById('dim-a')?.value);
-  const b = num(document.getElementById('dim-b')?.value);
-  const c = num(document.getElementById('dim-c')?.value);
-  const linea = num(document.getElementById('dim-linea')?.value);
-  const val = linea || (a && b ? (c ? +(a*b*c) : +(a*b)) : 0);
-  if (!val || val <= 0) { notif('Ingresá una medida o cantidad válida'); return; }
+  const val = num(document.getElementById('dim-linea')?.value);
+  if (!val || val <= 0) { notif('Completá las dimensiones o la cantidad'); return; }
   if (!window._dimLineas) window._dimLineas = [];
-  // Descripción de la línea
-  let desc = '';
-  if (a && b) { desc = c ? `${a}×${b}×${c}` : `${a}×${b}`; }
-  else { desc = `${val}`; }
-  window._dimLineas.push({ desc, val: +val.toFixed(4) });
-  // Limpiar campos de entrada
-  ['dim-a','dim-b','dim-c','dim-linea'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  window._dimLineas.push({ desc: dimDescActual(val), val: +val.toFixed(4) });
+  ['dim-a','dim-b','dim-c','dim-vanos','dim-linea'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   renderLineasDim();
-  document.getElementById('dim-a')?.focus();
+  (document.getElementById('dim-a') && window._dimModo !== 'B' ? document.getElementById('dim-a') : document.getElementById('dim-linea'))?.focus();
 }
 
 function renderLineasDim() {
@@ -3176,9 +3238,17 @@ function calcDimEstructural() {
 async function saveMedicion(keepOpen) {
   const obraId = document.getElementById('sel-obra-med').value;
   const coefId = document.getElementById('med-tarea-sel').value;
-  const desc = document.getElementById('med-desc').value.trim();
+  let desc = document.getElementById('med-desc').value.trim();
+  // Si quedó una línea sin sumar y ya hay otras sumadas, se agrega sola
+  if (num(document.getElementById('dim-linea')?.value) > 0 && (window._dimLineas || []).length) agregarLineaDim();
   const cantidad = num(document.getElementById('dim-res')?.value);
   if (!cantidad) { notif('Ingresá la cantidad'); return; }
+  // Sin descripción escrita: dejar las dimensiones cargadas (Opción A) como descripción
+  if (!desc) {
+    const auto = (window._dimLineas || []).length ? window._dimLineas.map(l => l.desc) : [dimDescActual('')];
+    const conDims = auto.filter(d => d.includes('×'));
+    if (conDims.length) desc = conDims.join(' + ');
+  }
 
   // Si es elemento estructural con armadura, guardamos los datos de hierros
   // en la descripción como JSON para mostrar en el cómputo
