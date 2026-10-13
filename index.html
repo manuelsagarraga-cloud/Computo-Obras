@@ -7874,9 +7874,13 @@ async function bkFetch(path, asJson) {
   throw ultimo || new Error('sin respuesta');
 }
 
+const FID_TEXTO4 = '188743740';   // Texto4 de MS Project = N° Item (oct-2026)
 // Lee un MSPDI. El N° Item de BkTableros es un campo corporativo: viene en
 // <EnterpriseExtendedAttribute> (no en <ExtendedAttribute>), por eso se miran los dos.
 function parseMSPDI(xmlText) {
+  // MS Project deja caracteres de control en las Notas (ej. \x0B en Julieta Santiago) y eso vuelve inválido
+  // todo el XML. Se reemplazan por un espacio antes de leerlo.
+  xmlText = String(xmlText == null ? '' : xmlText).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ');
   const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('El XML del Project no se pudo leer');
   const root = doc.documentElement;
@@ -7893,11 +7897,17 @@ function parseMSPDI(xmlText) {
   for (const t of cont.children) {
     if (t.localName !== 'Task' || txt(t, 'IsNull') === '1') continue;
     const uid = txt(t, 'UID'); if (uid === '0') continue;
-    let itemRaw = '';
+    // Desde oct-2026 el N° Item vive en Texto4 (FieldID 188743740). Tiene prioridad; si está vacío
+    // se usa el campo "N° Item" de antes, así los XML viejos siguen funcionando.
+    let itemRaw = '', texto4 = '';
     for (const ch of t.children) {
       if (ch.localName !== 'EnterpriseExtendedAttribute' && ch.localName !== 'ExtendedAttribute') continue;
-      if (txt(ch, 'FieldID') === itemFid) { const v = txt(ch, 'Value'); if (v) itemRaw = v; }
+      const fid = txt(ch, 'FieldID'), v = txt(ch, 'Value');
+      if (!v) continue;
+      if (fid === FID_TEXTO4) texto4 = v;
+      else if (fid === itemFid) itemRaw = v;
     }
+    if (texto4) itemRaw = texto4;
     const f = v => v ? new Date(v) : null;
     tareas.push({
       uid, wbs: txt(t, 'WBS'), nombre: txt(t, 'Name'), resumen: txt(t, 'Summary') === '1',
@@ -7910,9 +7920,11 @@ function parseMSPDI(xmlText) {
 
 function nItemDeMed(m) {
   const d = m.desc || m.descripcion || '';
-  return parseNItem(m.n_item) || parseNItem((d.match(/^\s*\[([^\]]+)\]/) || [])[1]);
+  return parseNItem(m.n_item) || parseNItem(m.item_cod) || parseNItem((d.match(/^\s*\[([^\]]+)\]/) || [])[1]);
 }
 
+// "10.01" y "10.1" → "10.1" (rubro.ítem como enteros). Solo se usa como segundo intento en el vínculo.
+const _canonNum = n => String(n).split('.').map(p => String(parseInt(p, 10))).join('.');
 // Vincula mediciones ↔ tareas por la parte numérica del N° de ítem (los prefijos RR/EM/JS… se ignoran).
 // Si un N° está repetido en el Project se asigna la tarea que empieza antes (y se avisa).
 function cronoVincular(tareas, medsObra) {
@@ -7925,13 +7937,17 @@ function cronoVincular(tareas, medsObra) {
     const hojas = arr.filter(t => !t.resumen);
     if (hojas.length > 1) dupProject.push({ num, tareas: hojas, elegida: arr[0] });
   });
+  const porCanon = new Map();
+  elegida.forEach((t, num) => { const c = _canonNum(num); if (!porCanon.has(c)) porCanon.set(c, []); porCanon.get(c).push(t); });
   const vinculadas = [], sinTarea = [], porMedNum = new Map();
   medsObra.forEach(m => {
     const it = nItemDeMed(m);
     if (!it) { sinTarea.push({ med: m, item: null, motivo: 'La medición no tiene N° de ítem (carga manual o código sin decimal)' }); return; }
     if (!porMedNum.has(it.num)) porMedNum.set(it.num, []);
     porMedNum.get(it.num).push(m);
-    const t = elegida.get(it.num);
+    // Si no hay coincidencia exacta, se prueba ignorando ceros a la izquierda del decimal ("10.1" ↔ "10.01"),
+    // pero solo si esa forma apunta a UNA sola tarea (así "2.1" nunca se confunde con "2.10").
+    const t = elegida.get(it.num) || (porCanon.get(_canonNum(it.num)) || []).length === 1 && porCanon.get(_canonNum(it.num))[0] || null;
     if (!t) { sinTarea.push({ med: m, item: it, motivo: 'Ninguna tarea del Project tiene ese N° Item' }); return; }
     vinculadas.push({ med: m, item: it, tarea: t });
   });
