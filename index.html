@@ -363,7 +363,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-12.4</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-13.2</span></span>
     </div>
   </div>
 
@@ -381,7 +381,7 @@ textarea{resize:vertical;min-height:55px;}
     <!-- OBRAS -->
     <div id="page-obras" class="page">
       <div class="card">
-        <div class="card-header"><div class="card-title">Obras</div><div style="display:flex;gap:8px;"><button class="btn" onclick="openImportNuevaObra()">↑ Importar desde certificado</button><button class="btn btn-primary" onclick="editingObraId=null;document.getElementById('modal-obra-title').textContent='Nueva obra';['o-cod','o-nombre','o-cliente','o-ubic','o-sup','o-notas'].forEach(id=>document.getElementById(id).value='');document.getElementById('o-subsuelos').value='0';document.getElementById('o-plantas').value='1';openModal('m-obra')">+ Nueva obra</button></div></div>
+        <div class="card-header"><div class="card-title">Obras</div><div style="display:flex;gap:8px;"><button class="btn" onclick="openImportNuevaObra()" title="Certificado o cómputo en Excel">↑ Importar desde Excel</button><button class="btn btn-primary" onclick="editingObraId=null;document.getElementById('modal-obra-title').textContent='Nueva obra';['o-cod','o-nombre','o-cliente','o-ubic','o-sup','o-notas'].forEach(id=>document.getElementById(id).value='');document.getElementById('o-subsuelos').value='0';document.getElementById('o-plantas').value='1';openModal('m-obra')">+ Nueva obra</button></div></div>
         <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Obra</th><th>Cliente</th><th>Ubicación</th><th>Sup.</th><th>Estado</th><th>Total</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-obras"></tbody></table></div>
       </div>
     </div>
@@ -833,7 +833,7 @@ textarea{resize:vertical;min-height:55px;}
 <!-- MODAL IMPORTAR OBRA DESDE CERTIFICADO -->
 <div class="modal-overlay" id="m-import">
   <div class="modal" id="m-import-box">
-    <div class="modal-title"><span id="imp-title">Importar obra desde certificado</span> <button class="modal-close" onclick="closeModal('m-import')">✕</button></div>
+    <div class="modal-title"><span id="imp-title">Importar obra desde Excel (certificado o cómputo)</span> <button class="modal-close" onclick="closeModal('m-import')">✕</button></div>
     <details id="imp-datos" open>
     <summary id="imp-datos-sum">Datos de la obra y archivo</summary>
     <div id="imp-target-banner" style="display:none;margin-bottom:10px;">
@@ -866,8 +866,14 @@ textarea{resize:vertical;min-height:55px;}
     </div>
     </details>
     <div id="imp-hoja-wrap" style="display:none;flex:0 0 auto;margin-bottom:8px;">
-      <div class="form-grid" style="grid-template-columns:2fr 3fr;align-items:end;margin-bottom:0;">
-        <div class="fg" style="margin:0;"><label>Hoja del certificado</label><select id="imp-hoja" onchange="impProcesarHoja()"></select></div>
+      <div class="form-grid" style="grid-template-columns:1.3fr 2fr 2fr;align-items:end;margin-bottom:6px;">
+        <div class="fg" style="margin:0;"><label>Tipo de archivo</label><select id="imp-modo" onchange="impCambiarModo(this.value)"><option value="cert">Certificado (crea certificado base)</option><option value="computo">Cómputo (sin certificado)</option></select></div>
+        <div class="fg" style="margin:0;"><label>Hoja de tareas</label><select id="imp-hoja" onchange="impProcesarHoja()"></select></div>
+        <div class="fg" id="imp-proj-wrap" style="margin:0;display:none;"><label>Chequear vínculo con Project (BkTableros)</label><select id="imp-proj" onchange="impElegirProject(this.value)"><option value="">— sin chequear —</option></select></div>
+      </div>
+      <div id="imp-modo-ayuda" style="font-size:10px;color:var(--tx3);margin-bottom:4px;"></div>
+      <div id="imp-proj-info" style="font-size:10px;color:var(--tx2);margin-bottom:6px;"></div>
+      <div class="form-grid" style="grid-template-columns:1fr;align-items:end;margin-bottom:0;">
         <label id="imp-det-wrap" style="font-size:11px;display:none;gap:5px;align-items:center;padding-bottom:8px;text-transform:none;letter-spacing:0;"><input type="checkbox" id="imp-usar-detalle" style="width:auto;margin:0;" checked onchange="impProcesarHoja()"> Tomar la cantidad de las hojas de cómputo si difiere poco (≤ 15 %); las diferencias grandes se marcan para revisar</label>
       </div>
       <div id="imp-detalle-info" style="font-size:10px;color:var(--tx3);margin-top:6px;"></div>
@@ -926,6 +932,7 @@ textarea{resize:vertical;min-height:55px;}
       <div class="card" style="margin-bottom:14px;border-left:3px solid var(--gr);">
         <div class="card-title" style="margin-bottom:10px;">Novedades — Julio 2026</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.9;">
+          <b>Importar desde un cómputo (oct-2026):</b> el import acepta también un cómputo hecho a mano. En <b>Tipo de archivo</b> elegí <i>Cómputo</i> (se detecta solo si la hoja no trae "Contratista"): carga las mediciones con su N° de ítem y el precio de MO, <b>sin crear certificado base</b>. Une los renglones "elemento en m³ + largo en ml" y "Zócalos + IDEM PISO" en un solo ítem, y ubica la planta aunque el rótulo esté antes o después. Elegí el Project de BkTableros para ver, antes de importar, qué N° no están en el cronograma, cuáles se repiten y cuáles apuntan a una tarea con otro nombre; el N° se puede corregir ahí mismo.<br>
           <b>Import de Excel más inteligente:</b> convierte m² a m³ usando el espesor de la descripción (ej. "e=10cm"), pasa ml de capa aisladora a m² (ancho de muro 0,20 m, anotado en la descripción), calcula m³ de estructuras desde las dimensiones del texto respetando "N unid", y cuando un ítem lista varias secciones distintas (ej. vigas "(30x35),(35x40)…") conserva la cantidad del Excel y lo marca para validación manual. Todo cálculo queda anotado en la descripción del ítem.<br>
           <b>Mano de obra = precio del contratista (nuevo):</b> cada medición tiene su precio (por unidad o global) y su contratista; esa es la MO de presupuesto, dashboard, cartera y certificados. Los jornales y la referencia UOCRA pasaron a <b>Información de sustento</b> (solo lectura) y ya no suman en ningún total. Una medición sin precio figura en $0 y se marca en rojo. El import de Excel guarda el precio ya convertido a nuestra unidad (y conserva el precio y la unidad del Excel).<br>
           <b>Certificados:</b> un borrador usa siempre el precio vigente de cada medición; al <b>Emitir certificado</b> los precios y contratistas se congelan (si después cambia el precio, el emitido no se mueve). Un emitido se puede reabrir a borrador.<br>
@@ -1268,7 +1275,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-12.4';
+const APP_BUILD = '2026-10-13.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2185,6 +2192,18 @@ function popSelects() {
 // =====================================================================
 // MOTOR DE CÓMPUTO
 // =====================================================================
+// Unidad comercial de un consumo. Si el material dice en el nombre cómo se vende ("x 25kg", "x 3kg") y el
+// consumo está en kg, manda el nombre: así la cantidad de bolsas siempre coincide con el precio del material,
+// aunque la tarea tenga cargado otro divisor (oct-2026: Hercal x 25kg figuraba en bolsas de 40 en 6 tareas).
+function _divComercial(cm) {
+  const d0 = num(cm.divisor) || 1;
+  const m = String(cm.matRef || '').match(/x\s*(\d+(?:[.,]\d+)?)\s*kg\b/i);
+  if (m && String(cm.un || '').trim().toLowerCase() === 'kg') {
+    const d = parseFloat(m[1].replace(',', '.'));
+    if (d > 0) return { divisor: d, unComercial: d0 === d && cm.unComercial ? cm.unComercial : `bolsas ${m[1]}kg`, corregido: d0 !== d };
+  }
+  return { divisor: d0, unComercial: cm.unComercial || cm.un, corregido: false };
+}
 function computeObra(obraId) {
   _obraEnComputo = obras.find(o => o.id === obraId) || null;
   const desp = 1 + desperdicio / 100;
@@ -2200,14 +2219,15 @@ function computeObra(obraId) {
     const matItems = coefMats.map(cm => {
       const mat = findMat(cm.matRef);
       const qtyBase = cantDesp * num(cm.coef);
-      const divisor = num(cm.divisor) || 1;
-      const qtyComercial = divisor > 1 ? Math.ceil(qtyBase / divisor) : qtyBase;
+      const { divisor, unComercial } = _divComercial(cm);
+      // Sin redondear por medición (antes cada medición sumaba hasta 1 bolsa de más); se redondea en la lista de compras
+      const qtyComercial = divisor > 1 ? qtyBase / divisor : qtyBase;
       const precio = mat ? mat.precio : 0;
       const subtotal = qtyComercial * precio;
       return {
         nombre: cm.matRef,
         unidad: cm.un,
-        unComercial: cm.unComercial || cm.un,
+        unComercial,
         divisor,
         cantidadBase: qtyBase,
         cantidadComercial: qtyComercial,
@@ -4241,6 +4261,9 @@ function _resetImportModal() {
   importData = [];
   const f = document.getElementById('imp-file'); if (f) f.value = '';
   _impWB = null; _impDet = null; _impCands = [];
+  _impModo = 'cert'; _impModoManual = false; _impProj = null; _impProjCheck = null;
+  const pinfo = document.getElementById('imp-proj-info'); if (pinfo) pinfo.innerHTML = '';
+  const psel = document.getElementById('imp-proj'); if (psel) psel.value = '';
   const hw = document.getElementById('imp-hoja-wrap'); if (hw) hw.style.display = 'none';
   document.getElementById('imp-preview').innerHTML = '';
   document.getElementById('imp-stats').innerHTML = '';
@@ -4252,7 +4275,7 @@ function _resetImportModal() {
 }
 function openImportNuevaObra() {
   importTargetObraId = null;
-  document.getElementById('imp-title').textContent = 'Importar obra desde certificado';
+  document.getElementById('imp-title').textContent = 'Importar obra desde Excel (certificado o cómputo)';
   document.getElementById('imp-obra-fields').style.display = '';
   document.getElementById('imp-target-banner').style.display = 'none';
   _resetImportModal();
@@ -5145,15 +5168,18 @@ function consolidarMateriales(obraId, medsFiltro) {
     const coefMats = Array.isArray(coef.mats) ? coef.mats : JSON.parse(coef.mats||'[]');
     coefMats.forEach(cm => {
       const qtyBase = cantDesp * num(cm.coef);
-      const divisor = num(cm.divisor) || 1;
+      const { divisor, unComercial } = _divComercial(cm);
       const qtyComercial = divisor > 1 ? qtyBase / divisor : qtyBase;
       const key = cm.matRef;
+      // Mismo material con otra unidad o divisor en otra tarea: se avisa en la lista (no se pueden sumar sin revisar)
+      const _uN = u => String(u || '').toLowerCase().replace('³', '3').replace('²', '2');
+      if (consolidado[key] && (consolidado[key].divisor !== divisor || _uN(consolidado[key].unBase) !== _uN(cm.un))) consolidado[key].mezcla = true;
       if (!consolidado[key]) {
         const mat = findMat(key);
         consolidado[key] = {
           nombre: key,
           unBase: cm.un,
-          unComercial: cm.unComercial || cm.un,
+          unComercial,
           divisor,
           cantBase: 0,
           cantComercial: 0,
@@ -5332,7 +5358,7 @@ function loadCompras() {
           </tr></thead>
           <tbody>
             ${items.map(m => `<tr>
-              <td class="hi">${m.nombre}</td>
+              <td class="hi">${m.nombre}${m.mezcla ? ' <span style="color:var(--re);font-size:10px;" title="Este material está cargado con distinta unidad o divisor en distintas tareas (Consumos): la cantidad comercial puede estar mal">⚠ unidades mezcladas</span>' : ''}</td>
               <td class="num" style="color:var(--tx3);">${m.cantBase.toFixed(2)} ${m.unBase}</td>
               <td class="num" style="color:var(--bl);font-weight:600;">${m.cantComercialCeil} ${m.unComercial}</td>
               <td class="num">${m.precio ? $p(m.precio) : '<span style="color:var(--re);font-size:10px;">sin precio</span>'}</td>
@@ -6515,22 +6541,23 @@ function impAplicarDetalle() {
     else {
       vinc++;
       const cu = normUnidad(it.unidad), lu = normUnidad(L.un);
-      if (L.qty == null) it.detNotas.push({ lvl: 'info', msg: `La hoja «${L.hoja}» tiene el código pero no la cantidad` });
+      const ori = it.origen === 'computo' ? 'la hoja de tareas' : 'el certificado';
+      if (L.qty == null || (L.qty === 0 && it.origen === 'computo')) it.detNotas.push({ lvl: 'info', msg: `La hoja «${L.hoja}» tiene el código pero no la cantidad` });
       else if (lu && cu === lu && ['m2', 'm3', 'ml'].includes(cu)) {
         const ref = it.cantExcel ?? it.cant;
         if (Math.abs(ref - L.qty) <= Math.max(0.01, Math.abs(ref) * 0.01)) igual++;
         else if (usar && L.qty > 0 && Math.abs(ref - L.qty) <= Math.abs(ref) * 0.15) {
           // Diferencia chica (≤ 15 %): se toma la de la hoja y queda registrado
-          it.cant = L.qty; tomadas++; it.detNotas.push({ lvl: 'info', msg: `Cantidad de la hoja «${L.hoja}»: ${fmt(L.qty)} ${cu} (el certificado decía ${fmt(ref)})` });
+          it.cant = L.qty; tomadas++; it.detNotas.push({ lvl: 'info', msg: `Cantidad de la hoja «${L.hoja}»: ${fmt(L.qty)} ${cu} (${ori} decía ${fmt(ref)})` });
         } else {
           // Diferencia grande o cantidad 0 en la hoja: NO se aplica sola, se deja el certificado y se marca para revisar
-          difSin++; it.detNotas.push({ lvl: 'warn', msg: `La hoja «${L.hoja}» computa ${fmt(L.qty)} ${cu} y el certificado dice ${fmt(ref)} — diferencia grande: revisá cuál es la correcta y, si es la de la hoja, corregí la cantidad` });
+          difSin++; it.detNotas.push({ lvl: 'warn', msg: `La hoja «${L.hoja}» computa ${fmt(L.qty)} ${cu} y ${ori} dice ${fmt(ref)} — diferencia grande: revisá cuál es la correcta y, si es la de la hoja, corregí la cantidad` });
         }
       } else if (lu === 'u' && cu === 'ml') {
         const m = (it.desc || '').match(/\((\d+)\s*columna/i);
         if (m && +m[1] !== L.qty) { difSin++; it.detNotas.push({ lvl: 'warn', msg: `La hoja «${L.hoja}» computa ${fmt(L.qty)} columnas y el ítem dice ${m[1]}` }); }
         else igual++;
-      } else if (lu && cu && cu !== lu) it.detNotas.push({ lvl: 'info', msg: `La hoja «${L.hoja}» está en ${lu} y el certificado en ${cu}: no se comparan` });
+      } else if (lu && cu && cu !== lu) it.detNotas.push({ lvl: 'info', msg: `La hoja «${L.hoja}» está en ${lu} y ${ori} en ${cu}: no se comparan` });
       else igual++;
     }
     if (M && Object.keys(M).length) {
@@ -6551,6 +6578,13 @@ function impProcesarHoja() {
   const cand = _impCands[+(sel?.value || 0)];
   const name = cand ? cand.name : _impWB.SheetNames[0];
   const ws = _impWB.Sheets[name];
+  if (!_impModoManual) {
+    // Certificado si la hoja trae "Contratista" o dice "certificado" en el título; si no, es un cómputo
+    let titulo = '';
+    try { const r = XLSX.utils.decode_range(ws['!ref']); for (let i = r.s.r; i <= Math.min(r.e.r, r.s.r + 8); i++) for (let c = r.s.c; c <= Math.min(r.e.c, r.s.c + 30); c++) titulo += ' ' + _impTxt(ws, i, c); } catch (e) {}
+    _impModo = (cand && cand.contr) || /CERTIFIC/.test(_normN(titulo)) ? 'cert' : 'computo';
+  }
+  _impSyncModoUI();
   try {
     _impDet = impLeerDetalle(_impWB, name);
     processImportRows(XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }), ws);
@@ -6564,13 +6598,13 @@ function parseImportFile() {
   reader.onload = function(e) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'binary' });
-      _impWB = wb;
+      _impWB = wb; _impModoManual = false;
       _impCands = impHojasCandidatas(wb);
       if (!_impCands.length) _impCands = [{ name: wb.SheetNames[0], n: 0 }];
       const sel = document.getElementById('imp-hoja');
       sel.innerHTML = _impCands.map((c, i) => `<option value="${i}">${_cEsc(c.name)} (${c.n} ítems${c.contr ? ' · con contratista' : ''}${c.hidden ? ' · oculta' : ''})</option>`).join('');
       sel.value = '0';
-      document.getElementById('imp-hoja-wrap').style.display = wb.SheetNames.length > 1 ? '' : 'none';
+      document.getElementById('imp-hoja-wrap').style.display = '';
       impProcesarHoja();
     } catch (err) { notif('Error al leer: ' + err.message); }
   };
@@ -6657,7 +6691,7 @@ function detectSubtipo(t) {
     // ══ ENCADENADO VERTICAL (Ce) — ANTES de columnas Cn ══
     if (t.match(/\bCE\d*\s*[-–]/) || t.match(/^\s*CE\d*\s*\(/) || (has('ENCADENADO') && has('VERTICAL'))) return 'encadenado_vert';   // "Ce - 0,18x0,18" y "Ce (17 columnas)"
     // ══ COLUMNAS Hº (default H17) ══
-    if (t.match(/\bC\d+\s*[-–]/) || (has('COLUMNA') && !has('METALIC'))) return 'columna_elab';
+    if ((t.match(/\bC\d+\s*[-–]/) && !/CIELO\s*R?RASO/.test(t)) || (has('COLUMNA') && !has('METALIC'))) return 'columna_elab';   // "C2- Cielorraso…" es el tipo de cielorraso, no una columna
     // ══ ENCADENADO HORIZONTAL ══
     if (t.match(/\bEH\d*\s*[-–]/) || (has('ENCADENADO') && (has('HORIZONTAL') || has('HORIZ')))) return 'encadenado_horiz';
     // ══ VIGAS ══
@@ -6746,7 +6780,7 @@ function detectSubtipo(t) {
   // ══ CIELORRASOS ══
   if (has('CORTINERO')) return 'cortinero';
   if (has('CIELORRASO') || has('CIELORASO')) {
-    if (has('PLACA') || has('DURLOCK') || (has('YESO') && has('SUSPENDIDO'))) return 'cielorraso_susp';
+    if (has('PLACA') || has('DURLOCK') || has('SUSPENDID')) return 'cielorraso_susp';
     if (has('MADERA')) return 'cielorraso_madera';
     if (has('YESO') && has('APLICADO')) return 'cielorraso_yeso';
     if (has('LONA') || has('CAMUFLADA')) return 'cielorraso_lona';
@@ -7196,6 +7230,7 @@ const RANGO_ESPESOR = {
 
 // Reglas de control sobre lo leído. lvl: 'err' bloquea el import, 'warn' avisa, 'info' informa una corrección automática.
 function validarImport() {
+  _impChequearProject();
   const incl = importData.filter(i => i.incluir);
   const cntItem = {}, grpDesc = {}, cntCoef = {};
   incl.forEach(i => {
@@ -7219,7 +7254,7 @@ function validarImport() {
     if (item.ubicTexto && item.ubicacion !== 'Global' && item.ubicTexto !== item.ubicacion) w.push({ lvl: 'warn', msg: `El texto dice ${item.ubicTexto} pero el ítem está bajo ${item.ubicacion} en el Excel` });
     if (u && item.cant === 1 && !['gl', 'u'].includes(u)) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u}: parece un valor provisorio — cargá la cantidad real` });
     if (u === 'gl' && item.cant > 1) w.push({ lvl: 'warn', msg: `${item.cant} gl: un global debería ser 1 — ¿la unidad es otra (m², u)?` });
-    if (item.nItem === 's/n') w.push({ lvl: 'warn', msg: 'Ítem sin número en el Excel' });
+    if (item.nItem === 's/n') w.push({ lvl: 'warn', msg: item.origen === 'computo' ? 'Sin N° de ítem: no se va a vincular con el cronograma' : 'Ítem sin número en el Excel' });
     else if (cntItem[item.nItem] > 1) w.push({ lvl: 'warn', msg: `N° ${item.nItem} repetido en el Excel` });
     const grp = grpDesc[_normN(item.desc).replace(/\s+/g, ' ').trim() + '|' + item.ubicacion] || [];
     if (item.incluir && grp.length > 1 && grp[0] !== item) w.push({ lvl: 'warn', msg: `Posible duplicado del ítem ${grp[0].nItem} (misma descripción y ubicación)` });
@@ -7257,6 +7292,16 @@ function validarImport() {
         else if (secc.length >= 2) w.push({ lvl: 'warn', msg: `${secc.length} secciones en el texto: la cantidad del Excel no se puede verificar — conviene un ítem por sección` });
       }
     }
+    if (item.m3Computo && item._calc && item._calc.coefU === 'm3') {
+      const f = v => (+v).toLocaleString('es-AR', { maximumFractionDigits: 3 });
+      const dif = Math.abs(item._calc.cantidad - item.m3Computo);
+      if (dif > Math.max(0.01, item.m3Computo * 0.03)) w.push({ lvl: 'warn', msg: `El cómputo dice ${f(item.m3Computo)} m³ y sección × largo da ${f(item._calc.cantidad)} m³ — revisá cuál vale` });
+      else {
+        w.push({ lvl: 'info', msg: `Coincide con los ${f(item.m3Computo)} m³ del cómputo` });
+        w.forEach(x => { if (x.tag === 'unidad' && x.lvl === 'warn') x.lvl = 'info'; });   // ml → m³ verificado contra el cómputo
+      }
+    }
+    if (item.origen === 'computo') _impAvisosProject(item, w);
     item.warns = w;
   });
 }
@@ -7338,6 +7383,9 @@ const TEST_CASES_LECTOR = [
   ['Enlucido de yeso', 'yeso'],
   // Cielorrasos, pisos, revestimientos
   ['Cielorraso Durlock junta tomada', 'cielorraso_susp'],
+  ['C2- Cieloraso aplicado con terminacion de yeso', 'cielorraso_yeso'],
+  ['C3- Cieloraso aplicado con terminacion de madera', 'cielorraso_madera'],
+  ['C5- Cielorraso suspendido con buña perimetral', 'cielorraso_susp'],
   ['Cielorraso aplicado de yeso s/losa', 'cielorraso_yeso'],
   ['Piso porcelanato 60x120 rectificado', 'piso_porcelanato_60x120'],
   ['Piso cerámico 40x40', 'piso_ceramico'],
@@ -7509,6 +7557,7 @@ function testLector(verbose) {
 }
 
 function processImportRows(rows, ws) {
+  if (_impModo === 'computo') return processComputoRows(rows, ws);
   importData = [];
   let currentRubro = '', currentUbicacion = 'Global', currentSeccion = '';
   // Ubicación escrita en el propio texto del ítem ("- PSS", "(PB)", "PA"): se usa para avisar contradicciones
@@ -7518,7 +7567,7 @@ function processImportRows(rows, ws) {
   // detectSubtipo ahora es global (ver arriba de processImportRows) para poder testearla con testLector()
   function parseNum(v) { if(typeof v==='number')return v; const s=String(v||'').replace(/[$\s]/g,''); if(s.includes(',')&&s.indexOf(',')>s.lastIndexOf('.'))return parseFloat(s.replace(/\./g,'').replace(',','.'))||0; if(s.includes(',')&&!s.includes('.'))return parseFloat(s.replace(',','.'))||0; return parseFloat(s)||0; }
   let colMap={nItem:0,desc:1,cant:2,un:3,contratista:4,costoUnit:5}, headerFound=false;
-  for(let i=0;i<Math.min(rows.length,25);i++){const row=rows[i];if(!row)continue;const rowStr=row.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('DESIGNAC')||rowStr.includes('CANT')){for(let j=0;j<row.length;j++){const h=String(row[j]||'').toUpperCase().trim();if(h.includes('ITEM')||h.includes('N°'))colMap.nItem=j;if(h.includes('DESIGNAC')||h.includes('DESCRIPCI'))colMap.desc=j;if(h==='CANT.'||h==='CANT'||h==='CANTIDAD')colMap.cant=j;if(h==='UN.'||h==='UN'||h==='UNIDAD')colMap.un=j;if(h.includes('CONTRATISTA'))colMap.contratista=j;if(h.includes('COSTO UNIT'))colMap.costoUnit=j;}headerFound=true;break;}}
+  for(let i=0;i<Math.min(rows.length,25);i++){const row=rows[i];if(!row)continue;const rowStr=row.map(c=>String(c||'').toUpperCase()).join('|');if(rowStr.includes('DESIGNAC')||rowStr.includes('CANT')){for(let j=0;j<row.length;j++){const h=String(row[j]||'').toUpperCase().trim();if(h.includes('ITEM')||h.includes('N°'))colMap.nItem=j;if(h.includes('DESIGNAC')||h.includes('DESCRIPCI'))colMap.desc=j;if(h==='CANT.'||h==='CANT'||h==='CANTIDAD')colMap.cant=j;if(h==='UN.'||h==='UN'||h==='UNIDAD'||h==='UD.'||h==='UD')colMap.un=j;if(h.includes('CONTRATISTA'))colMap.contratista=j;if(h.includes('COSTO UNIT'))colMap.costoUnit=j;}headerFound=true;break;}}
   // Texto VISIBLE de la celda del N° de ítem (cell.w): "2.10" y "2.100" no se pisan y "RR2.01" conserva el cero.
   function itemTexto(i, fallback) {
     try {
@@ -7540,6 +7589,284 @@ autoCorregirItem(it);importData.push(it);}}
   impAplicarDetalle();   // cantidades de las hojas de cómputo + materiales de control
   validarImport();
   renderImportPreview();
+}
+
+// =====================================================================
+// IMPORT DESDE UN CÓMPUTO (oct-2026)
+// Mismo modal y misma vista previa que el certificado, pero:
+//  · lee la hoja de tareas de un cómputo hecho a mano (ej. "COSTO ESTIMADO DE OBRA"),
+//  · NO crea certificado base ni cert_items (la obra ya viene empezada),
+//  · toma el N° de ítem de la columna de códigos con prefijo (JS2.33) para el vínculo con BkTableros,
+//  · une los pares "elemento en m³ + renglón en ml" y "Zócalos: X + IDEM PISO" en un solo ítem,
+//  · resuelve la planta aunque el rótulo ("Planta Baja") esté antes o después de los ítems.
+// =====================================================================
+let _impModo = 'cert', _impModoManual = false, _impProj = null, _impProjCheck = null;
+
+function _ubicDeCodigo(t) {
+  t = _normN(t).trim();
+  if (/^(PBNF|PF|PSS|PS|SS)\b/.test(t)) return 'Subsuelo 1';
+  if (/^PB\b/.test(t)) return 'Planta Baja';
+  if (/^PA\b/.test(t)) return 'Planta Alta';
+  return null;
+}
+function _ubicDeRotulo(t) {
+  t = _normN(t);
+  if (/PLANTA ALTA|^\s*PA\b/.test(t)) return 'Planta Alta';
+  if (/PLANTA BAJA|^\s*PB\b/.test(t)) return 'Planta Baja';
+  if (/FUNDACI|SUBSUELO|NIVELACI|^\s*PSS\b|^\s*SS\b/.test(t)) return 'Subsuelo 1';
+  return null;
+}
+function _ubicDelTextoComputo(t) {
+  t = _normN(t); const u = [];
+  if (/\bPSS\b|\bSS\b|SUBSUELO|\bPBNF\b/.test(t)) u.push('Subsuelo 1');
+  if (/\bPB\b|PLANTA BAJA/.test(t) && !/\bPBNF\b/.test(t)) u.push('Planta Baja');
+  if (/\bPA\b|PLANTA ALTA/.test(t)) u.push('Planta Alta');
+  return u.length === 1 ? u[0] : null;
+}
+const _RE_DIMS = /(\d+[.,]\d+)\s*[xX×*]\s*(\d+[.,]\d+)/;
+const _esSoloDims = t => /^\s*\(?\s*\d+[.,]\d+\s*[xX×*]\s*\d+[.,]\d+\s*\)?\s*$/.test(t || '');
+
+function processComputoRows(rows, ws) {
+  importData = [];
+  const parseNum = v => { if (typeof v === 'number') return v; const s = String(v || '').replace(/[$\s]/g, ''); if (s.includes(',') && s.indexOf(',') > s.lastIndexOf('.')) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0; if (s.includes(',') && !s.includes('.')) return parseFloat(s.replace(',', '.')) || 0; return parseFloat(s) || 0; };
+  // Texto visible de la celda (cell.w): conserva "2.10" y el cero de "6.00"
+  const rg = ws && ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0, c: 0 } };
+  const txt = (i, j) => {
+    if (j < 0) return '';
+    try { const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r + i, c: rg.s.c + j })]; if (cell) { const w = cell.w != null ? String(cell.w) : (cell.v != null ? String(cell.v) : ''); return w.trim(); } } catch (e) {}
+    const r = rows[i]; return r && r[j] != null ? String(r[j]).trim() : '';
+  };
+
+  // 1. Encabezado
+  const col = { item: -1, desc: -1, cant: -1, un: -1, costo: -1, contr: -1, moUd: -1, subt: -1 };
+  let h = -1;
+  for (let i = 0; i < Math.min(rows.length, 30) && h < 0; i++) {
+    const row = rows[i] || [];
+    const up = row.map(c => _normN(String(c || '')).trim());
+    if (!up.some(t => /DESIGNAC|DESCRIPCI|^TAREAS?$/.test(t)) || !up.some(t => /^CANT/.test(t))) continue;
+    h = i;
+    up.forEach((t, j) => {
+      if (col.item < 0 && (/\bITEM\b/.test(t) || /^N[°º]/.test(t))) col.item = j;
+      if (col.desc < 0 && /DESIGNAC|DESCRIPCI|^TAREAS?$/.test(t)) col.desc = j;
+      if (col.cant < 0 && /^CANT/.test(t)) col.cant = j;
+      if (col.un < 0 && /^(UN|UD|U|UNID|UNIDAD)\.?$/.test(t)) col.un = j;
+      if (col.costo < 0 && /COSTO/.test(t) && /UD|UN|UNIT/.test(t)) col.costo = j;
+      if (col.contr < 0 && /CONTRATISTA/.test(t)) col.contr = j;
+      if (col.moUd < 0 && !/COSTO/.test(t) && /M\.?\s*O\.?\s*X\s*UD/.test(t)) col.moUd = j;   // precio con K
+      if (col.subt < 0 && /^SUBT/.test(t)) col.subt = j;
+    });
+  }
+  if (h < 0 || col.desc < 0 || col.cant < 0) {
+    document.getElementById('imp-preview').innerHTML = '<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No encontré el encabezado de tareas</b> en esta hoja (hace falta una fila con "Designación" o "Descripción" y "Cant."). Elegí otra hoja o pasá a modo certificado.</div>';
+    document.getElementById('btn-import-save').disabled = true;
+    return;
+  }
+  const ocupadas = new Set(Object.values(col).filter(j => j >= 0));
+  const nCols = Math.max(...rows.slice(h, h + 400).map(r => (r || []).length), 0);
+
+  // 2. Columna de códigos con prefijo (JS2.33) y columna de planta (PB / PA / PBNF), si existen
+  const cuentaPref = j => { let n = 0; for (let i = h + 1; i < rows.length; i++) { const it = parseNItem(txt(i, j)); if (it && it.prefijo) n++; } return n; };
+  let codeCol = -1, best = col.item >= 0 ? cuentaPref(col.item) : 0;
+  for (let j = 0; j < nCols; j++) { if (ocupadas.has(j)) continue; const n = cuentaPref(j); if (n >= 3 && n > best) { best = n; codeCol = j; } }
+  let ubicCol = -1, bestU = 2;
+  for (let j = 0; j < nCols; j++) {
+    if (ocupadas.has(j) || j === codeCol) continue;
+    let n = 0; for (let i = h + 1; i < rows.length; i++) { const t = txt(i, j); if (t.length <= 12 && _ubicDeCodigo(t)) n++; }
+    if (n > bestU) { bestU = n; ubicCol = j; }
+  }
+
+  // 3. Clasificar filas: sección, rótulo de planta o ítem
+  const ent = [];
+  for (let i = h + 1; i < rows.length; i++) {
+    const desc = txt(i, col.desc), itemRaw = txt(i, col.item), cant = parseNum((rows[i] || [])[col.cant]), un = txt(i, col.un);
+    if (!desc && !(cant > 0)) continue;
+    if (desc.startsWith('*')) continue;                          // notas al pie del rubro
+    if (!(cant > 0) && !un) {
+      if (!desc) continue;
+      const u = /^\s*(PLANTA\b|SUBSUELO|NIVEL|PB\b|PA\b|PSS\b)/i.test(desc) ? _ubicDeRotulo(desc) : null;
+      if (u) { ent.push({ t: 'label', i, ubic: u }); continue; }
+      if (itemRaw || desc === desc.toUpperCase()) {
+        const top = !itemRaw || /^\d+$/.test(itemRaw) || itemRaw === '•';
+        ent.push({ t: 'sec', i, top, nombre: desc.replace(/\s+/g, ' ').trim() });
+        const uh = _ubicDeCodigo(itemRaw);                      // "PB | Columnas metálicas"
+        if (uh) ent.push({ t: 'label', i, ubic: uh });
+      }
+      continue;
+    }
+    if (!(cant > 0)) continue;
+    const code = parseNItem(codeCol >= 0 ? txt(i, codeCol) : '') || parseNItem(itemRaw);
+    // Precio de MO: el del contratista (sin K). Si el subtotal de la fila no es precio × cantidad (ej. "130 bocas"
+    // con el precio global en la columna unitaria), manda el subtotal.
+    let costo = col.costo >= 0 ? parseNum((rows[i] || [])[col.costo]) : 0, costoNota = '';
+    const moUd = col.moUd >= 0 ? parseNum((rows[i] || [])[col.moUd]) : 0, subt = col.subt >= 0 ? parseNum((rows[i] || [])[col.subt]) : 0;
+    if (costo > 0 && moUd > 0 && subt > 0) {
+      const ratio = subt / (moUd * cant);
+      if (Math.abs(ratio - 1) > 0.01) { costoNota = `Precio de MO tomado del subtotal de la fila: ${$p(costo * ratio)}/${un || 'u'} (la columna unitaria decía ${$p(costo)} y no cierra con la cantidad)`; costo = costo * ratio; }
+    }
+    ent.push({ t: 'item', i, desc: desc.replace(/\s+/g, ' ').trim(), cant, un, code, costo, costoNota,
+      contr: col.contr >= 0 ? txt(i, col.contr) : '', ubicCell: (ubicCol >= 0 ? _ubicDeCodigo(txt(i, ubicCol)) : null) || (!parseNItem(itemRaw) ? _ubicDeCodigo(itemRaw) : null) });
+  }
+
+  // 4. Unir pares de renglones que son un solo ítem
+  for (let k = 0; k < ent.length - 1; k++) {
+    const A = ent[k], B = ent[k + 1];
+    if (A.t !== 'item' || B.t !== 'item' || B.i !== A.i + 1 || !A.desc) continue;
+    const uA = normUnidad(A.un), uB = normUnidad(B.un);
+    if (uA === 'm3' && uB === 'ml' && (!B.desc || _esSoloDims(B.desc))) {
+      // "C1  M3 4,59" + "0,30x0,30  ML 51": se guarda por ml con la sección entre paréntesis (el lector calcula los m³)
+      let d = A.desc;
+      if (B.desc) d += ` - (${B.desc.replace(/[()\s]/g, '')})`;
+      else if (!/\(\s*\d+[.,]\d+\s*[xX×*]/.test(d) && _RE_DIMS.test(d)) d = d.replace(_RE_DIMS, '($1x$2)');
+      const costo = B.costo > 0 ? B.costo : (A.costo > 0 ? A.costo * A.cant / B.cant : 0);
+      ent.splice(k, 2, { ...A, desc: d, cant: B.cant, un: B.un, code: A.code || B.code, costo, costoNota: A.costoNota || B.costoNota, contr: A.contr || B.contr, ubicCell: A.ubicCell || B.ubicCell, m3Computo: A.cant, i: B.i, unido: true });
+    } else if (/^IDEM\b/i.test(B.desc)) {
+      // "ZOCALOS: COCHERA  M2 1" + "IDEM PISO  ML 45"
+      ent.splice(k, 2, { ...B, desc: `${A.desc} — ${B.desc}`, code: B.code || A.code, ubicCell: B.ubicCell || A.ubicCell, unido: true });
+    }
+  }
+
+  // 5. Planta: por bloque de sección se mira si el rótulo va antes de los ítems o después
+  const bloques = []; let cur = { items: [] };
+  ent.forEach(e => { if (e.t === 'sec') { bloques.push(cur); cur = { items: [] }; } else cur.items.push(e); });
+  bloques.push(cur);
+  bloques.forEach(b => {
+    const iItem = b.items.findIndex(e => e.t === 'item'), iLab = b.items.findIndex(e => e.t === 'label');
+    if (iLab < 0 || iItem < 0) return;
+    if (iLab > iItem) {   // rótulo DESPUÉS: "2.35 Tabique…" / "Planta de Fundación"
+      let pend = [];
+      b.items.forEach(e => { if (e.t === 'item') pend.push(e); else { pend.forEach(x => { x.ubicLabel = e.ubic; }); pend = []; } });
+    } else {
+      let u = null; b.items.forEach(e => { if (e.t === 'label') u = e.ubic; else u && (e.ubicLabel = u); });
+    }
+  });
+
+  // 6. Armar los ítems de la vista previa
+  let top = '', sub = '';
+  ent.forEach(e => {
+    if (e.t === 'sec') { if (e.top) { top = e.nombre; sub = ''; } else sub = e.nombre; return; }
+    if (e.t !== 'item' || !e.desc || e.desc.length < 2) return;
+    if (/SUPERFICIE/.test(_normN(top))) return;                 // superficies del terreno: datos, no tareas
+    const seccion = sub || top;
+    const ubicTexto = _ubicDelTextoComputo(e.desc);
+    let subtipo = detectSubtipoCtx(e.desc, seccion);
+    if (!subtipo && seccion) subtipo = detectSubtipo(seccion + ' ' + e.desc);
+    const it = {
+      nItem: e.code ? e.code.key : 's/n', nItemOk: !!e.code, desc: e.desc, cant: e.cant, cantExcel: e.cant,
+      unidad: normUnidad(e.un), unidadExcel: e.un, contratista: e.contr || '', costoUnit: e.costo || 0,
+      rubro: seccion || 'Sin rubro', ubicacion: e.ubicCell || ubicTexto || e.ubicLabel || 'Global', ubicTexto,
+      seccion, subtipo, incluir: true, m3Computo: e.m3Computo || null, unido: !!e.unido, origen: 'computo'
+    };
+    if (/^\s*S\d+\s*[-–]/.test(e.desc) && it.unidad === 'ml') it.subtipo = 'zocalo';
+    autoCorregirItem(it);
+    if (e.costoNota) it.notas.push(e.costoNota);
+    importData.push(it);
+  });
+  if (!importData.length) {
+    document.getElementById('imp-preview').innerHTML = '<div class="empty">No encontré ítems con cantidad en esta hoja.</div>';
+    document.getElementById('btn-import-save').disabled = true;
+    return;
+  }
+  // Si el cómputo tiene ítems en subsuelo y la obra nueva figura sin subsuelos, se propone 1
+  const subEl = document.getElementById('imp-sub');
+  if (!importTargetObraId && subEl && subEl.value === '0' && importData.some(i => i.ubicacion === 'Subsuelo 1')) subEl.value = '1';
+  marcarImportDuplicados();
+  asignarCoefsImport();
+  impAplicarDetalle();
+  validarImport();
+  renderImportPreview();
+}
+
+// ---- Modo del archivo (certificado / cómputo) ----
+function impCambiarModo(v) {
+  _impModo = v === 'computo' ? 'computo' : 'cert';
+  _impModoManual = true;
+  impProcesarHoja();
+}
+function _impSyncModoUI() {
+  const sel = document.getElementById('imp-modo'); if (sel) sel.value = _impModo;
+  const pw = document.getElementById('imp-proj-wrap'); if (pw) pw.style.display = _impModo === 'computo' ? '' : 'none';
+  const ayuda = document.getElementById('imp-modo-ayuda');
+  if (ayuda) ayuda.innerHTML = _impModo === 'computo'
+    ? 'Cómputo: se cargan las mediciones con su N° de ítem y el precio de MO si lo trae. <b>No se crea certificado base.</b>'
+    : 'Certificado: se cargan las mediciones y se crea el certificado base (N° 0) con contratista y costo.';
+  const btn = document.getElementById('btn-import-save');
+  if (btn && !btn.disabled) btn.textContent = importTargetObraId ? 'Importar a esta obra' : 'Importar obra';
+  if (_impModo === 'computo') impCargarListaProjects();
+}
+
+// ---- Chequeo del vínculo con un Project de BkTableros, antes de importar ----
+async function impCargarListaProjects() {
+  const sel = document.getElementById('imp-proj'); if (!sel || sel.dataset.ok) return;
+  try {
+    if (!_bkManifest) _bkManifest = await bkFetch('manifest.json?_=' + Date.now(), true);
+    const lista = (_bkManifest.projects || []).map(p => p.file).sort((a, b) => a.localeCompare(b, 'es'));
+    sel.innerHTML = '<option value="">— sin chequear —</option>' + lista.map(f => `<option value="${_cEsc(f)}">${_cEsc(f.replace(/\.xml$/i, ''))}</option>`).join('');
+    sel.dataset.ok = '1';
+    // Obra existente con Project ya elegido en Cronograma → se preselecciona
+    const obra = importTargetObraId ? obras.find(o => o.id === importTargetObraId) : null;
+    const pf = obra ? (obra.project_file || localStorage.getItem('crono_proj_' + obra.id) || '') : '';
+    if (pf && lista.includes(pf)) { sel.value = pf; impElegirProject(pf); }
+  } catch (e) {
+    sel.innerHTML = '<option value="">No pude leer BkTableros</option>';
+    console.warn('impCargarListaProjects:', e);
+  }
+}
+async function impElegirProject(file) {
+  const info = document.getElementById('imp-proj-info');
+  _impProj = null; _impProjCheck = null;
+  if (!file) { if (info) info.innerHTML = ''; if (importData.length) _impRefrescar(); return; }
+  if (info) info.innerHTML = 'Leyendo el Project…';
+  try {
+    let parsed = _cronoCache[file];
+    if (!parsed) { parsed = parseMSPDI(await bkFetch('projects/' + encodeURIComponent(file), false)); _cronoCache[file] = parsed; }
+    _impProj = { file, tareas: parsed.tareas };
+  } catch (e) {
+    if (info) info.innerHTML = `<span style="color:var(--re);">No pude leer «${_cEsc(file)}»: ${_cEsc(e.message)}</span>`;
+    return;
+  }
+  if (importData.length) _impRefrescar();
+}
+// Corre el vínculo sobre los ítems incluidos y deja el resultado en _impProjCheck (lo usan validarImport y el resumen)
+function _impChequearProject() {
+  _impProjCheck = null;
+  if (_impModo !== 'computo' || !_impProj) return;
+  const pseudo = importData.filter(i => i.incluir).map(i => ({ n_item: i.nItemOk ? i.nItem : null, desc: i.desc, _it: i }));
+  const v = cronoVincular(_impProj.tareas, pseudo);
+  const porItem = new Map();
+  v.vinculadas.forEach(x => porItem.set(x.med._it, x.tarea));
+  _impProjCheck = { v, porItem };
+}
+const _palabras = t => new Set(_normN(t).replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 4 && !/^\d+$/.test(w)));
+function _impAvisosProject(item, w) {
+  if (!_impProjCheck || !item.incluir) return;
+  if (!item.nItemOk) return;   // el aviso de "sin N°" ya lo pone validarImport
+  const t = _impProjCheck.porItem.get(item);
+  if (!t) { w.push({ lvl: 'warn', msg: `El N° ${item.nItem} no está en el Project «${_impProj.file.replace(/\.xml$/i, '')}»` }); return; }
+  const a = _palabras(item.desc), b = _palabras(t.nombre);
+  const comunes = [...a].filter(x => b.has(x) || [...b].some(y => y.slice(0, 6) === x.slice(0, 6)));
+  if (a.size && b.size && !comunes.length) w.push({ lvl: 'warn', msg: `En el Project el ${item.nItem} es «${t.nombre.replace(/^[✔X]\s*/, '')}» — ¿es el mismo ítem?` });
+  else w.push({ lvl: 'info', msg: `Cronograma: ${t.nombre.replace(/^[✔X]\s*/, '')}` });
+}
+function _impRenderResumenProject() {
+  const info = document.getElementById('imp-proj-info'); if (!info) return;
+  if (_impModo !== 'computo' || !_impProj || !_impProjCheck) { if (!_impProj) info.innerHTML = ''; return; }
+  const v = _impProjCheck.v;
+  const conN = v.totalMeds - v.sinTarea.filter(s => !s.item).length;
+  const noEsta = v.sinTarea.filter(s => s.item).map(s => s.item.key);
+  const col = n => n ? 'color:var(--am);font-weight:600;' : '';
+  info.innerHTML = `<b>${v.vinculadas.length}</b> de ${conN} ítems con N° encuentran su tarea en el Project` +
+    ` · <span style="${col(noEsta.length)}">${noEsta.length} N° que no están en el Project${noEsta.length ? ' (' + _cEsc(noEsta.slice(0, 8).join(', ')) + (noEsta.length > 8 ? '…' : '') + ')' : ''}</span>` +
+    ` · <span style="${col(v.totalMeds - conN)}">${v.totalMeds - conN} sin N°</span>` +
+    ` · <span style="${col(v.dupMeds.length)}">${v.dupMeds.length} N° repetidos en el archivo${v.dupMeds.length ? ' (' + _cEsc(v.dupMeds.map(d => d.num).join(', ')) + ')' : ''}</span>` +
+    ` · ${v.tareasSinMed.length} tareas del Project sin ítem en el cómputo`;
+}
+// N° de ítem editable en la vista previa (modo cómputo): para completar o corregir el código antes de importar
+function impSetNItem(idx, v) {
+  const item = importData[idx]; if (!item) return;
+  const it = parseNItem(v);
+  if (String(v || '').trim() && !it) { notif('N° no válido: usá el formato 2.11 o JS2.11'); renderImportPreview(); return; }
+  item.nItem = it ? it.key : 's/n'; item.nItemOk = !!it;
+  _impRefrescar();
 }
 
 let _impSoloAvisos = false, _impSoloUnidad = false, _impColapsado = false;
@@ -7583,7 +7910,7 @@ function renderImportPreview() {
     const final = coef && calc ? `${(+calc.cantidad).toLocaleString('es-AR', { maximumFractionDigits: 3 })} ${esc(coef.unidad)}${item._cambioUn ? `<div style="font-size:9px;color:var(--am);font-weight:600;">⇄ desde ${esc(item._cambioUn)}</div>` : ''}` : '—';
     const avisos = (item.warns || []).map(w => `<div style="color:${colores[w.lvl]};">${iconos[w.lvl]} ${esc(w.msg)}</div>`).join('');
     return `<tr style="${bg}">
-      <td style="font-family:var(--mono);">${esc(item.nItem)}</td>
+      <td style="font-family:var(--mono);">${item.origen === 'computo' ? `<input value="${item.nItemOk ? esc(item.nItem) : ''}" placeholder="s/n" title="N° de ítem del cronograma (ej. JS2.11)" style="width:68px;font-size:11px;font-family:var(--mono);${item.nItemOk ? '' : 'border-color:var(--am);'}" onchange="impSetNItem(${idx}, this.value)">` : esc(item.nItem)}</td>
       <td>${item.existe ? '<span style="font-size:9px;background:#fff3cd;color:#8a6d00;padding:1px 5px;border-radius:4px;margin-right:4px;">ya existe</span>' : ''}${esc(item.desc)}
         <div style="font-size:9px;color:var(--tx3);font-family:var(--mono);">${item.subtipo ? 'lector: ' + item.subtipo : 'lector: sin detectar'}${item.manual ? ' · asignada a mano' : ''}</div></td>
       <td><input type="number" step="any" value="${item.cant}" style="width:70px;font-size:11px;" onchange="impSetCant(${idx}, this.value)"></td>
@@ -7612,6 +7939,7 @@ function renderImportPreview() {
     <div style="font-size:10px;color:var(--tx3);margin-top:4px;">El costo total del Excel se conserva aunque corrijas cantidades o unidades.${sinTarea ? ` <b style="color:var(--re);">Asigná o destildá los ${sinTarea} ítems sin tarea para poder importar.</b>` : ''}</div>`;
   btn.disabled = sinTarea > 0 || !incl.length;
   btn.title = sinTarea ? `Hay ${sinTarea} ítems incluidos sin tarea: asignalos o destildalos` : '';
+  _impRenderResumenProject();
 }
 
 function _impRefrescar() { validarImport(); renderImportPreview(); }
@@ -7657,6 +7985,8 @@ async function saveImport() {
   const sinTarea = items.filter(i => !i.coefId || !coefs.find(c => c.id === i.coefId));
   if (sinTarea.length) { notif(`Hay ${sinTarea.length} ítems sin tarea asignada: asignalos o destildalos`); return; }
   const revision = enObra ? (document.getElementById('imp-rev')?.value || 'Rev00') : 'Rev00';
+  const esComputo = _impModo === 'computo';
+  const projFile = esComputo && _impProj ? _impProj.file : '';
   btn.disabled = true;
   btn.textContent = 'Importando...';
   showBusy(enObra ? 'Importando ítems a la obra...' : 'Importando obra...');
@@ -7677,7 +8007,7 @@ async function saveImport() {
       estado: 'En obra',
       subsuelos: parseInt(document.getElementById('imp-sub').value) || 0,
       plantas: parseInt(document.getElementById('imp-pl').value) || 1,
-      notas: 'Importada desde certificado Excel',
+      notas: esComputo ? 'Importada desde cómputo Excel' : 'Importada desde certificado Excel',
       empresa: currentEmpresa
     };
     const obraRes = await sbPost('obras', obraData);
@@ -7731,6 +8061,8 @@ async function saveImport() {
     }));
     mediciones.forEach(med => meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion}));
 
+    // Cómputo: la obra ya viene empezada → sin certificado base ni cert_items
+    if (!esComputo) {
     let cert = enObra ? certs.find(c => c.obra_id === obraId && num(c.numero) === 0) : null;
     if (!cert) {
     const certData = {
@@ -7771,6 +8103,16 @@ async function saveImport() {
       const ciRes = await sbPost('cert_items', ciBatch);
       (ciRes || ciBatch).forEach(ci => certItems.push(ci));
     }
+    } // fin certificado base
+
+    // Project de BkTableros chequeado en la vista previa → queda elegido para Cronograma
+    if (projFile) {
+      const ob = obras.find(o => o.id === obraId);
+      if ((ob?.project_file || '') !== projFile) {
+        try { await sbPatch('obras', obraId, { project_file: projFile }); if (ob) ob.project_file = projFile; }
+        catch (e) { localStorage.setItem('crono_proj_' + obraId, projFile); console.warn('project_file no se pudo guardar:', e.message); }
+      }
+    }
 
     // 6b. Precio de MO del Excel -> mo_precios (un precio por medición, en NUESTRA unidad).
     // total Excel = costoUnit × cant del Excel; precio unitario = total ÷ cantidad nuestra
@@ -7804,7 +8146,7 @@ async function saveImport() {
     renderObras();
     popSelects();
     if (enObra) {
-      notif(`${items.length} ítems importados a "${nombre}" (${revision}) ✓`);
+      notif(`${items.length} ítems importados a "${nombre}" (${revision})${esComputo ? ' desde cómputo' : ''} ✓`);
       const selMed = document.getElementById('sel-obra-med');
       if (selMed) selMed.value = obraId;
       const selRevM = document.getElementById('sel-revision');
@@ -7818,7 +8160,7 @@ async function saveImport() {
       }, 700);
       return;
     }
-    notif(`Obra "${nombre}" importada: ${items.length} ítems + certificado base ✓`);
+    notif(esComputo ? `Obra "${nombre}" importada desde cómputo: ${items.length} ítems (sin certificado base) ✓` : `Obra "${nombre}" importada: ${items.length} ítems + certificado base ✓`);
     // Ir a Mediciones y abrir el revisor automáticamente si hay puntos a revisar
     setTimeout(() => {
       actualizarBadgeRevisar();
