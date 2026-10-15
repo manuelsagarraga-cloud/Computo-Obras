@@ -734,7 +734,9 @@ textarea{resize:vertical;min-height:55px;}
   <div class="modal" style="width:600px;">
     <div class="modal-title">Editar medición <button class="modal-close" onclick="closeModal('m-edit-med')">✕</button></div>
     <div class="form-grid">
-      <div class="fg"><label>Tarea</label><select id="edit-med-tarea" onchange="onEditTareaChange();moModalSync('edit',editingMedId)"></select></div>
+      <div class="fg"><label>Tarea</label>
+        <input id="edit-med-tarea-filter" placeholder="Buscar tarea..." oninput="filterTareasEdit()" style="margin-bottom:4px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;width:100%;box-sizing:border-box;">
+        <select id="edit-med-tarea" onchange="onEditTareaChange();moModalSync('edit',editingMedId)" size="4" style="width:100%;font-size:11px;"></select></div>
       <div class="fg"><label>Ubicación</label><select id="edit-med-ubic"><option value="Global">Global</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:8px;"><label>Descripción</label><input id="edit-med-desc"></div>
@@ -743,6 +745,7 @@ textarea{resize:vertical;min-height:55px;}
       <div class="fg"><label>Cantidad</label><input id="edit-med-cant" type="number" step="0.001"></div>
       <div class="fg"><label>Revisión actual</label><input id="edit-med-rev" readonly style="background:var(--bg);color:var(--tx3);"></div>
     </div>
+    <div id="edit-med-origen-info" style="display:none;margin:6px 0;padding:6px 10px;border-radius:4px;background:var(--bl-l,#e8f0fe);font-size:10px;color:var(--bl,#1a73e8);"></div>
     <div class="card" style="margin:10px 0 0;padding:10px;background:var(--am-l);border-color:#E8D5A0;">
       <div style="font-size:11px;font-weight:600;color:var(--am);margin-bottom:6px;">Mano de obra · precio del contratista</div>
       <div class="form-grid" style="grid-template-columns:1.4fr 1fr 1fr;margin-bottom:4px;">
@@ -1603,6 +1606,7 @@ async function upsertMoPreciosLote(rows) {
 // =====================================================================
 let obras=[], mats=[], mo=[], coefs=[], meds=[], certs=[], certItems=[], certConfigs=[], indicesCac=[];
 let empresas=[], currentEmpresa='', isAdmin=false;
+let _obraSeleccionada = '';   // obra elegida que persiste entre pestañas
 // Overrides de materiales por empresa: cada uno {empresa, mat_cod, precio, mes_base}
 let preciosEmpresa = [];
 function getOverride(empId, cod) {
@@ -2181,13 +2185,25 @@ function findMat(ref) {
 
 function popSelects() {
   const oe = obrasEmpresa();
-  ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-sustento','sel-obra-cert','sel-obra-crono'].forEach(id => {
+  const ids = ['sel-obra-med','sel-obra-comp','sel-obra-pres','sel-obra-arch','sel-obra-compras','sel-obra-mo-precios','sel-obra-sustento','sel-obra-cert','sel-obra-crono'];
+  // Capturar la obra seleccionada antes de reconstruir (cualquier select visible que tenga valor)
+  if (!_obraSeleccionada) {
+    for (const id of ids) { const el = document.getElementById(id); if (el && el.value) { _obraSeleccionada = el.value; break; } }
+  }
+  const optHtml = oe.length
+    ? oe.map(o => `<option value="${o.id}">${o.cod} — ${o.nombre}</option>`).join('')
+    : '<option value="">Sin obras</option>';
+  ids.forEach(id => {
     const el = document.getElementById(id); if (!el) return;
-    el.innerHTML = oe.length
-      ? oe.map(o => `<option value="${o.id}">${o.cod} — ${o.nombre}</option>`).join('')
-      : '<option value="">Sin obras</option>';
+    el.innerHTML = optHtml;
+    // Restaurar la obra seleccionada si existe en las opciones
+    if (_obraSeleccionada && oe.some(o => o.id === _obraSeleccionada)) el.value = _obraSeleccionada;
   });
 }
+// Sincronizar _obraSeleccionada con cualquier cambio de obra (event delegation en document)
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.id && e.target.id.startsWith('sel-obra-')) _obraSeleccionada = e.target.value;
+});
 
 // =====================================================================
 // MOTOR DE CÓMPUTO
@@ -2429,6 +2445,7 @@ function nav(page) {
       if (sel) {
         const oe = obrasEmpresa();
         sel.innerHTML = oe.length ? oe.map(o=>`<option value="${o.id}">${o.cod} — ${o.nombre}</option>`).join('') : '<option value="">Sin obras</option>';
+        if (_obraSeleccionada && oe.some(o => o.id === _obraSeleccionada)) sel.value = _obraSeleccionada;
         if (oe.length) loadHistorial(sel.value);
       }
     },
@@ -2624,6 +2641,25 @@ function filterTareas() {
   if (filtered.length) { sel.selectedIndex = 0; onTareaChange(); moModalSync('med'); }
 }
 
+function filterTareasEdit() {
+  const q = (document.getElementById('edit-med-tarea-filter')?.value || '').toLowerCase();
+  const sel = document.getElementById('edit-med-tarea');
+  const prev = sel.value;
+  const ce = coefsEmpresa();
+  const coefsOrd = [...ce].sort(sortByCod);
+  const filtered = q ? coefsOrd.filter(c =>
+    c.nombre.toLowerCase().includes(q) || c.cod.toLowerCase().includes(q) || c.rubro.toLowerCase().includes(q)
+  ) : coefsOrd;
+  const groups = {};
+  filtered.forEach(c => { if (!groups[c.rubro]) groups[c.rubro] = []; groups[c.rubro].push(c); });
+  const rubrosOrden = ordenRubros(Object.keys(groups));
+  sel.innerHTML = rubrosOrden.map(rubro =>
+    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
+  ).join('');
+  // Mantener la selección si sigue visible
+  if (prev && filtered.some(c => c.id === prev)) sel.value = prev;
+  else if (filtered.length) { sel.selectedIndex = 0; onEditTareaChange(); moModalSync('edit', editingMedId); }
+}
 
 // ---- Modal de medición: precio de MO + contratista ----
 let _ultContratista = '';
@@ -3892,9 +3928,9 @@ function loadMediciones() {
           <td class="hi">${coef?coef.nombre:'(eliminada)'}</td>
           <td style="font-size:10px;color:${med.ubicacion && med.ubicacion !== 'Global' ? 'var(--bl)' : 'var(--tx3)'};">${med.ubicacion||'Global'}</td>
           <td>${formatArmDesc(med.desc||med.descripcion)||'—'}</td>
-          <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
+          <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}${med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad) ? `<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:1})} ${med.unidad_origen||''}</span>` : ''}</td>
           <td class="num" style="color:var(--am);">${cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
-          <td>${coef?coef.unidad:'—'}</td>
+          <td>${coef?coef.unidad:'—'}${med.unidad_origen && med.unidad_origen !== (coef?.unidad||'') ? `<br><span style="font-size:9px;color:var(--bl);">${med.unidad_origen}</span>` : ''}</td>
           <td style="white-space:nowrap;"><span style="font-size:9px;color:var(--tx3);">${med.revision||'Rev00'}</span> <button class="btn-icon" onclick="dupMed('${med.id}')" title="Duplicar">⧉</button><button class="btn-icon" onclick="openEditMed('${med.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delMed('${med.id}')">✕</button></td>
         </tr>`;}).join('')}</tbody></table>
       </div>
@@ -4187,6 +4223,17 @@ function openEditMed(medId) {
   document.getElementById('edit-med-cant').value = num(med.cantidad);
   document.getElementById('edit-med-rev').value = med.revision || 'Rev00';
   document.getElementById('edit-med-rev-nota').value = '';
+  document.getElementById('edit-med-tarea-filter').value = '';
+  // Mostrar datos de origen del Excel si hay
+  const origenDiv = document.getElementById('edit-med-origen-info');
+  if (med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad)) {
+    const moRow = _moByMed[medId] || {};
+    const pOrig = moRow.precio_origen ? $p(num(moRow.precio_origen)) : null;
+    origenDiv.innerHTML = `📋 Dato original del Excel: <b>${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:2})} ${med.unidad_origen||''}</b>${pOrig ? ` × ${pOrig}/${moRow.unidad_origen||med.unidad_origen||'?'}` : ''} — convertido a la unidad del coeficiente`;
+    origenDiv.style.display = '';
+  } else {
+    origenDiv.style.display = 'none';
+  }
   (function(){ // MO de esta medición
     refreshContratistasDL();
     const r = _moByMed[medId];
@@ -5704,6 +5751,7 @@ async function loadMOPrecios() {
         <table>
           <thead><tr>
             <th>Tarea</th><th>Cant.</th><th>Un.</th><th>Contratista</th><th>Precio por</th><th>Precio ($)</th><th>Total MO</th>
+            <!-- Cantidad y unidad de origen se muestran inline debajo de Cant. y Un. cuando hubo conversión -->
           </tr></thead>
           <tbody>
             ${data.items.map(item => {
@@ -5711,17 +5759,21 @@ async function loadMOPrecios() {
               const r = _moByMed[mid] || {};
               const tipo = r.tipo === 'global' ? 'global' : 'unitario';
               const sp = item.moSinPrecio;
+              const cantOrig = med.cant_origen != null ? num(med.cant_origen) : null;
+              const uOrig = med.unidad_origen || r.unidad_origen || null;
+              const pOrig = r.precio_origen != null ? num(r.precio_origen) : null;
+              const tieneOrigen = cantOrig != null && cantOrig !== item.cantidad;
               return `<tr id="mo-row-${mid}">
                 <td class="hi">${item.coef.nombre}${(med.desc||med.descripcion) ? ' — <span style="color:var(--tx3);">'+formatArmDesc(med.desc||med.descripcion)+'</span>' : ''}</td>
-                <td class="num">${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
-                <td>${item.coef.unidad}</td>
+                <td class="num">${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:2})}${tieneOrigen?`<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${cantOrig.toLocaleString('es-AR',{maximumFractionDigits:1})} ${uOrig||''}</span>`:''}</td>
+                <td>${item.coef.unidad}${tieneOrigen&&uOrig?`<br><span style="font-size:9px;color:var(--bl);">${uOrig}</span>`:''}</td>
                 <td><input class="inline-num" type="text" list="dl-contratistas" style="width:130px;" placeholder="contratista" value="${(r.contratista||'').replace(/"/g,'&quot;')}"
                     onchange="updateMoFila('${obraId}','${mid}','contratista',this.value)"></td>
                 <td><select class="inline-num" style="width:92px;" onchange="updateMoFila('${obraId}','${mid}','tipo',this.value)">
                     <option value="unitario" ${tipo==='unitario'?'selected':''}>cada ${item.coef.unidad}</option>
                     <option value="global" ${tipo==='global'?'selected':''}>global</option></select></td>
                 <td><input class="inline-num" type="number" step="any" style="width:110px;${sp?'border-color:var(--re);':'color:var(--am);'}" placeholder="0" value="${r.precio?num(r.precio):''}"
-                    onchange="updateMoFila('${obraId}','${mid}','precio',this.value)"></td>
+                    onchange="updateMoFila('${obraId}','${mid}','precio',this.value)">${pOrig && pOrig !== num(r.precio) ? `<span style="font-size:9px;color:var(--tx3);display:block;" title="Precio original del Excel: ${$p(pOrig)}/${uOrig||'?'}">orig: ${$p(pOrig)}/${uOrig||'?'}</span>` : ''}</td>
                 <td class="num hi" style="color:var(--am);" id="mo-total-${mid}">${sp ? '<span style="color:var(--re);font-size:10px;">sin precio</span>' : $p(item.totalMO)}</td>
               </tr>`;
             }).join('')}
@@ -6018,10 +6070,21 @@ async function renderCertDetalle(certId) {
       const coef = coefs.find(c => c.id === (med.coefId || med.coef_id));
       const nombreTarea = coef ? coef.nombre : '—';
 
+      // Datos originales del Excel (si hubo conversión de unidad)
+      const cantOrig = med.cant_origen != null ? num(med.cant_origen) : null;
+      const uOrig = med.unidad_origen || null;
+      const moRow = _moByMed[medId] || {};
+      const pOrig = moRow.precio_origen != null ? num(moRow.precio_origen) : null;
+      const uOrigMO = moRow.unidad_origen || uOrig;
+      const tieneOrigen = cantOrig != null && cantOrig !== cantBase;
+      const origenTip = tieneOrigen
+        ? `Excel: ${cantOrig.toLocaleString('es-AR',{maximumFractionDigits:2})} ${uOrigMO||uOrig||'?'}${pOrig ? ' × '+$p(pOrig)+'/'+uOrigMO : ''}`
+        : '';
+
       rubroHTML += `<tr>
         <td style="font-size:10px;">${coef?.cod||''}</td>
         <td class="hi" style="font-size:11px;">${nombreTarea}${desc?' <span style="color:var(--tx3);font-size:10px;">— '+desc+'</span>':''}</td>
-        <td class="num" style="font-size:10px;">${cantBase.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
+        <td class="num" style="font-size:10px;">${cantBase.toLocaleString('es-AR',{maximumFractionDigits:2})}${tieneOrigen?` <span title="${origenTip}" style="cursor:help;color:var(--bl);font-size:9px;">⇄ ${cantOrig.toLocaleString('es-AR',{maximumFractionDigits:1})} ${uOrig||''}</span>`:''}</td>
         <td style="font-size:10px;">${coef?.unidad||''}</td>
         <td><input class="inline-num" type="text" style="width:90px;" placeholder="contratista" ${dis}
           value="${String(contratista).replace(/"/g,'&quot;')}"
@@ -8027,8 +8090,8 @@ async function saveImport() {
     const medBatch = items.map(item => {
       const descCompleta = `[${item.nItem}] ${item.desc}`;
       const coef = coefs.find(c => c.id === item.coefId);
-      const { cantidad, notaDims } = calcCantidadImport(item, coef);
-      const descFinal = descCompleta + notaDims;
+      const convInfo = calcCantidadImport(item, coef);
+      const descFinal = descCompleta + convInfo.notaDims;
       const etiqueta = extractEtiquetaFromDesc(item.desc || '');
       return {
         obra_id: obraId,
@@ -8036,7 +8099,9 @@ async function saveImport() {
         descripcion: descFinal,
         etiqueta: etiqueta || null,
         n_item: item.nItemOk ? item.nItem : null,   // vínculo con el cronograma (columna mediciones.n_item)
-        cantidad,
+        cantidad: convInfo.cantidad,
+        cant_origen: convInfo.convertida ? item.cant : null,
+        unidad_origen: convInfo.convertida ? (item.unidadExcel || item.unidad || null) : null,
         fecha: new Date().toLocaleDateString('es-AR'),
         ubicacion: item.ubicacion,
         revision,
@@ -8049,8 +8114,19 @@ async function saveImport() {
     try {
       medRes = await sbPost('mediciones', medPayload);
     } catch (e) {
-      // Si todavía no existe la columna n_item, importar igual sin el vínculo y avisar
-      if (/n_item/.test(String(e.message))) {
+      // Si todavía no existen columnas nuevas, importar sin ellas y avisar
+      const msg = String(e.message);
+      if (/cant_origen|unidad_origen/.test(msg)) {
+        try {
+          medRes = await sbPost('mediciones', medPayload.map(({ cant_origen, unidad_origen, ...r }) => r));
+          notif('Importado SIN datos de origen: falta correr el SQL de cant_origen/unidad_origen en Supabase');
+        } catch (e2) {
+          if (/n_item/.test(String(e2.message))) {
+            medRes = await sbPost('mediciones', medPayload.map(({ cant_origen, unidad_origen, n_item, ...r }) => r));
+            notif('Importado SIN datos de origen ni vínculo al cronograma: falta correr SQL en Supabase');
+          } else throw e2;
+        }
+      } else if (/n_item/.test(msg)) {
         medRes = await sbPost('mediciones', medPayload.map(({ n_item, ...r }) => r));
         notif('Importado SIN vínculo al cronograma: falta correr el SQL de la columna n_item en Supabase');
       } else throw e;
