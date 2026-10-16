@@ -9227,7 +9227,7 @@ async function detectGeminiModel(key) {
     const models = (data.models || [])
       .filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent'))
       .map(m => m.name.replace('models/', ''))
-      .filter(n => n.includes('flash') && !n.includes('preview') && !n.includes('exp') && !n.includes('thinking') && !n.includes('lite'));
+      .filter(n => n.includes('flash') && !n.includes('preview') && !n.includes('exp') && !n.includes('thinking') && !n.includes('lite') && !n.includes('2.5'));
     // Preferir gemini-2.0-flash (estable, gratis, sin congestión)
     const preferidos = ['2.0-flash', '1.5-flash'];
     models.sort((a, b) => {
