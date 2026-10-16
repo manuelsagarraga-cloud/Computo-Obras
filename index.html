@@ -9215,7 +9215,7 @@ function toggleFaq(i) {
 // =====================================================================
 // ASISTENTE IA — Google Gemini Flash (free tier)
 // =====================================================================
-let GEMINI_MODEL = 'gemini-2.5-flash-lite'; // se actualiza solo al conectar
+let GEMINI_MODEL = 'gemini-1.5-flash'; // se actualiza solo al conectar
 const GEMINI_ENDPOINT = () => `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Detecta automáticamente el mejor modelo Flash gratuito disponible
@@ -9227,12 +9227,12 @@ async function detectGeminiModel(key) {
     const models = (data.models || [])
       .filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent'))
       .map(m => m.name.replace('models/', ''))
-      .filter(n => n.includes('flash') && !n.includes('preview') && !n.includes('exp') && !n.includes('thinking'));
-    // Preferir el flash más reciente (mayor número de versión)
+      .filter(n => n.includes('flash') && !n.includes('preview') && !n.includes('exp') && !n.includes('thinking') && !n.includes('lite'));
+    // Preferir gemini-1.5-flash (más estable y menos congestión que 2.5)
     models.sort((a, b) => {
-      const numA = parseFloat((a.match(/gemini-([\d.]+)/)||[0,0])[1]);
-      const numB = parseFloat((b.match(/gemini-([\d.]+)/)||[0,0])[1]);
-      return numB - numA;
+      const prefA = a.includes('1.5-flash') ? 1 : 0;
+      const prefB = b.includes('1.5-flash') ? 1 : 0;
+      return prefB - prefA;
     });
     if (models.length > 0) {
       GEMINI_MODEL = models[0];
