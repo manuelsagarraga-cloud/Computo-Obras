@@ -1575,11 +1575,13 @@ async function guardarMoPrecio(med, patch) {
     moPrecios.push(nr);
   }
   indexMoPrecios();
+  invalidateComputeCache();
 }
 // En la base el precio se borra solo (FK ON DELETE CASCADE); acá solo el cache local
 function borrarMoPrecio(medId) {
   moPrecios = moPrecios.filter(r => r.med_id !== medId);
   indexMoPrecios();
+  invalidateComputeCache();
 }
 // Upsert en lote (import): rows con id propio o nuevos
 async function upsertMoPreciosLote(rows) {
@@ -1599,6 +1601,7 @@ async function upsertMoPreciosLote(rows) {
     Object.assign(ex, resto);
   }
   indexMoPrecios();
+  invalidateComputeCache();
 }
 
 // =====================================================================
@@ -2005,6 +2008,7 @@ async function loadAllData() {
   meds = (med || []).map(x => ({...x, obraId: x.obra_id, coefId: x.coef_id, desc: x.descripcion}));
   indicesCac = idx || [];
   preciosEmpresa = pe || [];
+  invalidateComputeCache();
   await loadMoPrecios();
 
   // Si las tablas están vacías, sembrar datos por defecto
@@ -2220,7 +2224,16 @@ function _divComercial(cm) {
   }
   return { divisor: d0, unComercial: cm.unComercial || cm.un, corregido: false };
 }
+// Cache de computeObra — evita recalcular en cada render de cert y cada msg del chat
+const _computeCache = {};      // { obraId: { result, rev } }
+let _computeCacheRev = 0;      // se incrementa al mutar meds, mats, mo, preciosEmpresa
+function invalidateComputeCache() { _computeCacheRev++; }
+
 function computeObra(obraId) {
+  // Servir desde cache si no cambió nada
+  const cached = _computeCache[obraId];
+  if (cached && cached.rev === _computeCacheRev) return cached.result;
+
   _obraEnComputo = obras.find(o => o.id === obraId) || null;
   const desp = 1 + desperdicio / 100;
   const rubros = {};
@@ -2418,6 +2431,7 @@ function computeObra(obraId) {
   });
   // Ordenar items dentro de cada rubro por código de tarea
   Object.values(rubros).forEach(r => r.items.sort((a,b) => sortByCod(a.coef||{cod:'999'}, b.coef||{cod:'999'})));
+  _computeCache[obraId] = { result: rubros, rev: _computeCacheRev };
   return rubros;
 }
 
@@ -2608,6 +2622,7 @@ async function delObra(id) {
     await sbDelete('obras', id);
     obras = obras.filter(o => o.id !== id);
     meds = meds.filter(m => (m.obraId||m.obra_id) !== id);
+    invalidateComputeCache();
     certs = certs.filter(c => c.obra_id !== id);
     certItems = certItems.filter(ci => !certs.some(c => c.id === ci.cert_id));
     certConfigs = certConfigs.filter(c => c.obra_id !== id);
@@ -3865,6 +3880,7 @@ async function saveMedicion(keepOpen) {
     const res = await sbPost('mediciones', data);
     const med = res[0] || data;
     meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion});
+    invalidateComputeCache();
     registrarAuditoria('mediciones', med.id, 'INSERT', null, data, obraId);
     await moGuardarDesdeModal(meds[meds.length-1], moLeerModal('med'));
     loadMediciones(); notif('Medición agregada ✓');
@@ -3947,6 +3963,7 @@ async function delMed(id) {
     borrarMoPrecio(id);
     if (med) registrarAuditoria('mediciones', id, 'DELETE', valorPrevio, null, med.obraId||med.obra_id);
     meds = meds.filter(m => m.id !== id);
+    invalidateComputeCache();
     loadMediciones(); notif('Eliminado ✓ (registrado en historial)');
   });
 }
@@ -3968,6 +3985,7 @@ async function dupMed(medId) {
     };
     const res = await sbPost('mediciones', data);
     meds.push({...res[0]||data, obraId: data.obra_id, coefId: data.coef_id, desc: data.descripcion});
+    invalidateComputeCache();
     const exP = _moByMed[medId];
     if (exP && num(exP.precio) > 0) {
       await guardarMoPrecio(meds[meds.length-1], { precio: exP.precio, tipo: exP.tipo, contratista: exP.contratista || '', unidad: exP.unidad || '', fuente: 'manual' });
@@ -4560,6 +4578,7 @@ async function saveEditMed() {
     med.revision = newRev;
     med.revision_fecha = patch.revision_fecha;
     med.revision_nota = patch.revision_nota;
+    invalidateComputeCache();
 
     closeModal('m-edit-med');
     loadMediciones();
@@ -4863,6 +4882,7 @@ async function guardarOverridePrecio(cod, precio, mesBase) {
       if (res && res[0]) preciosEmpresa.push(res[0]);
       else preciosEmpresa.push(data);
     }
+    invalidateComputeCache();
     notif('Precio propio de la empresa guardado ✓ (no afecta a las demás)');
   });
 }
@@ -4910,6 +4930,7 @@ async function quitarOverride(cod) {
   await withSync(async () => {
     await sbDelete('precios_empresa', ov.id);
     preciosEmpresa = preciosEmpresa.filter(p => p.id !== ov.id);
+    invalidateComputeCache();
     notif('Material vuelto a la base común ✓');
   });
   renderMats();
@@ -5026,6 +5047,7 @@ function importMaterialesExcel(input) {
       }
       hideBusy();
       input.value = '';
+      invalidateComputeCache();
       renderMats();
       popSelects && popSelects();
       notif(`${okCount} precios actualizados ✓`);
@@ -5039,7 +5061,7 @@ function importMaterialesExcel(input) {
 }
 
 async function delMat(id) {
-  await withSync(async () => { await sbDelete('materiales', id); mats=mats.filter(m=>m.id!==id); renderMats(); notif('Eliminado'); });
+  await withSync(async () => { await sbDelete('materiales', id); mats=mats.filter(m=>m.id!==id); invalidateComputeCache(); renderMats(); notif('Eliminado'); });
 }
 
 // =====================================================================
@@ -5888,12 +5910,15 @@ function loadSustento() {
 
 // Cargar certs y cert_items desde Supabase
 async function loadCertData(obraId) {
-  const [c, ci, cc] = await Promise.all([
-    sbGet('certificados', `obra_id=eq.${obraId}`).catch(()=>[]),
-    sbGet('cert_items', '').catch(()=>[]),
-    sbGet('cert_config', `obra_id=eq.${obraId}`).catch(()=>[]),
-  ]);
+  const c = await sbGet('certificados', `obra_id=eq.${obraId}`).catch(()=>[]);
   certs = c || [];
+  // Filtrar cert_items solo por los certs de esta obra (antes cargaba TODOS)
+  let ci = [];
+  if (certs.length) {
+    const ids = certs.map(x => x.id).join(',');
+    ci = await sbGet('cert_items', `cert_id=in.(${ids})`).catch(()=>[]);
+  }
+  const cc = await sbGet('cert_config', `obra_id=eq.${obraId}`).catch(()=>[]);
   certItems = ci || [];
   certConfigs = cc || [];
 }
@@ -6187,13 +6212,30 @@ async function applyContrRubro(certId, rubro, contratista, obraId) {
   if (certs.find(c => c.id === certId)?.estado === 'emitido') { notif('Certificado emitido: reabrilo a borrador para editar'); return; }
   const rubros = computeObra(obraId);
   const data = rubros[rubro];
-  if (!data) return;
-  let count = 0;
-  for (const item of data.items) {
-    await updateCertItem(certId, item.med.id, 'contratista', contratista, obraId);
-    count++;
-  }
-  notif(`Contratista "${contratista}" aplicado a ${count} ítems de ${rubro} ✓`);
+  if (!data || !data.items.length) return;
+  await withSync(async () => {
+    // Preparar upserts en batch en lugar de un await por ítem
+    const upserts = [];
+    for (const item of data.items) {
+      let ci = certItems.find(i => i.cert_id === certId && i.med_id === item.med.id);
+      if (ci) {
+        ci.contratista = contratista;
+        upserts.push({ id: ci.id, cert_id: certId, med_id: item.med.id, contratista });
+      } else {
+        const newItem = { cert_id: certId, med_id: item.med.id, contratista, costo_unit: defaultCostoUnitCert(obraId, item.med.id), pct_actual: 0, economia_demasia: 0, pct_ed: 0, precio_manual: false };
+        upserts.push(newItem);
+      }
+    }
+    const saved = await sbUpsertLote('cert_items', upserts);
+    // Actualizar certItems local con lo que volvió del server
+    if (saved && saved.length) {
+      saved.forEach(s => {
+        const idx = certItems.findIndex(i => i.id === s.id);
+        if (idx >= 0) certItems[idx] = s; else certItems.push(s);
+      });
+    }
+    notif(`Contratista "${contratista}" aplicado a ${data.items.length} ítems de ${rubro} ✓`);
+  });
   renderCertDetalle(certId);
 }
 
@@ -8136,6 +8178,7 @@ async function saveImport() {
       item: medBatch[i]._item
     }));
     mediciones.forEach(med => meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion}));
+    invalidateComputeCache();
 
     // Cómputo: la obra ya viene empezada → sin certificado base ni cert_items
     if (!esComputo) {
@@ -8762,6 +8805,7 @@ async function congelarObra() {
     obra.precios_congelados = foto;
     obra.mes_congelado = mes;
     obra.indice_usado = modo;
+    invalidateComputeCache();
     closeModal('m-congelar');
     renderObras();
     notif(`Precios congelados al ${fmtMesLargo(mes)} ✓ (${res.cantMat} materiales)`);
@@ -8778,6 +8822,7 @@ async function descongelarObra() {
     obra.precios_congelados = null;
     obra.mes_congelado = null;
     obra.indice_usado = null;
+    invalidateComputeCache();
     closeModal('m-congelar');
     renderObras();
     notif('Congelado quitado — la obra usa precios vivos');
@@ -8901,35 +8946,7 @@ function abrirVentanaPDF(html, titulo) {
   </head><body>
     <button class="btn-print" onclick="window.print()">⎙ Imprimir / Guardar como PDF</button>
     ${html}
-  
-<!-- ═══ CHAT ASISTENTE IA ═══ -->
-<button id="chat-fab" onclick="toggleChat()" title="Asistente IA">
-  💬
-  <span id="chat-fab-badge"></span>
-</button>
-
-<div id="chat-panel">
-  <div id="chat-header">
-    <div id="chat-header-info">
-      <div id="chat-dot"></div>
-      <div>
-        <div id="chat-title">Asistente de obra</div>
-        <div id="chat-subtitle">Gemini 2.5 Flash · Gratuito</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <button onclick="clearChat()" title="Nueva conversación" style="background:none;border:none;cursor:pointer;color:var(--tx3);font-size:12px;">↺</button>
-      <button id="chat-close" onclick="toggleChat()">✕</button>
-    </div>
-  </div>
-  <div id="chat-messages"></div>
-  <div id="chat-input-row">
-    <textarea id="chat-input" placeholder="Preguntá sobre la obra…" rows="1" onkeydown="chatKeyDown(event)"></textarea>
-    <button id="chat-send" onclick="chatSend()">↑</button>
-  </div>
-</div>
-
-</body></html>`);
+  </body></html>`);
   win.document.close();
 }
 
@@ -9344,23 +9361,35 @@ ${buildObraContext()}`;
 
 async function callGemini(history, systemOverride) {
   if (!geminiKey) { showKeySetup(); throw new Error('Sin key'); }
-  const resp = await fetch(`${GEMINI_ENDPOINT()}?key=${geminiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemOverride || buildSystemPrompt() }] },
-      contents: history,
-      generationConfig: { maxOutputTokens: 800, temperature: 0.3 }
-    })
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    const msg = err?.error?.message || resp.statusText;
-    if (msg.includes('API_KEY')) { geminiKey = ''; localStorage.removeItem('gemini_key'); showKeySetup(); }
-    throw new Error(msg);
+  // Limitar historial a los últimos 10 mensajes para no exceder tokens
+  const trimmed = history.length > 10 ? history.slice(-10) : history;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const resp = await fetch(`${GEMINI_ENDPOINT()}?key=${geminiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemOverride || buildSystemPrompt() }] },
+        contents: trimmed,
+        generationConfig: { maxOutputTokens: 800, temperature: 0.3 }
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const msg = err?.error?.message || resp.statusText;
+      if (msg.includes('API_KEY')) { geminiKey = ''; localStorage.removeItem('gemini_key'); showKeySetup(); }
+      throw new Error(msg);
+    }
+    const data = await resp.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  } catch(e) {
+    if (e.name === 'AbortError') throw new Error('La consulta tardó demasiado (30s). Intentá de nuevo.');
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  const data = await resp.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 function addChatMsg(role, text) {
