@@ -3940,6 +3940,22 @@ async function saveMedicion(keepOpen) {
     if (r.cantHojas) extras.push(`cantHojas:${r.cantHojas}`);
     if (r.mallaTipo) extras.push(`mallaTipo:${r.mallaTipo}`);
     if (r.resumen) extras.push(`res:${r.resumen}`);
+    // Guardar inputs de armadura para poder precargarlos al editar
+    const d = window._armDims;
+    if (d) {
+      if (d.sepEst > 0) extras.push(`iSep:${d.sepEst}`);
+      else if (d.sep > 0) extras.push(`iSep:${d.sep}`);
+      else if (d.sepX > 0) extras.push(`iSep:${d.sepX}`);
+      if (d.sepY > 0) extras.push(`iSep2:${d.sepY}`);
+      if (d.cantPpal > 0) extras.push(`iNp:${d.cantPpal}`);
+      if (d.cantSup > 0) extras.push(`iNs:${d.cantSup}`);
+      if (d.cantInf > 0) extras.push(`iNi:${d.cantInf}`);
+      if (d.cantElem > 1) extras.push(`iCant:${d.cantElem}`);
+      if (d.cant > 1) extras.push(`iCant:${d.cant}`);
+      if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
+      if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
+      if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+    }
     if (extras.length) descFinal = (desc ? desc + ' | ' : '') + extras.join('|');
     window._armResult = null;
   }
@@ -4360,6 +4376,7 @@ function calcEditDimEstructural() {
 
   // Guardar resultado para saveEditMed
   window._editArmResult = r;
+  window._editArmDims = dims;
 }
 
 
@@ -4563,12 +4580,27 @@ function openEditMed(medId) {
           document.getElementById('e-dim-arm-tipo').value = armData.armTipo;
           toggleEditArmTabique();
         }
-        // Separación de estribos — se puede inferir de la desc si está codificada
-        // Para vigas: pre-cargar sup/inf
-        if (tipo === 'viga' || tipo === 'columna' || tipo === 'zapata' || tipo === 'pozo') {
-          // No tenemos sep/np guardados en la desc pipe, solo resultados
-          // → dejar los defaults del widget
-        }
+        // Pre-cargar inputs de armadura guardados (iSep, iNp, iNs, iNi, iCant, etc.)
+        if (armData.iSep && document.getElementById('e-dim-sep'))
+          document.getElementById('e-dim-sep').value = armData.iSep;
+        if (armData.iSep2 && document.getElementById('e-dim-sep2'))
+          document.getElementById('e-dim-sep2').value = armData.iSep2;
+        if (armData.iNp && document.getElementById('e-dim-np'))
+          document.getElementById('e-dim-np').value = armData.iNp;
+        if (armData.iNs && document.getElementById('e-dim-ns'))
+          document.getElementById('e-dim-ns').value = armData.iNs;
+        if (armData.iNi && document.getElementById('e-dim-ni'))
+          document.getElementById('e-dim-ni').value = armData.iNi;
+        if (armData.iCant && document.getElementById('e-dim-cant-elem'))
+          document.getElementById('e-dim-cant-elem').value = armData.iCant;
+        if (armData.iCant && document.getElementById('e-dim-cant'))
+          document.getElementById('e-dim-cant').value = armData.iCant;
+        if (armData.iRefMl && document.getElementById('e-dim-ref-ml'))
+          document.getElementById('e-dim-ref-ml').value = armData.iRefMl;
+        if (armData.iRefLargo && document.getElementById('e-dim-ref-largo'))
+          document.getElementById('e-dim-ref-largo').value = armData.iRefLargo;
+        if (armData.iRefSep && document.getElementById('e-dim-ref-sep'))
+          document.getElementById('e-dim-ref-sep').value = armData.iRefSep;
         if (skipCalcPrefill) {
           const pv = document.getElementById('e-arm-preview');
           if (pv) pv.textContent = 'Las dimensiones del texto no coinciden con la cantidad cargada — ajustá algún campo para recalcular (la cantidad no se modificó)';
@@ -4788,7 +4820,7 @@ async function saveEditMed() {
 
   // Reconstruir descripción con datos de armadura (como saveMedicion)
   // 1) Quitar pipe-data anterior de la descripción
-  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:'];
+  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:'];
   const pipeIdx = newDesc.lastIndexOf(' | ');
   if (pipeIdx >= 0) {
     const tail = newDesc.slice(pipeIdx + 3);
@@ -4814,6 +4846,22 @@ async function saveEditMed() {
     if (r.cantHojas) extras.push(`cantHojas:${r.cantHojas}`);
     if (r.mallaTipo) extras.push(`mallaTipo:${r.mallaTipo}`);
     if (r.resumen) extras.push(`res:${r.resumen}`);
+    // Guardar inputs de armadura para poder precargarlos al editar
+    const d = window._editArmDims;
+    if (d) {
+      if (d.sepEst > 0) extras.push(`iSep:${d.sepEst}`);
+      else if (d.sep > 0) extras.push(`iSep:${d.sep}`);
+      else if (d.sepX > 0) extras.push(`iSep:${d.sepX}`);
+      if (d.sepY > 0) extras.push(`iSep2:${d.sepY}`);
+      if (d.cantPpal > 0) extras.push(`iNp:${d.cantPpal}`);
+      if (d.cantSup > 0) extras.push(`iNs:${d.cantSup}`);
+      if (d.cantInf > 0) extras.push(`iNi:${d.cantInf}`);
+      if (d.cantElem > 1) extras.push(`iCant:${d.cantElem}`);
+      if (d.cant > 1) extras.push(`iCant:${d.cant}`);
+      if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
+      if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
+      if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+    }
     if (extras.length) newDesc = (newDesc ? newDesc + ' | ' : '') + extras.join('|');
     window._editArmResult = null;
   }
