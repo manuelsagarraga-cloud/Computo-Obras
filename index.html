@@ -226,6 +226,11 @@ textarea{resize:vertical;min-height:55px;}
 .prog-pct{width:36px;text-align:right;font-size:10px;color:var(--tx3);}
 .empty{text-align:center;padding:36px 20px;color:var(--tx3);}
 .empty-icon{font-size:26px;margin-bottom:8px;opacity:.4;}
+#m-generic-dialog .modal{width:420px;}
+#m-generic-dialog .gd-msg{font-size:12px;color:var(--tx);line-height:1.6;white-space:pre-line;margin-bottom:16px;max-height:40vh;overflow-y:auto;}
+#m-generic-dialog .gd-input{width:100%;margin-bottom:16px;}
+#m-generic-dialog .gd-footer{display:flex;justify-content:flex-end;gap:8px;}
+#m-generic-dialog .gd-footer .btn-danger{background:var(--re);color:#fff;border-color:var(--re);}
 .sep{border:none;border-top:1px solid var(--border);margin:14px 0;}
 .ig-item{display:flex;flex-direction:column;gap:3px;}
 .ig-label{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);}
@@ -886,6 +891,19 @@ textarea{resize:vertical;min-height:55px;}
       <div id="imp-stats"></div>
       <button class="btn" onclick="closeModal('m-import')">Cancelar</button>
       <button class="btn btn-primary" id="btn-import-save" onclick="saveImport()" disabled>Importar obra</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GENÉRICO (confirm / prompt) -->
+<div class="modal-overlay" id="m-generic-dialog">
+  <div class="modal">
+    <div class="modal-title"><span id="gd-title">Confirmar</span></div>
+    <div class="gd-msg" id="gd-msg"></div>
+    <input class="ig-input gd-input" id="gd-input" style="display:none;">
+    <div class="gd-footer">
+      <button class="btn" id="gd-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="gd-ok">Aceptar</button>
     </div>
   </div>
 </div>
@@ -1813,7 +1831,7 @@ async function loadArchivos() {
 
 async function delArchivo(obraId, fileName, event) {
   event.stopPropagation();
-  if (!confirm(`¿Eliminar "${fileName}"?`)) return;
+  if (!await appConfirm(`¿Eliminar "${fileName}"?`)) return;
   try {
     const res = await fetch(`${SB_URL}/storage/v1/object/${BUCKET}`, {
       method: 'DELETE',
@@ -2152,6 +2170,38 @@ async function withSync(fn) {
 
 const openModal = id => document.getElementById(id).classList.add('open');
 const closeModal = id => document.getElementById(id).classList.remove('open');
+
+// ── Modal genérico (reemplaza confirm / prompt nativos) ──────────────
+function _genericDialog(msg, {title='Confirmar', okLabel='Aceptar', cancelLabel='Cancelar', danger=false, input=false, defaultVal=''}={}) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('m-generic-dialog');
+    document.getElementById('gd-title').textContent = title;
+    document.getElementById('gd-msg').textContent = msg;
+    const okBtn = document.getElementById('gd-ok');
+    const cancelBtn = document.getElementById('gd-cancel');
+    const inp = document.getElementById('gd-input');
+    okBtn.textContent = okLabel;
+    cancelBtn.textContent = cancelLabel;
+    okBtn.className = danger ? 'btn gd-footer btn-danger' : 'btn btn-primary';
+    okBtn.className = danger ? 'btn gd-footer' : 'btn btn-primary';
+    okBtn.style.cssText = danger ? 'background:var(--re);color:#fff;border-color:var(--re);' : '';
+    inp.style.display = input ? '' : 'none';
+    if (input) { inp.value = defaultVal; }
+    function cleanup() {
+      okBtn.onclick = null; cancelBtn.onclick = null;
+      overlay.onclick = null;
+      closeModal('m-generic-dialog');
+    }
+    okBtn.onclick = () => { cleanup(); resolve(input ? inp.value : true); };
+    cancelBtn.onclick = () => { cleanup(); resolve(input ? null : false); };
+    overlay.onclick = e => { if (e.target === overlay) { cleanup(); resolve(input ? null : false); } };
+    openModal('m-generic-dialog');
+    if (input) setTimeout(() => { inp.focus(); inp.select(); }, 60);
+  });
+}
+function appConfirm(msg, opts) { return _genericDialog(msg, {title:'Confirmar', okLabel:'Confirmar', danger:true, ...opts}); }
+function appPrompt(msg, defaultVal='', opts) { return _genericDialog(msg, {title:'Ingresar dato', input:true, defaultVal, ...opts}); }
+
 const stag = s => ({
   presupuesto: '<span class="tag ta">Presupuesto</span>',
   adjudicada: '<span class="tag tg">Adjudicada</span>',
@@ -2616,7 +2666,7 @@ async function saveObra() {
 }
 
 async function delObra(id) {
-  if (!confirm('¿Eliminar esta obra y todo lo asociado (mediciones, certificados)?')) return;
+  if (!await appConfirm('¿Eliminar esta obra y todo lo asociado (mediciones, certificados)?')) return;
   await withSync(async () => {
     moPrecios = moPrecios.filter(r => r.obra_id !== id); indexMoPrecios();
     await sbDelete('obras', id);
@@ -2735,7 +2785,7 @@ async function moAplicarATarea() {
   const obraId = med.obraId || med.obra_id;
   const objetivo = meds.filter(m => (m.obraId||m.obra_id) === obraId && (m.coefId||m.coef_id) === coefId && m.id !== med.id && !(_moByMed[m.id] && num(_moByMed[m.id].precio) > 0));
   if (!objetivo.length) { notif('No hay otras mediciones de esta tarea sin precio'); return; }
-  if (!confirm(`Se aplicará ${$p(f.precio)}${f.contratista ? ' · ' + f.contratista : ''} a ${objetivo.length} medición(es) de esta tarea sin precio. ¿Continuar?`)) return;
+  if (!await appConfirm(`Se aplicará ${$p(f.precio)}${f.contratista ? ' · ' + f.contratista : ''} a ${objetivo.length} medición(es) de esta tarea sin precio. ¿Continuar?`)) return;
   const coef = coefs.find(c => c.id === coefId);
   showBusy('Aplicando precio…');
   try {
@@ -3955,7 +4005,7 @@ function loadMediciones() {
 }
 
 async function delMed(id) {
-  if (!confirm('¿Eliminar esta medición? Esta acción queda registrada en el historial.')) return;
+  if (!await appConfirm('¿Eliminar esta medición? Esta acción queda registrada en el historial.')) return;
   await withSync(async () => {
     const med = meds.find(m => m.id === id);
     const valorPrevio = med ? { coef_id: med.coef_id||med.coefId, descripcion: med.desc||med.descripcion, cantidad: med.cantidad, ubicacion: med.ubicacion } : null;
@@ -4586,9 +4636,9 @@ async function saveEditMed() {
   });
 }
 
-function deleteMedFromEdit() {
+async function deleteMedFromEdit() {
   if (!editingMedId) return;
-  if (!confirm('¿Eliminar esta medición?')) return;
+  if (!await appConfirm('¿Eliminar esta medición?')) return;
   closeModal('m-edit-med');
   delMed(editingMedId);
 }
@@ -4926,7 +4976,7 @@ async function updateMatMesBase(id, val) {
 async function quitarOverride(cod) {
   const ov = getOverride(currentEmpresa, cod);
   if (!ov) return;
-  if (!confirm('¿Volver al precio de la base común para este material?')) return;
+  if (!await appConfirm('¿Volver al precio de la base común para este material?')) return;
   await withSync(async () => {
     await sbDelete('precios_empresa', ov.id);
     preciosEmpresa = preciosEmpresa.filter(p => p.id !== ov.id);
@@ -5008,7 +5058,7 @@ function importMaterialesExcel(input) {
       }
       if (noEncontrados.length) msg += `\n\n${noEncontrados.length} códigos del Excel no existen y se ignoran:\n${noEncontrados.slice(0,10).join(', ')}${noEncontrados.length>10?'…':''}`;
       msg += `\n\n¿Confirmás?`;
-      if (!confirm(msg)) { input.value=''; notif('Importación cancelada'); return; }
+      if (!await appConfirm(msg)) { input.value=''; notif('Importación cancelada'); return; }
 
       showBusy('Actualizando precios...');
       let okCount = 0;
@@ -5691,7 +5741,7 @@ async function saveCompra() {
 async function delCompra(id) {
   const obraId = document.getElementById('sel-obra-compras')?.value;
   const c = (_comprasCache[obraId]||[]).find(x => x.id === id);
-  if (!c || !confirm(`¿Borrar la compra de ${c.material} (${$p(num(c.total))})?`)) return;
+  if (!c || !await appConfirm(`¿Borrar la compra de ${c.material} (${$p(num(c.total))})?`)) return;
   showBusy('Borrando...');
   try {
     await withSync(() => sbDelete('compras_reales', id));
@@ -6303,7 +6353,7 @@ async function emitirCert(certId) {
   const sinPrecio = items.filter(i => certItemCostoUnit(i) <= 0 && (num(i.pct_actual) > 0 || num(i.pct_ed) > 0)).length;
   const msg = `¿Emitir el certificado n° ${cert.numero}?\n\nLos precios de cada ítem quedan congelados y no se podrán editar (podés reabrirlo a borrador).` +
               (sinPrecio ? `\n\n⚠ ${sinPrecio} ítem(s) con avance tienen precio $0.` : '');
-  if (!confirm(msg)) return;
+  if (!await appConfirm(msg, {okLabel:'Emitir'})) return;
   showBusy('Emitiendo certificado…');
   try {
     await withSync(async () => {
@@ -6327,7 +6377,7 @@ async function emitirCert(certId) {
 async function reabrirCert(certId) {
   const cert = certs.find(c => c.id === certId);
   if (!cert || cert.estado !== 'emitido') return;
-  if (!confirm(`¿Reabrir el certificado n° ${cert.numero} a borrador?\n\nVuelve a usar el precio vigente de cada medición (salvo ajustes manuales).`)) return;
+  if (!await appConfirm(`¿Reabrir el certificado n° ${cert.numero} a borrador?\n\nVuelve a usar el precio vigente de cada medición (salvo ajustes manuales).`)) return;
   try {
     await withSync(async () => {
       await sbPatch('certificados', certId, { estado: 'borrador' });
@@ -6379,7 +6429,7 @@ async function saveNuevoCert() {
 }
 
 async function delCert(certId) {
-  if (!confirm('¿Eliminar este certificado y todos sus ítems?')) return;
+  if (!await appConfirm('¿Eliminar este certificado y todos sus ítems?')) return;
   await withSync(async () => {
     // Borrar items del cert
     const items = certItems.filter(i => i.cert_id === certId);
@@ -8670,7 +8720,7 @@ async function saveIndiceCac() {
 }
 
 async function delIndiceCac(id) {
-  if (!confirm('¿Eliminar este mes de índices?')) return;
+  if (!await appConfirm('¿Eliminar este mes de índices?')) return;
   await withSync(async () => {
     await sbDelete('indices_cac', id);
     indicesCac = indicesCac.filter(i => i.id !== id);
@@ -8814,7 +8864,7 @@ async function congelarObra() {
 
 async function descongelarObra() {
   if (!_congelarObraId) return;
-  if (!confirm('¿Quitar el congelado? La obra volverá a usar los precios vivos de la base.')) return;
+  if (!await appConfirm('¿Quitar el congelado? La obra volverá a usar los precios vivos de la base.')) return;
   const obra = obras.find(o => o.id === _congelarObraId);
   if (!obra) return;
   await withSync(async () => {
@@ -9110,9 +9160,9 @@ async function renderCartera() {
 async function duplicarObra(id) {
   const orig = obras.find(o => o.id === id);
   if (!orig) return;
-  const nuevoNombre = prompt('Nombre para la nueva obra:', orig.nombre + ' (copia)');
+  const nuevoNombre = await appPrompt('Nombre para la nueva obra:', orig.nombre + ' (copia)');
   if (!nuevoNombre) return;
-  const nuevoCod = prompt('Código para la nueva obra:', orig.cod + '-C');
+  const nuevoCod = await appPrompt('Código para la nueva obra:', orig.cod + '-C');
   if (!nuevoCod) return;
 
   await withSync(async () => {
