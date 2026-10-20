@@ -8670,10 +8670,12 @@ const _cFecha = d => d ? d.toLocaleDateString('es-AR') : '—';
 const BK_BUCKET = 'cronogramas';
 let _bkManifestEmp = null;
 function bkManifestVigente() { return _bkManifest && _bkManifestEmp === currentEmpresa; }
+function bkStorageKey(file) { return String(file).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9._\- ]/g, '_'); }
 function bkStoragePath(path) {
   const p = path.split('?')[0];
   if (p === 'manifest.json') return 'manifest.json';
-  if (p.startsWith('projects/')) return 'xml/' + p.slice('projects/'.length);
+  // Mismo nombre que usa BkTableros al subir: Storage no acepta tildes ni ñ ("Remodelación" → "Remodelacion")
+  if (p.startsWith('projects/')) return 'xml/' + encodeURIComponent(bkStorageKey(decodeURIComponent(p.slice('projects/'.length))));
   return null;
 }
 async function bkFetch(path, asJson) {
