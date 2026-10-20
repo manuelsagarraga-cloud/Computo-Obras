@@ -8248,7 +8248,7 @@ function _impSyncModoUI() {
 async function impCargarListaProjects() {
   const sel = document.getElementById('imp-proj'); if (!sel || sel.dataset.ok) return;
   try {
-    if (!_bkManifest) _bkManifest = await bkFetch('manifest.json?_=' + Date.now(), true);
+    if (!bkManifestVigente()) { _bkManifest = await bkFetch('manifest.json?_=' + Date.now(), true); _bkManifestEmp = currentEmpresa; }
     const lista = (_bkManifest.projects || []).map(p => p.file).sort((a, b) => a.localeCompare(b, 'es'));
     sel.innerHTML = '<option value="">— sin chequear —</option>' + lista.map(f => `<option value="${_cEsc(f)}">${_cEsc(f.replace(/\.xml$/i, ''))}</option>`).join('');
     sel.dataset.ok = '1';
@@ -8267,8 +8267,8 @@ async function impElegirProject(file) {
   if (!file) { if (info) info.innerHTML = ''; if (importData.length) _impRefrescar(); return; }
   if (info) info.innerHTML = 'Leyendo el Project…';
   try {
-    let parsed = _cronoCache[file];
-    if (!parsed) { parsed = parseMSPDI(await bkFetch('projects/' + encodeURIComponent(file), false)); _cronoCache[file] = parsed; }
+    let parsed = _cronoCache[currentEmpresa + '|' + file];
+    if (!parsed) { parsed = parseMSPDI(await bkFetch('projects/' + encodeURIComponent(file), false)); _cronoCache[currentEmpresa + '|' + file] = parsed; }
     _impProj = { file, tareas: parsed.tareas };
   } catch (e) {
     if (info) info.innerHTML = `<span style="color:var(--re);">No pude leer «${_cEsc(file)}»: ${_cEsc(e.message)}</span>`;
@@ -8669,9 +8669,13 @@ const _cEsc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g
 const _cFecha = d => d ? d.toLocaleDateString('es-AR') : '—';
 
 // Desde oct-2026 los cronogramas viven en el almacenamiento privado de Supabase (bucket "cronogramas"),
-// que sube BkTableros desde BuildPlan → Datos. Se lee primero de ahí con la sesión del usuario y,
-// mientras dure la migración, se cae al repo público.
+// en una carpeta por empresa (<empresa>/manifest.json, <empresa>/xml/<archivo>), que sube BkTableros desde
+// BuildPlan → Datos. Se lee la carpeta de la empresa activa (currentEmpresa). Los XML que todavía están en el
+// repo público son de Bauvek: solo para esa empresa, y mientras dure la migración, se cae al repo.
 const BK_BUCKET = 'cronogramas';
+const BK_REPO_EMPRESA = 'bauvek';
+let _bkManifestEmp = null;
+function bkManifestVigente() { return _bkManifest && _bkManifestEmp === currentEmpresa; }
 function bkStoragePath(path) {
   const p = path.split('?')[0];
   if (p === 'manifest.json') return 'manifest.json';
@@ -8681,12 +8685,17 @@ function bkStoragePath(path) {
 async function bkFetch(path, asJson) {
   let ultimo = null;
   const sp = bkStoragePath(path);
-  if (sp && authToken) {
+  if (sp && authToken && currentEmpresa) {
     try {
-      const r = await fetch(`${SB_URL}/storage/v1/object/authenticated/${BK_BUCKET}/${sp}`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${authToken}` }, cache: 'no-cache' });
+      const r = await fetch(`${SB_URL}/storage/v1/object/authenticated/${BK_BUCKET}/${encodeURIComponent(currentEmpresa)}/${sp}`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${authToken}` }, cache: 'no-cache' });
       if (r.ok) return asJson ? await r.json() : await r.text();
       ultimo = new Error('almacenamiento privado: ' + r.status);
     } catch (e) { ultimo = e; }
+  }
+  if (currentEmpresa !== BK_REPO_EMPRESA) {
+    // Otra empresa sin cronogramas subidos: listado vacío en vez de mostrar los de Bauvek
+    if (sp === 'manifest.json') return asJson ? { projects: [] } : '{"projects":[]}';
+    throw ultimo || new Error('no hay cronogramas de esta empresa');
   }
   for (const base of BK_BASES) {
     try {
@@ -8788,8 +8797,8 @@ function cronoVincular(tareas, medsObra) {
 
 async function cronoInit() {
   const info = document.getElementById('crono-info');
-  if (!_bkManifest) {
-    try { _bkManifest = await bkFetch('manifest.json?_=' + Date.now(), true); }
+  if (!bkManifestVigente()) {
+    try { _bkManifest = await bkFetch('manifest.json?_=' + Date.now(), true); _bkManifestEmp = currentEmpresa; }
     catch (e) { if (info) info.innerHTML = '<span style="color:var(--re);">No pude leer el listado de Projects de BkTableros (' + _cEsc(e.message) + '). Revisá la conexión.</span>'; cronoCambioObra(); return; }
   }
   const selP = document.getElementById('sel-crono-proj');
@@ -8832,11 +8841,11 @@ async function cronoCargar() {
   const obra = obras.find(o => o.id === obraId);
   showBusy('Leyendo el cronograma...');
   try {
-    let parsed = _cronoCache[file];
+    let parsed = _cronoCache[currentEmpresa + '|' + file];
     if (!parsed) {
       const xml = await bkFetch('projects/' + encodeURIComponent(file), false);
       parsed = parseMSPDI(xml);
-      _cronoCache[file] = parsed;
+      _cronoCache[currentEmpresa + '|' + file] = parsed;
     }
     if ((obra?.project_file || '') !== file) {
       try { await sbPatch('obras', obraId, { project_file: file }); if (obra) obra.project_file = file; }
