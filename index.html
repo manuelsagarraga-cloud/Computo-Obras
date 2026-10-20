@@ -8668,8 +8668,26 @@ let _cronoUltimoMat = null;  // último cálculo de materiales (para exportar)
 const _cEsc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const _cFecha = d => d ? d.toLocaleDateString('es-AR') : '—';
 
+// Desde oct-2026 los cronogramas viven en el almacenamiento privado de Supabase (bucket "cronogramas"),
+// que sube BkTableros desde BuildPlan → Datos. Se lee primero de ahí con la sesión del usuario y,
+// mientras dure la migración, se cae al repo público.
+const BK_BUCKET = 'cronogramas';
+function bkStoragePath(path) {
+  const p = path.split('?')[0];
+  if (p === 'manifest.json') return 'manifest.json';
+  if (p.startsWith('projects/')) return 'xml/' + p.slice('projects/'.length);
+  return null;
+}
 async function bkFetch(path, asJson) {
   let ultimo = null;
+  const sp = bkStoragePath(path);
+  if (sp && authToken) {
+    try {
+      const r = await fetch(`${SB_URL}/storage/v1/object/authenticated/${BK_BUCKET}/${sp}`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${authToken}` }, cache: 'no-cache' });
+      if (r.ok) return asJson ? await r.json() : await r.text();
+      ultimo = new Error('almacenamiento privado: ' + r.status);
+    } catch (e) { ultimo = e; }
+  }
   for (const base of BK_BASES) {
     try {
       const r = await fetch(base + path, { cache: 'no-cache' });
