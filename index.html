@@ -8656,10 +8656,6 @@ async function saveImport() {
 // El vínculo es el N° de ítem: mediciones.n_item ([2.16] al inicio de la descripción)
 // contra el campo personalizado "N° Item" de cada tarea del Project.
 // =====================================================================
-const BK_BASES = [
-  'https://manuelsagarraga-cloud.github.io/BkTableros/data/',
-  'https://raw.githubusercontent.com/manuelsagarraga-cloud/BkTableros/main/data/'
-];
 let _bkManifest = null;
 const _cronoCache = {};      // archivo → { tareas, itemFid }
 let _cronoVinculo = null;    // resultado del último vínculo
@@ -8670,10 +8666,8 @@ const _cFecha = d => d ? d.toLocaleDateString('es-AR') : '—';
 
 // Desde oct-2026 los cronogramas viven en el almacenamiento privado de Supabase (bucket "cronogramas"),
 // en una carpeta por empresa (<empresa>/manifest.json, <empresa>/xml/<archivo>), que sube BkTableros desde
-// BuildPlan → Datos. Se lee la carpeta de la empresa activa (currentEmpresa). Los XML que todavía están en el
-// repo público son de Bauvek: solo para esa empresa, y mientras dure la migración, se cae al repo.
+// BuildPlan → Datos. Se lee la carpeta de la empresa activa (currentEmpresa). No hay copia pública.
 const BK_BUCKET = 'cronogramas';
-const BK_REPO_EMPRESA = 'bauvek';
 let _bkManifestEmp = null;
 function bkManifestVigente() { return _bkManifest && _bkManifestEmp === currentEmpresa; }
 function bkStoragePath(path) {
@@ -8692,19 +8686,9 @@ async function bkFetch(path, asJson) {
       ultimo = new Error('almacenamiento privado: ' + r.status);
     } catch (e) { ultimo = e; }
   }
-  if (currentEmpresa !== BK_REPO_EMPRESA) {
-    // Otra empresa sin cronogramas subidos: listado vacío en vez de mostrar los de Bauvek
-    if (sp === 'manifest.json') return asJson ? { projects: [] } : '{"projects":[]}';
-    throw ultimo || new Error('no hay cronogramas de esta empresa');
-  }
-  for (const base of BK_BASES) {
-    try {
-      const r = await fetch(base + path, { cache: 'no-cache' });
-      if (!r.ok) { ultimo = new Error(r.status + ' ' + r.statusText); continue; }
-      return asJson ? await r.json() : await r.text();
-    } catch (e) { ultimo = e; }
-  }
-  throw ultimo || new Error('sin respuesta');
+  // Sin cronogramas subidos para esta empresa: listado vacío. Ya no hay copia pública en el repo.
+  if (sp === 'manifest.json') return asJson ? { projects: [] } : '{"projects":[]}';
+  throw ultimo || new Error('no se encontró el cronograma');
 }
 
 const FID_TEXTO4 = '188743740';   // Texto4 de MS Project = N° Item (oct-2026)
