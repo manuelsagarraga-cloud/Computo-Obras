@@ -7232,7 +7232,7 @@ function detectSubtipo(t) {
 
   // ══ REVOQUES ══
   // "Rev. fino / Rev. grueso" = revoque abreviado (distinto de "rev. de piedra", que es revestimiento y se resolvió antes)
-  if (/\bREV\.\s*(FINO|GRUESO)/.test(t)) {
+  if (/\bREV\.\s*(FINO|GRUESO)/.test(t) && !has('AZOTADO')) {   // "Azotado + Rev. grueso" es 7.14 (lo resuelve el bloque de AZOTADO)
     const ext = has('EXT');
     return has('FINO') ? (ext ? 'rev_fino_ext' : 'rev_fino_int') : (ext ? 'rev_grueso_ext' : 'rev_grueso_int');
   }
@@ -7257,6 +7257,7 @@ function detectSubtipo(t) {
     if (has('LONA') || has('CAMUFLADA')) return 'cielorraso_lona';
     return 'cielorraso_yeso';
   }
+  if (has('ENGROSADO') && has('ENLUCIDO')) return 'yeso_engrosado';   // 7.17 Engrosado + enlucido de yeso
   if (has('ENLUCIDO') && has('YESO')) return 'yeso';
   if (has('ENGROSADO') && (has('ENLUCIDO') || has('YESO'))) return 'yeso';
 
@@ -7391,7 +7392,7 @@ const MAP_SUBTIPO = {
   // Revoques (7.x — antes 8.x)
   'rev_grueso_ext': '7.12', 'rev_grueso_int': '7.9',
   'rev_fino_ext': '7.5', 'rev_fino_int': '7.2',
-  'yeso': '7.13', 'rev_azotado': '7.7',
+  'yeso': '7.13', 'yeso_engrosado': '7.17', 'rev_azotado': '7.7',
   // Contrapiso / Carpeta (8.x — antes 5.x)
   'contrapiso': '8.1', 'contrapiso_elab': '8.6', 'carpeta': '8.3', 'carpeta_elab': '8.7', 'piso_cemento': '8.5',
   // Cubiertas (9.x — antes 12.x)
@@ -7732,6 +7733,8 @@ function validarImport() {
     if (item.ubicTexto && item.ubicacion !== 'Global' && item.ubicTexto !== item.ubicacion) w.push({ lvl: 'warn', msg: `El texto dice ${item.ubicTexto} pero el ítem está bajo ${item.ubicacion} en el Excel` });
     if (u && item.cant === 1 && !['gl', 'u'].includes(u)) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u}: parece un valor provisorio — cargá la cantidad real` });
     if (u === 'gl' && item.cant > 1) w.push({ lvl: 'warn', msg: `${item.cant} gl: un global debería ser 1 — ¿la unidad es otra (m², u)?` });
+    // Backlog #4: el precio de MO salió igual al N° de ítem (ej. 2.66) → la columna de costo se leyó mal
+    if (item.costoUnit > 0 && item.nItemOk && Math.abs(item.costoUnit - parseFloat(String(item.nItem).replace(/^[A-Z]+/i, '').replace(',', '.'))) < 1e-9) w.push({ lvl: 'err', msg: `El precio de MO (${item.costoUnit}) es igual al N° de ítem: la columna de costo está mal leída — revisá el Excel antes de importar` });
     if (item.nItem === 's/n') w.push({ lvl: 'warn', msg: item.origen === 'computo' ? 'Sin N° de ítem: no se va a vincular con el cronograma' : 'Ítem sin número en el Excel' });
     else if (cntItem[item.nItem] > 1) w.push({ lvl: 'warn', msg: `N° ${item.nItem} repetido en el Excel` });
     const grp = grpDesc[_normN(item.desc).replace(/\s+/g, ' ').trim() + '|' + item.ubicacion] || [];
@@ -7941,6 +7944,11 @@ const TEST_CASES_LECTOR = [
   ['Revoque fino interior', 'rev_fino_int'],
   ['Azotado hidrófugo', 'rev_azotado_hidro'],
   ['Enlucido de yeso', 'yeso'],
+  ['RG – Azotado + Rev. grueso', 'rev_azotado_grueso'],
+  ['RG - Azotado hidrófugo + Rev. grueso exterior', 'rev_azotado_grueso'],
+  ['Rev. grueso interior', 'rev_grueso_int'],
+  ['Engrosado + enlucido de yeso', 'yeso_engrosado'],
+  ['Engrosado y enlucido de yeso PA', 'yeso_engrosado'],
   // Cielorrasos, pisos, revestimientos
   ['Cielorraso Durlock junta tomada', 'cielorraso_susp'],
   ['C2- Cieloraso aplicado con terminacion de yeso', 'cielorraso_yeso'],
