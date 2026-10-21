@@ -4392,8 +4392,12 @@ function calcEditDimEstructural() {
 // Extrae el espesor de la descripción: "e=10cm", "e=0.10", "espesor 12 cm" → metros
 function extractEspesorFromDesc(desc) {
   const t = (desc || '').replace(/,/g, '.').toUpperCase();
-  const m = t.match(/E\s*=\s*(\d+\.?\d*)\s*(CM|MM|M\b)?/) || t.match(/ESPESOR\s*:?\s*(\d+\.?\d*)\s*(CM|MM|M\b)?/)
-    || t.match(/[-–]\s*(\d+\.?\d*)\s*(CM)\b/); // ej: "Losa Maciza - 15 cm"
+  // e=10cm · ESP: 4 CM · Esp. 12 cm · Espesor 5 · "de 8 cm de espesor" · "Losa - 15 cm" · último recurso: un solo "N cm" sin "x"
+  const solos = [...t.matchAll(/(?<![X×*]\s*)(\d+\.?\d*)\s*CM\b(?!\s*[X×*])/g)];
+  const m = t.match(/\bE\s*=\s*(\d+\.?\d*)\s*(CM|MM|M\b)?/) || t.match(/ESP(?:ESOR|\.)?\s*[:=]?\s*(\d+\.?\d*)\s*(CM|MM|M\b)?/)
+    || t.match(/(\d+\.?\d*)\s*(CM|MM)\s*DE\s*ESPESOR/)
+    || t.match(/[-–]\s*(\d+\.?\d*)\s*(CM)\b/) // ej: "Losa Maciza - 15 cm"
+    || (solos.length === 1 ? [null, solos[0][1], 'CM'] : null);
   if (!m) return 0;
   let v = parseFloat(m[1]);
   const u = m[2] || '';
@@ -7122,12 +7126,26 @@ function detectSubtipo(t) {
 
   // ══ PINTURA SOBRE METAL — el esmalte prima sobre herrería/pérgola/perfiles ══
   if (has('ESMALTE')) return 'esmalte';
+  // "Pintura sintética", "sintético en marcos": esmalte (no látex). Pisos/pasto/deck sintético siguen su camino.
+  if (has('SINTETIC') && !/BARNIZ|PISO|PASTO|CESPED|DECK|REVESTIM|MEMBRANA|TELA|\bWPC\b|PVC/.test(t)) return 'esmalte';
+
+  // ══ IMPERMEABILIZACIÓN CON PINTURA ASFÁLTICA — antes de pintura (no es látex) ══
+  if (has('ASFALT') && /PINTURA|IMPRIMAC|EMULSION|\bMANOS?\b/.test(t) && !has('MEMBRANA')) return 'imperm_asfaltica';
+
+  // ══ SUBESTRUCTURA DE CIELORRASO — global contratada, antes de cielorrasos ══
+  if (has('SUBESTRUCTUR') || has('CLAVADERA') || (has('ENTRAMADO') && (has('CIELORRASO') || has('CIELORASO')))) return 'subestructura_cielo';
+
+  // ══ HOGAR / CALEFACTOR (Tromen, salamandra) — global junto con asador, antes de calefacción ══
+  if (/TROMEN|\bHOGAR\b|CALEFACTOR|SALAMANDRA/.test(t)) return 'asador';
+
+  // ══ ESCALERA METÁLICA — global (la de Hº se resuelve abajo) ══
+  if (has('ESCALERA') && /METALIC|HIERRO|\bIPN\b|\bUPN\b|PERFIL/.test(t) && !/BARANDA|PASAMANO|ESMALTE|PINTURA|VIGA|ANCLAJE|COLUMNA/.test(t)) return 'escalera_gl';
 
   // ══ ESCALERA de Hº — antes de estructura/mampostería (salvo que sea su terminación o baranda) ══
   if (has('ESCALERA') && !/REVESTIM|PORCELANATO|BARANDA|PASAMANO|LATEX|PINTURA|ZOCALO|MARMOL|GRANITO|IPN|UPN|PERFIL|METALIC/.test(t)) return 'escalera';
 
   // ══ PÉRGOLA — ANTES que UPN/IPN ══
-  if (has('PERGOLA')) return 'pergola';
+  if (has('PERGOLA')) return (has('MADERA') || has('LISTON')) ? 'pergola_gl' : 'pergola';
 
   // ══ BARANDAS — antes de perfiles (una baranda puede describirse con planchuela/caño/UPN) ══
   if (has('BARANDA') || has('BARANDAL')) {
@@ -7135,25 +7153,24 @@ function detectSubtipo(t) {
     return 'baranda';
   }
 
-  // ══ HERRERÍA METÁLICA — distinguiendo por número de perfil ══
-  if (has('UPN') || has('IPN') || has('HEB') || has('HEA')) {
-    const perfilNum = (t.match(/(?:UPN|IPN|HEB|HEA)\s*(\d{2,3})/) || [])[1] || '';
-    if (has('IPN')) {
-      if (perfilNum === '140') return 'herreria_viga_ipn140';
-      if (perfilNum === '160') return 'herreria_viga_ipn160';
-      if (perfilNum === '240') return 'herreria_viga_ipn240';
-      return 'herreria_viga';
+  // ══ HERRERÍA METÁLICA — distinguiendo por perfil y número (IPN → viga, 2UPN / tubo → columna) ══
+  // Subtipo con número (herreria_viga_ipn200); si no hay tarea para ese número, codParaSubtipo cae a la genérica.
+  // "CM-"/"CM1-" (Casali) solo al inicio o con número: "ESP: 4 CM - INTERIOR" es una carpeta, no una columna.
+  {
+    const perf = t.match(/(?:^|[^A-Z])(UPN|IPN|HEB|HEA)\s*(\d{2,3})?/);   // sin \b: "2UPN 140" 
+    const tubo = t.match(/(?:TUBO|CANO)[^0-9]{0,25}(\d{2,3})\s*X\s*\d{2,3}/);
+    const esCM = /^\s*CM\d*\s*[-–]/.test(t) || /\bCM\d+\s*[-–]/.test(t) || /\bCM\b.*UPN/.test(t);
+    const esVM = /^\s*VM\d*\s*[-–]/.test(t);
+    const deHierro = /METALIC|\b(DE|EN) (HIERRO|ACERO)\b|TUBO ESTRUCT|CANO ESTRUCT/.test(t) && !/HIERROS|Ø|DIAM|ARMADUR|ESTRIBO|\bDEL \d/.test(t);
+    if (perf || esCM || esVM || ((has('VIGA') || has('COLUMNA') || has('TUBO')) && deHierro)) {
+      const n = perf && perf[2] ? perf[2] : '';
+      if (perf && perf[1] === 'IPN') return n ? 'herreria_viga_ipn' + n : 'herreria_viga';
+      if (has('VIGA') || esVM || /\bNB\b/.test(t) || (perf && perf[1] === 'HEB')) return 'herreria_viga';
+      if (perf && perf[1] === 'UPN' && n) return 'herreria_col_upn' + n;
+      if (tubo) return 'herreria_col_tubo' + tubo[1];
+      return 'herreria_col';
     }
-    if (has('VIGA') || t.match(/\bNB\b/) || t.match(/\bHEB\b/)) return 'herreria_viga';
-    if (perfilNum === '100') return 'herreria_col_upn100';
-    if (perfilNum === '120') return 'herreria_col_upn120';
-    if (perfilNum === '140') return 'herreria_col_upn140';
-    if (perfilNum === '160') return 'herreria_col_upn160';
-    return 'herreria_col';
   }
-  if (t.match(/\bCM\d*\s*[-–]/) || t.match(/\bCM\b.*UPN/)) return 'herreria_col';
-  if (has('COLUMNA') && has('METALIC')) return 'herreria_col';
-  if (has('VIGA') && has('METALIC')) return 'herreria_viga';
 
   // ══ RAFA de ladrillos (protección de la aislación del muro de contención) — es mampostería,
   //    va ANTES de aislaciones porque su texto suele nombrar la aislación vertical que protege ══
@@ -7192,6 +7209,7 @@ function detectSubtipo(t) {
     if (has('GEO')) return 'aislacion_v_geo';
     return 'aislacion_v';
   }
+  if ((has('CAPA AISLAD') || has('AISLACION')) && has('MURO') && !has('TERMIC') && !has('ACUSTIC')) return 'aislacion_h';
   if (has('MEMBRANA') && (has('BAJO PISO') || has('HUMEDO'))) return 'membrana_piso';
   if (has('LANA DE VIDRIO') || has('AISLACION TERMICA')) return 'aislacion_termica';
 
@@ -7349,7 +7367,7 @@ function detectSubtipo(t) {
   if (has('CALEFACCION') || has('PISO RADIANTE') || has('LOSA RADIANTE') || has('COLECTOR') || has('CALDERA')) return 'inst_calef';
   if (has('BOMBEO')) return 'bombeo';                      // antes que cloacal ("sistema de bombeo cloacal")
   if (has('BOMBA') || has('HIDRONEUMAT')) return 'inst_bomba';
-  if (has('PLUVIAL')) return 'inst_pluvial';
+  if (has('PLUVIAL')) return /COMPLEMENT|ADICIONAL|CANALETA|BAJADA|EMBUDO|REJILLA|CAMARA|GARGOLA|CONDUCTAL/.test(t) ? 'inst_pluvial_item' : 'inst_pluvial';
   // Cloacal: ítems sueltos
   if ((has('CAMARA') && (has('INSPECCION') || has('SEPTICA'))) || has('SANGRIA') || has('POZO ABSORBENTE') ||
       has('BIODIGESTOR') || has('LECHO NITRIF') || (has('CANO') && has('FILTR')) || has('PILETA DE PATIO')) return 'inst_cloacal_item';
@@ -7372,7 +7390,7 @@ function detectSubtipo(t) {
   if (has('TABLERO') && !has('PILAR')) return 'inst_elec_tablero';
   if (has('ARTEFACT')) return 'inst_elec_artefacto';
   if ((has('AMURADO') && has('CAJA')) || has('BOCA') || has('TOMACORRIENTE') || has('TERMOSTATO') || (has('TOMA') && has('INDIVIDUAL')) || /\bTOMA\s+(DOBLE|SIMPLE|TRIPLE|\d)/.test(t)) return 'inst_elec_boca';
-  if (has('ELECTRIC')) return 'inst_electrica';
+  if (has('ELECTRIC')) return /COMPLEMENT|ADICIONAL|CANERIA|CABLEAD|ZANJ|TRAMITE|PLANO|MEDIDOR|AMPLIACION|EXTENSION|PROVISORI/.test(t) ? 'inst_elec_item' : 'inst_electrica';
 
   // ══ VARIOS ══
   if (has('ASADOR') || has('PARRILLA') || (has('FOGONERO') && !has('PISO'))) return 'asador';
@@ -7403,7 +7421,7 @@ const MAP_SUBTIPO = {
   'rev_fino_ext': '7.5', 'rev_fino_int': '7.2',
   'yeso': '7.13', 'yeso_engrosado': '7.17', 'rev_azotado': '7.7',
   // Contrapiso / Carpeta (8.x — antes 5.x)
-  'contrapiso': '8.1', 'contrapiso_elab': '8.6', 'carpeta': '8.3', 'carpeta_elab': '8.7', 'piso_cemento': '8.5',
+  'contrapiso': '8.1', 'contrapiso_elab': '8.6', 'carpeta': '8.3', 'carpeta_elab': '8.8', 'piso_cemento': '8.5',
   // Cubiertas (9.x — antes 12.x)
   'impermeabilizacion': '9.1', 'impermeabilizacion_alu': '9.2',
   'ho_pendiente': '9.6', 'cubierta_chapa': '9.5', 'cubierta_teja': '9.4',
@@ -7450,6 +7468,13 @@ const MAP_SUBTIPO = {
   'cert_electrico': '1.15', 'limpieza_periodica': '1.16', 'limpieza_final': '1.17',
   'bano_quimico_mensual': '1.18', 'obrador_mensual': '1.19',
   'contenedores': '1.20', 'seguros_operarios': '1.21', 'alquiler_herramientas': '1.22',
+  // oct-2026 (b): perfiles, globales y tareas nuevas
+  'herreria_viga_ipn100': '15.11', 'herreria_viga_ipn120': '15.12', 'herreria_viga_ipn180': '15.13', 'herreria_viga_ipn200': '15.14',
+  'herreria_col_upn80': '15.15', 'herreria_col_upn180': '15.16', 'herreria_col_upn200': '15.17',
+  'herreria_col_tubo80': '15.18', 'herreria_col_tubo100': '15.19',
+  'pergola_gl': '15.20', 'escalera_gl': '17.1', 'esmalte_gl': '13.7',
+  'subestructura_cielo': '10.10', 'imperm_asfaltica': '6.6',
+  'inst_elec_item': '16.22', 'inst_pluvial_item': '16.23',
   // Variantes por m² (oct-2026): la versión global queda en el código original. Ver SUBTIPO_VARIANTE_UNIDAD.
   'limpieza_m2': '1.23', 'replanteo_m2': '1.24', 'limpieza_final_m2': '1.25',
   // Movimiento de suelos (2.x — sin cambios)
@@ -7496,7 +7521,8 @@ const MAP_HO = {
   columna_elab: { H21: '4.7', INSITU: '4.1' }, encadenado_vert: { H21: '4.7', INSITU: '4.1' },
   viga_elab: { H21: '4.8', INSITU: '4.4' }, encadenado_horiz: { H21: '4.21', INSITU: '4.2' },
   losa_maciza: { H21: '4.20', INSITU: '4.6' }, losa_vigueta: { H21: '4.32' },
-  tabique_hormigon: { H21: '4.12', INSITU: '4.11' }, escalera: { H21: '4.27', INSITU: '4.10' }
+  tabique_hormigon: { H21: '4.12', INSITU: '4.11' }, escalera: { H21: '4.27', INSITU: '4.10' },
+  carpeta_elab: { H17: '8.8', H21: '8.7' }   // carpeta de Hº elaborado: H17 por defecto
 };
 function calidadHo(desc) {
   const t = _normN(desc);
@@ -7506,7 +7532,8 @@ function calidadHo(desc) {
 }
 function codParaSubtipo(subtipo, desc) {
   const v = MAP_HO[subtipo]; const q = desc ? calidadHo(desc) : 'H17';
-  return (v && v[q]) || MAP_SUBTIPO[subtipo] || '';
+  const generico = /^herreria_viga_/.test(subtipo) ? 'herreria_viga' : /^herreria_col_/.test(subtipo) ? 'herreria_col' : '';
+  return (v && v[q]) || MAP_SUBTIPO[subtipo] || (generico && MAP_SUBTIPO[generico]) || '';
 }
 MAP_SUBTIPO['piso_adoquin'] = '';
 MAP_SUBTIPO['mamp_8'] = '';            // ladrillo 8x18x33: se resuelve por nombre (si no existe la tarea, queda "falta crear")
@@ -7800,10 +7827,15 @@ function validarImport() {
 
 // Tareas que existen en dos versiones (global y por m²): manda la unidad del Excel.
 // "Limpieza final  gl 1" → 1.17 (global) · "Limpieza final  m2 180" → 1.25 (por m²)
-const SUBTIPO_VARIANTE_UNIDAD = { 'limpieza': 'm2', 'replanteo': 'm2', 'limpieza_final': 'm2' };
+// Global o por cantidad según la unidad del Excel: escalera / pérgola / esmalte en "gl" o "u" → versión global.
+const SUBTIPO_VARIANTE_UNIDAD = {
+  'limpieza': { m2: 'limpieza_m2' }, 'replanteo': { m2: 'replanteo_m2' }, 'limpieza_final': { m2: 'limpieza_final_m2' },
+  'escalera': { gl: 'escalera_gl', u: 'escalera_gl' }, 'pergola': { gl: 'pergola_gl', u: 'pergola_gl' },
+  'esmalte': { gl: 'esmalte_gl', u: 'esmalte_gl' }
+};
 function subtipoSegunUnidad(subtipo, unidad) {
-  const u = SUBTIPO_VARIANTE_UNIDAD[subtipo];
-  return u && normUnidad(unidad) === u && MAP_SUBTIPO[subtipo + '_' + u] ? subtipo + '_' + u : subtipo;
+  const v = (SUBTIPO_VARIANTE_UNIDAD[subtipo] || {})[normUnidad(unidad)];
+  return v && MAP_SUBTIPO[v] ? v : subtipo;
 }
 
 function asignarCoefsImport() {
@@ -8015,6 +8047,25 @@ const TEST_CASES_LECTOR = [
   ['Revoque fino interior', 'rev_fino_int'],
   ['Azotado hidrófugo', 'rev_azotado_hidro'],
   ['Enlucido de yeso', 'yeso'],
+  // oct-2026 (b): reportados por Manuel
+  ['CARPETA DE NIVELACIÓN: ESP: 4 CM - INTERIOR PA', 'carpeta'],
+  ['Carpeta de nivelación de hormigón elaborado H17', 'carpeta_elab'],
+  ['V1 - Viga de hierro', 'herreria_viga'],
+  ['VM2 - IPN 200', 'herreria_viga_ipn200'],
+  ['Viga de hierro IPN 180', 'herreria_viga_ipn180'],
+  ['Columna de hierro tubo 80x80', 'herreria_col_tubo80'],
+  ['Columnas metálicas 2 UPN 200', 'herreria_col_upn200'],
+  ['Viga 20x30 con 4 hierros del 12', 'viga_elab'],
+  ['Pérgola de madera con listones', 'pergola_gl'],
+  ['Subestructura de madera p/cielorraso (clavaderas)', 'subestructura_cielo'],
+  ['Pintura sintética en rejas', 'esmalte'],
+  ['Impermeabilización con pintura asfáltica', 'imperm_asfaltica'],
+  ['Hogar Tromen', 'asador'],
+  ['Calefactor Tromen', 'asador'],
+  ['Escalera metálica', 'escalera_gl'],
+  ['Aislación hidrófuga de muros', 'aislacion_h'],
+  ['Cañería eléctrica embutida', 'inst_elec_item'],
+  ['Canaletas pluviales', 'inst_pluvial_item'],
   ['RG – Azotado + Rev. grueso', 'rev_azotado_grueso'],
   ['RG - Azotado hidrófugo + Rev. grueso exterior', 'rev_azotado_grueso'],
   ['Rev. grueso interior', 'rev_grueso_int'],
@@ -8223,6 +8274,7 @@ function processImportRows(rows, ws) {
     if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?parseNItem(col0).key:'s/n',nItemOk:hasNum,desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(col1,currentSeccion),incluir:true};if(/^\s*S\d+\s*[-–]/.test(col1)&&it.unidad==='ml')it.subtipo='zocalo';   /* piso S# medido en ml = zócalo (misma descripción que el piso) */
 autoCorregirItem(it);importData.push(it);}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
+  impNormalizarNItems();
   marcarImportDuplicados();
   asignarCoefsImport();
   impAplicarDetalle();   // cantidades de las hojas de cómputo + materiales de control
@@ -8357,7 +8409,8 @@ function processComputoRows(rows, ws) {
       if (B.desc) d += ` - (${B.desc.replace(/[()\s]/g, '')})`;
       else if (!/\(\s*\d+[.,]\d+\s*[xX×*]/.test(d) && _RE_DIMS.test(d)) d = d.replace(_RE_DIMS, '($1x$2)');
       const costo = B.costo > 0 ? B.costo : (A.costo > 0 ? A.costo * A.cant / B.cant : 0);
-      ent.splice(k, 2, { ...A, desc: d, cant: B.cant, un: B.un, code: A.code || B.code, costo, costoNota: A.costoNota || B.costoNota, contr: A.contr || B.contr, ubicCell: A.ubicCell || B.ubicCell, m3Computo: A.cant, i: B.i, unido: true });
+      ent.splice(k, 2, { ...A, desc: d, cant: B.cant, un: B.un, code: A.code || B.code, costo, costoNota: A.costoNota || B.costoNota, contr: A.contr || B.contr, ubicCell: A.ubicCell || B.ubicCell, m3Computo: A.cant, i: B.i, unido: true,
+        precioNativo: A.costo > 0 ? { u: 'm3', p: A.costo } : null });   // el precio por m³ del Excel manda si la tarea es en m³
     } else if (/^IDEM\b/i.test(B.desc)) {
       // "ZOCALOS: COCHERA  M2 1" + "IDEM PISO  ML 45"
       ent.splice(k, 2, { ...B, desc: `${A.desc} — ${B.desc}`, code: B.code || A.code, ubicCell: B.ubicCell || A.ubicCell, unido: true });
@@ -8393,7 +8446,7 @@ function processComputoRows(rows, ws) {
       nItem: e.code ? e.code.key : 's/n', nItemOk: !!e.code, desc: e.desc, cant: e.cant, cantExcel: e.cant,
       unidad: normUnidad(e.un), unidadExcel: e.un, contratista: e.contr || '', costoUnit: e.costo || 0,
       rubro: seccion || 'Sin rubro', ubicacion: e.ubicCell || ubicTexto || e.ubicLabel || 'Global', ubicTexto,
-      seccion, subtipo, incluir: true, m3Computo: e.m3Computo || null, unido: !!e.unido, origen: 'computo'
+      seccion, subtipo, incluir: true, m3Computo: e.m3Computo || null, unido: !!e.unido, origen: 'computo', precioNativo: e.precioNativo || null
     };
     if (/^\s*S\d+\s*[-–]/.test(e.desc) && it.unidad === 'ml') it.subtipo = 'zocalo';
     autoCorregirItem(it);
@@ -8408,6 +8461,7 @@ function processComputoRows(rows, ws) {
   // Si el cómputo tiene ítems en subsuelo y la obra nueva figura sin subsuelos, se propone 1
   const subEl = document.getElementById('imp-sub');
   if (!importTargetObraId && subEl && subEl.value === '0' && importData.some(i => i.ubicacion === 'Subsuelo 1')) subEl.value = '1';
+  impNormalizarNItems();
   marcarImportDuplicados();
   asignarCoefsImport();
   impAplicarDetalle();
@@ -8500,6 +8554,41 @@ function _impRenderResumenProject() {
     ` · ${v.tareasSinMed.length} tareas del Project sin ítem en el cómputo`;
 }
 // N° de ítem editable en la vista previa (modo cómputo): para completar o corregir el código antes de importar
+// N° de ítem (oct-2026):
+//  · Si el archivo usa un prefijo de obra (JS2.33), los números sin prefijo lo reciben (10.09 → JS10.09).
+//  · N° repetidos: el primero lo conserva; los siguientes pasan al próximo libre del mismo grupo (JS2.58 → JS2.59) y se avisa.
+function impNormalizarNItems() {
+  const cuenta = {};
+  importData.forEach(i => { if (i.nItemOk) { const p = parseNItem(i.nItem); if (p && p.prefijo) cuenta[p.prefijo] = (cuenta[p.prefijo] || 0) + 1; } });
+  const pref = Object.entries(cuenta).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  let nPref = 0;
+  if (pref) importData.forEach(i => {
+    if (!i.nItemOk) return;
+    const p = parseNItem(i.nItem);
+    if (p && !p.prefijo) { i.nItem = pref + p.num; i.notas = i.notas || []; i.notas.push(`Se agregó el prefijo de obra: ${i.nItem}`); nPref++; }
+  });
+  const usados = new Set(), maxPorGrupo = {}, cambios = [];
+  importData.forEach(i => {
+    const p = i.nItemOk && parseNItem(i.nItem); if (!p) return;
+    const [may, min] = p.num.split('.'), g = p.prefijo + may;
+    maxPorGrupo[g] = Math.max(maxPorGrupo[g] || 0, parseInt(min, 10));
+  });
+  importData.forEach(i => {
+    const p = i.nItemOk && parseNItem(i.nItem); if (!p) return;
+    if (!usados.has(p.key)) { usados.add(p.key); return; }
+    const [may, min] = p.num.split('.'), g = p.prefijo + may;
+    let n = maxPorGrupo[g] + 1, nuevo;
+    do { nuevo = `${p.prefijo}${may}.${String(n).padStart(min.length, '0')}`; n++; } while (usados.has(nuevo));
+    maxPorGrupo[g] = n - 1; usados.add(nuevo);
+    i.notas = i.notas || [];
+    i.notas.push(`N° ${p.key} repetido en el Excel: se le asignó ${nuevo}`);
+    cambios.push(`${p.key}→${nuevo}`);
+    i.nItem = nuevo;
+  });
+  if (cambios.length) notif(`${cambios.length} N° de ítem repetidos renumerados: ${cambios.slice(0, 6).join(', ')}${cambios.length > 6 ? '…' : ''}`);
+  else if (nPref) notif(`Se agregó el prefijo ${pref} a ${nPref} N° de ítem`);
+}
+
 function impSetNItem(idx, v) {
   const item = importData[idx]; if (!item) return;
   const it = parseNItem(v);
@@ -8558,7 +8647,15 @@ function renderImportPreview() {
       <td style="min-width:250px;"><input list="imp-coef-list" value="${coef ? esc(_coefLabel(coef)) : ''}" placeholder="— sin tarea: elegí una —" style="width:100%;font-size:11px;${coef ? '' : 'border-color:var(--re);'}" onchange="impSetCoef(${idx}, this.value)"></td>
       <td class="num" style="font-size:10px;white-space:nowrap;">${final}</td>
       <td style="font-size:10px;min-width:170px;max-width:230px;">${avisos}</td>
-      <td class="num" style="white-space:nowrap;">${item.costoUnit ? $p(item.costoUnit) : '—'}</td>
+      <td class="num" style="white-space:nowrap;">${(() => {
+        if (!item.costoUnit) return '—';
+        const pm = coef && calc ? impPrecioMO(item, coef, calc.cantidad) : null;
+        const exc = `${$p(item.costoUnit)}${item.unidadExcel ? '/' + esc(normUnidad(item.unidadExcel)) : ''}`;
+        if (!pm) return exc;
+        const guard = pm.tipo === 'global' ? `${$p(pm.precio)} global` : `${$p(pm.precio)}/${esc(normUnidad(coef.unidad))}`;
+        const igual = pm.tipo !== 'global' && Math.abs(pm.precio - item.costoUnit) < 0.005;
+        return igual ? exc : `<div style="font-size:9px;color:var(--tx3);">Excel ${exc}</div><div style="font-weight:600;" title="${esc(pm.regla)}">→ ${guard}</div>`;
+      })()}</td>
       <td class="imp-incl"><input type="checkbox" title="Incluir en el import" ${item.incluir ? 'checked' : ''} onchange="impSetIncluir(${idx}, this.checked)"></td>
     </tr>`;
   };
@@ -8583,6 +8680,24 @@ function renderImportPreview() {
 }
 
 function _impRefrescar() { validarImport(); renderImportPreview(); }
+
+// Precio de MO del Excel expresado en la unidad de NUESTRA tarea (oct-2026). Única regla: vista previa, certificado y Precios MO.
+//  · Tarea global → monto global = precio × cantidad del Excel.
+//  · El Excel trae un precio propio en nuestra unidad (ej. viga: renglón en m³) → ese precio, sin tocar.
+//  · Misma unidad → mismo precio (aunque cambie la cantidad: un revoque en m² no baja de precio).
+//  · Unidad distinta (ml→m³, ml→m², m²→m³) → se conserva el TOTAL del Excel: precio = total ÷ cantidad nuestra.
+function impPrecioMO(item, coef, cantNuestra) {
+  const p = num(item.costoUnit);
+  if (!(p > 0) || !coef) return null;
+  const uN = normUnidad(coef.unidad), uX = normUnidad(item.unidadExcel || item.unidad);
+  const cantX = num(item.cantExcel ?? item.cant), cN = num(cantNuestra);
+  const totalX = p * cantX;
+  if (uN === 'gl' || !(cN > 0)) return { tipo: 'global', precio: totalX, total: totalX, regla: 'global' };
+  if (item.precioNativo && normUnidad(item.precioNativo.u) === uN && item.precioNativo.p > 0)
+    return { tipo: 'unitario', precio: item.precioNativo.p, total: item.precioNativo.p * cN, regla: `precio del Excel por ${uN}` };
+  if (uX === uN) return { tipo: 'unitario', precio: p, total: p * cN, regla: 'misma unidad' };
+  return { tipo: 'unitario', precio: totalX / cN, total: totalX, regla: `${uX || '?'} → ${uN}, total del Excel conservado` };
+}
 function impSetCant(idx, v) {
   const n = parseFloat(String(v).replace(',', '.'));
   if (!(n >= 0)) return;
@@ -8738,11 +8853,8 @@ async function saveImport() {
     const ciBatch = mediciones
       .filter(med => med.item.costoUnit > 0 || med.item.contratista)
       .map(med => {
-        const totalExcel = med.item.costoUnit * (med.item.cantExcel ?? med.item.cant);
-        const cantNuestra = num(med.cantidad);
-        const costoUnit = (med.item.costoUnit > 0 && cantNuestra > 0)
-          ? +(totalExcel / cantNuestra).toFixed(2)
-          : med.item.costoUnit;
+        const pm = impPrecioMO(med.item, coefs.find(c => c.id === med.coef_id), med.cantidad);
+        const costoUnit = pm ? (pm.tipo === 'global' ? pm.precio : +pm.precio.toFixed(2)) : med.item.costoUnit;
         return {
           cert_id: cert.id,
           med_id: med.id,
@@ -8777,14 +8889,12 @@ async function saveImport() {
       .map(med => {
         const coefM = coefs.find(c => c.id === med.coef_id);
         const uNuestra = String(coefM?.unidad || '').toLowerCase();
-        const totalExcel = med.item.costoUnit * (med.item.cantExcel ?? med.item.cant);
-        const cantN = num(med.cantidad);
-        const esGL = /^(gl|global)$/.test(uNuestra) || cantN <= 0;
+        const pm = impPrecioMO(med.item, coefM, med.cantidad);
         return {
           obra_id: obraId,
           med_id: med.id,
-          tipo: esGL ? 'global' : 'unitario',
-          precio: esGL ? totalExcel : totalExcel / cantN,
+          tipo: pm.tipo,
+          precio: pm.precio,
           unidad: uNuestra,
           contratista: med.item.contratista || null,
           precio_origen: med.item.costoUnit,
