@@ -7079,8 +7079,29 @@ function detectSubtipo(t) {
   if (has('CERCO') || has('CERRAMIENTO DE OBRA') || has('CIERRE PERIMETRAL')) return 'cerco';
   if (has('REPLANTEO')) return 'replanteo';
   if (has('PILAR') && (has('TABLERO') || has('OBRA'))) return 'pilar_tablero';
+  // Limpieza: periódica y final ANTES de limpieza genérica
+  if (has('LIMPIEZA') && has('PERIODICA')) return 'limpieza_periodica';
+  if (has('LIMPIEZA') && has('FINAL')) return 'limpieza_final';
+  if (has('LIMPIEZA') && (has('TERRENO') || has('NIVELACION') || has('PREPARACION'))) return 'limpieza';
+  // Baño químico y obrador: mensual ANTES del genérico (1.3 = instalación inicial)
+  if (has('BANO QUIMICO') && has('MENSUAL')) return 'bano_quimico_mensual';
+  if (has('OBRADOR') && has('MENSUAL')) return 'obrador_mensual';
   if (has('OBRADOR') || has('BANO QUIMICO')) return 'obrador';
-  if (has('LIMPIEZA') && has('TERRENO')) return 'limpieza';
+  // Trámites y permisos
+  if (has('PREVIA') && (has('MUNICIPAL') || has('TRAMITE') || has('HABILITACION'))) return 'previa_municipal';
+  if (has('COLEGIO') || has('VISADO')) return 'visado_colegio';
+  if (has('PERMISO') && (has('EDIFICACION') || has('CONSTRUCCION') || has('OBRA'))) return 'permiso_edificacion';
+  if (has('CARTEL') && has('OBRA')) return 'cartel_obra';
+  // Conexiones de obra
+  if (has('AGUA') && has('OBRA')) return 'agua_obra';
+  if (has('LUZ') && has('OBRA')) return 'luz_obra';
+  if (has('CERTIFICADO') && (has('ELECTRICO') || has('ELECTR'))) return 'cert_electrico';
+  // Movimiento de suelo global (antes de excavación individual)
+  if (has('MOVIMIENTO') && has('SUELO')) return 'mov_suelo_global';
+  // Gastos de obra mensuales / variables
+  if (has('CONTENEDOR')) return 'contenedores';
+  if (has('SEGURO') && has('OPERARIO')) return 'seguros_operarios';
+  if (has('ALQUILER') && has('HERRAMIENTA')) return 'alquiler_herramientas';
 
   // ══ MOVIMIENTO DE SUELOS ══
   if (has('EXCAVACION') || has('EXCAVAC')) return 'excavacion';
@@ -7409,10 +7430,16 @@ const MAP_SUBTIPO = {
   // Varios (17.x — nuevo)
   'escalera': '4.27', 'pileta': '17.2', 'asador': '17.3',
   'vereda': '17.4', 'cantero': '17.5', 'banquina': '17.6', 'bombeo': '17.7',
-  // Preliminares (1.x — sin cambios)
+  // Preliminares (1.x)
   'estudio_suelos': '1.4', 'calc_estructural': '1.5',
   'cerco': '1.1', 'replanteo': '1.7', 'pilar_tablero': '1.6',
   'obrador': '1.3', 'limpieza': '1.2',
+  'previa_municipal': '1.8', 'visado_colegio': '1.9',
+  'permiso_edificacion': '1.10', 'cartel_obra': '1.11',
+  'mov_suelo_global': '1.12', 'agua_obra': '1.13', 'luz_obra': '1.14',
+  'cert_electrico': '1.15', 'limpieza_periodica': '1.16', 'limpieza_final': '1.17',
+  'bano_quimico_mensual': '1.18', 'obrador_mensual': '1.19',
+  'contenedores': '1.20', 'seguros_operarios': '1.21', 'alquiler_herramientas': '1.22',
   // Movimiento de suelos (2.x — sin cambios)
   'excavacion': '2.1', 'relleno': '2.4', 'retiro_tierra': '2.6',
   // Hº genéricos
