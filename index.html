@@ -8853,8 +8853,10 @@ async function saveImport() {
     const ciBatch = mediciones
       .filter(med => med.item.costoUnit > 0 || med.item.contratista)
       .map(med => {
+        // El certificado multiplica costo_unit × cantidad de la medición: se reparte el total de la regla de MO
         const pm = impPrecioMO(med.item, coefs.find(c => c.id === med.coef_id), med.cantidad);
-        const costoUnit = pm ? (pm.tipo === 'global' ? pm.precio : +pm.precio.toFixed(2)) : med.item.costoUnit;
+        const cantN = num(med.cantidad);
+        const costoUnit = pm ? +(cantN > 0 ? pm.total / cantN : pm.precio).toFixed(2) : med.item.costoUnit;
         return {
           cert_id: cert.id,
           med_id: med.id,
