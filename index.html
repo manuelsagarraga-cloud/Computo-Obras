@@ -183,6 +183,8 @@ textarea{resize:vertical;min-height:55px;}
 #imp-preview td{vertical-align:top;}
 .imp-foot{flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 76px 12px 0;border-top:1px solid var(--border);margin-top:8px;background:var(--surf);}
 .imp-foot #imp-stats{flex:1 1 0;min-width:0;}
+/* MO por rendimiento/jornales UOCRA apagada (oct-2026): ver MO_POR_RENDIMIENTO */
+.sin-mo-ref .mo-ref{display:none !important;}
 .imp-foot .btn{flex:0 0 auto;}
 .imp-foot{flex-wrap:nowrap !important;}
 .imp-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
@@ -346,7 +348,7 @@ textarea{resize:vertical;min-height:55px;}
   <div class="nav-item" onclick="nav('presupuesto')"><span>◻</span> Presupuesto</div>
   <div class="nav-sec">Bases</div>
   <div class="nav-item" onclick="nav('materiales')"><span>◉</span> Materiales</div>
-  <div class="nav-item" onclick="nav('manoobra')"><span>▤</span> Mano de obra</div>
+  <div class="nav-item mo-ref" onclick="nav('manoobra')"><span>▤</span> Mano de obra</div>
   <div class="nav-item" onclick="nav('coeficientes')"><span>∑</span> Consumos</div>
   <div class="nav-item" onclick="nav('indices')"><span>📈</span> Índices CAC</div>
   <div class="nav-sec">Obra</div>
@@ -354,7 +356,7 @@ textarea{resize:vertical;min-height:55px;}
   <div class="nav-item" onclick="nav('compras')"><span>◫</span> Lista de compras</div>
   <div class="nav-item" onclick="nav('cronograma')"><span>▭</span> Cronograma</div>
   <div class="nav-item" onclick="nav('mo-precios')"><span>▣</span> Precios MO</div>
-  <div class="nav-item" onclick="nav('sustento')"><span>ⓘ</span> Información de sustento</div>
+  <div class="nav-item mo-ref" onclick="nav('sustento')"><span>ⓘ</span> Información de sustento</div>
   <div class="nav-item" onclick="nav('certificados')"><span>◐</span> Certificados</div>
   <div class="nav-item" onclick="nav('historial')"><span>⊙</span> Historial</div>
   <div class="nav-sec">Ayuda</div>
@@ -370,7 +372,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b> · UOCRA Zona A · <span style="opacity:.6;" id="app-build-label">build 2026-10-13.2</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-13.2</span></span>
     </div>
   </div>
 
@@ -585,7 +587,7 @@ textarea{resize:vertical;min-height:55px;}
       <div class="card" style="margin-bottom:12px;background:var(--am-l);border-color:#E8D5A0;">
         <div style="font-size:11px;color:var(--am);line-height:1.7;">
           <b>La mano de obra de la app es el precio del contratista.</b> Cada medición tiene su precio: <b>por unidad</b> (se multiplica por la cantidad) o <b>global</b> (monto fijo, típico en tareas GL).<br>
-          Una medición sin precio figura en $0 y se marca en rojo. Los jornales y la referencia UOCRA están en <b>Información de sustento</b> y no suman en ningún total.
+          Una medición sin precio figura en $0 y se marca en rojo.<span class="mo-ref"> Los jornales y la referencia UOCRA están en <b>Información de sustento</b> y no suman en ningún total.</span>
         </div>
       </div>
       <div id="mo-precios-body"></div>
@@ -812,7 +814,7 @@ textarea{resize:vertical;min-height:55px;}
       </div>
       <div class="fg"><label>Unidad</label><select id="cf-unidad"><option>M2</option><option>M3</option><option>ML</option><option>unid</option><option>GL</option></select></div>
     </div>
-    <div class="form-grid">
+    <div class="form-grid mo-ref">
       <div class="fg"><label>MO asignada</label><select id="cf-mo-sel"></select></div>
       <div class="fg"><label>Rendimiento MO (unid/día)</label><input id="cf-mo-rend" type="number"></div>
     </div>
@@ -948,7 +950,7 @@ textarea{resize:vertical;min-height:55px;}
           <div style="font-family:var(--serif);font-size:22px;font-weight:300;margin-bottom:6px;">Manual de uso</div>
           <div style="font-size:11px;opacity:.5;">Cómputo y Certificación de Obras &mdash; Manuel Sagarraga</div>
         </div>
-        <div style="text-align:right;font-size:10px;opacity:.5;line-height:1.8;">Metro Obra Mayo 2026<br>UOCRA Zona A Mayo 2026</div>
+        <div style="text-align:right;font-size:10px;opacity:.5;line-height:1.8;">Metro Obra Mayo 2026<span class="mo-ref"><br>UOCRA Zona A Mayo 2026</span></div>
       </div>
 
       <!-- NOVEDADES -->
@@ -957,7 +959,7 @@ textarea{resize:vertical;min-height:55px;}
         <div style="font-size:11px;color:var(--tx2);line-height:1.9;">
           <b>Importar desde un cómputo (oct-2026):</b> el import acepta también un cómputo hecho a mano. En <b>Tipo de archivo</b> elegí <i>Cómputo</i> (se detecta solo si la hoja no trae "Contratista"): carga las mediciones con su N° de ítem y el precio de MO, <b>sin crear certificado base</b>. Une los renglones "elemento en m³ + largo en ml" y "Zócalos + IDEM PISO" en un solo ítem, y ubica la planta aunque el rótulo esté antes o después. Elegí el Project de BkTableros para ver, antes de importar, qué N° no están en el cronograma, cuáles se repiten y cuáles apuntan a una tarea con otro nombre; el N° se puede corregir ahí mismo.<br>
           <b>Import de Excel más inteligente:</b> convierte m² a m³ usando el espesor de la descripción (ej. "e=10cm"), pasa ml de capa aisladora a m² (ancho de muro 0,20 m, anotado en la descripción), calcula m³ de estructuras desde las dimensiones del texto respetando "N unid", y cuando un ítem lista varias secciones distintas (ej. vigas "(30x35),(35x40)…") conserva la cantidad del Excel y lo marca para validación manual. Todo cálculo queda anotado en la descripción del ítem.<br>
-          <b>Mano de obra = precio del contratista (nuevo):</b> cada medición tiene su precio (por unidad o global) y su contratista; esa es la MO de presupuesto, dashboard, cartera y certificados. Los jornales y la referencia UOCRA pasaron a <b>Información de sustento</b> (solo lectura) y ya no suman en ningún total. Una medición sin precio figura en $0 y se marca en rojo. El import de Excel guarda el precio ya convertido a nuestra unidad (y conserva el precio y la unidad del Excel).<br>
+          <b>Mano de obra = precio del contratista (nuevo):</b> cada medición tiene su precio (por unidad o global) y su contratista; esa es la MO de presupuesto, dashboard, cartera y certificados.<span class="mo-ref"> Los jornales y la referencia UOCRA pasaron a <b>Información de sustento</b> (solo lectura) y ya no suman en ningún total.</span> Una medición sin precio figura en $0 y se marca en rojo. El import de Excel guarda el precio ya convertido a nuestra unidad (y conserva el precio y la unidad del Excel).<br>
           <b>Certificados:</b> un borrador usa siempre el precio vigente de cada medición; al <b>Emitir certificado</b> los precios y contratistas se congelan (si después cambia el precio, el emitido no se mueve). Un emitido se puede reabrir a borrador.<br>
           <b>Hormigón elaborado H21 por defecto:</b> salvo que el ítem diga "in situ", las tareas de hormigón se asignan a su versión con Hº elaborado H21. Todas las tareas tienen ahora sus tres variantes (in situ / H17 / H21).<br>
           <b>Botón "✓ Revisar" en Mediciones:</b> audita todos los ítems estructurales de la obra y lista los que tienen incoherencia entre las dimensiones del texto y la cantidad cargada — sin revisar uno por uno.<br>
@@ -1004,7 +1006,7 @@ textarea{resize:vertical;min-height:55px;}
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">4</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar precios de mano de obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Se puede cargar de tres formas: (1) al crear o editar una medición (campos <b>Contratista</b> y <b>Precio</b>; el botón <i>Aplicar a las demás mediciones de esta tarea sin precio</i> copia el precio al resto); (2) en el menu lateral &rarr; <b>Precios MO</b>, una fila por medición, con contratista, modo (por unidad / global) y precio; (3) automaticamente al importar un Excel con costo unitario. El contador <b>Sin precio de MO</b> te dice cuantas mediciones faltan. Para comparar con jornales y cuadrilla: <b>Informacion de sustento</b>.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar precios de mano de obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Se puede cargar de tres formas: (1) al crear o editar una medición (campos <b>Contratista</b> y <b>Precio</b>; el botón <i>Aplicar a las demás mediciones de esta tarea sin precio</i> copia el precio al resto); (2) en el menu lateral &rarr; <b>Precios MO</b>, una fila por medición, con contratista, modo (por unidad / global) y precio; (3) automaticamente al importar un Excel con costo unitario. El contador <b>Sin precio de MO</b> te dice cuantas mediciones faltan.<span class="mo-ref"> Para comparar con jornales y cuadrilla: <b>Informacion de sustento</b>.</span></div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">5</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
@@ -1134,7 +1136,7 @@ textarea{resize:vertical;min-height:55px;}
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">LO QUE CALCULA EL SISTEMA AUTOMATICAMENTE</div>
-            <div style="font-size:11px;color:var(--tx2);">La mano de obra del presupuesto NO se calcula: es el precio que acordaste con el contratista para cada medicion (precio por unidad x cantidad, o monto global). El calculo por jornales y cuadrilla (UOCRA) se conserva solo como referencia en <b>Informacion de sustento</b>, para comparar y negociar, y no suma en ningun total.</div>
+            <div style="font-size:11px;color:var(--tx2);">La mano de obra del presupuesto NO se calcula: es el precio que acordaste con el contratista para cada medicion (precio por unidad x cantidad, o monto global).<span class="mo-ref"> El calculo por jornales y cuadrilla (UOCRA) se conserva solo como referencia en <b>Informacion de sustento</b>, para comparar y negociar, y no suma en ningun total.</span></div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CARGAR EL PRECIO REAL DEL CONTRATISTA</div>
@@ -1187,7 +1189,7 @@ textarea{resize:vertical;min-height:55px;}
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Computo automatico</td><td style="padding:7px 8px;color:var(--tx2);">Lista de materiales calculados (solo lectura)</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Presupuesto</td><td style="padding:7px 8px;color:var(--tx2);">Costo total por rubro con materiales y MO</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales</td><td style="padding:7px 8px;color:var(--tx2);">Base de precios, exportar e importar Excel</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mano de obra</td><td style="padding:7px 8px;color:var(--tx2);">Categorias UOCRA con jornal: solo referencia (Informacion de sustento)</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr class="mo-ref" style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mano de obra</td><td style="padding:7px 8px;color:var(--tx2);">Categorias UOCRA con jornal: solo referencia (Informacion de sustento)</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Consumos</td><td style="padding:7px 8px;color:var(--tx2);">Consumos de materiales de cada tarea (recetas), agrupados por rubro</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Indices CAC</td><td style="padding:7px 8px;color:var(--tx2);">Indice mensual para congelado de precios</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Archivos</td><td style="padding:7px 8px;color:var(--tx2);">Fotos y planos por obra</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
@@ -1306,6 +1308,11 @@ window.addEventListener('unhandledrejection', e => {
   hideBusy();
   console.error('Error no capturado:', e && e.reason);
 });
+// MO = precio del contratista (unitario o global). El cálculo por rendimiento/jornales UOCRA queda apagado:
+// no se calcula, y se ocultan su pantalla, la de sustento y los campos de rendimiento. Los datos quedan en la base.
+// Poner en true para volver a mostrarlo como referencia.
+const MO_POR_RENDIMIENTO = false;
+if (!MO_POR_RENDIMIENTO) document.documentElement.classList.add('sin-mo-ref');
 const SB_URL = 'https://beuzmwrhqlmjoplsillf.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJldXptd3JocWxtam9wbHNpbGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0ODc1NDcsImV4cCI6MjA5NTA2MzU0N30.Rw82cnyzp2S2Alc6lWiBCDxVL8u_8wAfCTConDGpYFE';
 
@@ -2470,7 +2477,8 @@ function computeObra(obraId) {
     const cuadrilla = Array.isArray(coef.cuadrilla) ? coef.cuadrilla
       : (typeof coef.cuadrilla === 'string' ? JSON.parse(coef.cuadrilla || '[]') : []);
 
-    if (cuadrilla.length > 0 && moRend > 0) {
+    if (!MO_POR_RENDIMIENTO) { /* sin referencia por jornales */ }
+    else if (cuadrilla.length > 0 && moRend > 0) {
       // Calcular con cuadrilla real: cada integrante aporta su jornal
       const jornales = cantidad / moRend;
       const partes = [];
@@ -2497,7 +2505,8 @@ function computeObra(obraId) {
     const rMO = resolverMO(med, coef, cantidad);
     const totalMO = rMO.total;
     const moDesc = rMO.sinPrecio ? '' : (rMO.tipo === 'global' ? `Global${rMO.contratista ? ' · ' + rMO.contratista : ''}` : `${$p(rMO.precio)}/${rMO.unidad}${rMO.contratista ? ' · ' + rMO.contratista : ''}`);
-    const moSinPrecio = rMO.sinPrecio && (moRef > 0 || coefMats.length === 0);
+    // Sin rendimientos, toda medición sin precio de contratista se marca (antes dependía de que la referencia diera > 0)
+    const moSinPrecio = MO_POR_RENDIMIENTO ? (rMO.sinPrecio && (moRef > 0 || coefMats.length === 0)) : rMO.sinPrecio;
     rubros[coef.rubro].items.push({ med, coef, cantidad, cantDesp, matItems: matItemsFilt, totalMats, totalMO, moDesc, moRef, moRefDesc, moSinPrecio, moContratista: rMO.contratista, moPrecioUnit: rMO.unit, moTipo: rMO.tipo, total: totalMats + totalMO });
   });
   // Ordenar items dentro de cada rubro por código de tarea
@@ -5529,7 +5538,7 @@ function renderCoefs() {
           <code style="font-size:10px;color:var(--bl);min-width:32px;">${c.cod}</code>
           <span style="font-size:11px;font-weight:500;flex:1;">${c.nombre}</span>
           <span style="font-size:10px;color:var(--tx3);">${c.unidad}</span>
-          <span style="font-size:9px;color:var(--tx3);margin-left:4px;">${cMats.length ? cMats.length+' mat.' : '—'} · rend ${num(c.moRend||c.mo_rend)||'—'}/día</span>
+          <span style="font-size:9px;color:var(--tx3);margin-left:4px;">${cMats.length ? cMats.length+' mat.' : '—'}<span class="mo-ref"> · rend ${num(c.moRend||c.mo_rend)||'—'}/día</span></span>
           <span style="font-size:10px;color:var(--tx3);">▾</span>
         </div>
         <div style="display:none;padding:10px 14px 10px 56px;background:var(--bg);">
