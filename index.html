@@ -7441,6 +7441,8 @@ const MAP_SUBTIPO = {
   'cert_electrico': '1.15', 'limpieza_periodica': '1.16', 'limpieza_final': '1.17',
   'bano_quimico_mensual': '1.18', 'obrador_mensual': '1.19',
   'contenedores': '1.20', 'seguros_operarios': '1.21', 'alquiler_herramientas': '1.22',
+  // Variantes por m² (oct-2026): la versión global queda en el código original. Ver SUBTIPO_VARIANTE_UNIDAD.
+  'limpieza_m2': '1.23', 'replanteo_m2': '1.24', 'limpieza_final_m2': '1.25',
   // Movimiento de suelos (2.x — sin cambios)
   'excavacion': '2.1', 'relleno': '2.4', 'retiro_tierra': '2.6',
   // Hº genéricos
@@ -7787,10 +7789,18 @@ function validarImport() {
   });
 }
 
+// Tareas que existen en dos versiones (global y por m²): manda la unidad del Excel.
+// "Limpieza final  gl 1" → 1.17 (global) · "Limpieza final  m2 180" → 1.25 (por m²)
+const SUBTIPO_VARIANTE_UNIDAD = { 'limpieza': 'm2', 'replanteo': 'm2', 'limpieza_final': 'm2' };
+function subtipoSegunUnidad(subtipo, unidad) {
+  const u = SUBTIPO_VARIANTE_UNIDAD[subtipo];
+  return u && normUnidad(unidad) === u && MAP_SUBTIPO[subtipo + '_' + u] ? subtipo + '_' + u : subtipo;
+}
+
 function asignarCoefsImport() {
   importData.forEach(item => {
     if (item.manual) return;
-    const r = resolverCoefSubtipo(item.subtipo, item.desc);
+    const r = resolverCoefSubtipo(subtipoSegunUnidad(item.subtipo, item.unidad), item.desc);
     item.coefId = r.coef ? r.coef.id : null;
     item.aviso = r.aviso || '';
     item.motivo = r.motivo || '';
