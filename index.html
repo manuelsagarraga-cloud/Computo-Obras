@@ -7811,6 +7811,7 @@ function asignarCoefsImport() {
     if (item.manual) return;
     const r = resolverCoefSubtipo(subtipoSegunUnidad(item.subtipo, item.unidad), item.desc);
     item.coefId = r.coef ? r.coef.id : null;
+    item.codLector = r.coef ? r.coef.cod : null;   // para el registro de aprendizaje si después se corrige a mano
     item.aviso = r.aviso || '';
     item.motivo = r.motivo || '';
     item.iaNota = null;
@@ -7839,7 +7840,9 @@ function _impAplicarIA(item) {
   if (ia.conf === 'baja') { item.motivo = `IA sugiere ${c.cod} — ${c.nombre} (confianza baja): elegila si corresponde`; return; }
   item.coefId = c.id;
   item.motivo = '';
-  item.iaNota = ia.conf === 'alta'
+  item.iaNota = ia.conf === 'memoria'
+    ? { lvl: 'info', msg: `Tarea asignada por memoria: ya la confirmaste en ${ia.veces || 1} import${(ia.veces || 1) > 1 ? 's' : ''} anterior${(ia.veces || 1) > 1 ? 'es' : ''}` }
+    : ia.conf === 'alta'
     ? { lvl: 'info', msg: `Tarea asignada por IA (confianza alta)` }
     : { lvl: 'warn', msg: `Tarea asignada por IA (confianza media) — verificá` };
 }
@@ -7851,8 +7854,16 @@ async function _impLanzarIA() {
   pend.forEach(i => { i.ia = { estado: 'enviando' }; });
   _iaPendientes += pend.length; _iaStatus();
   let errMsg = '';
+  // Memoria: descripción + unidad ya confirmadas siempre con la misma tarea → sin IA
+  const mem = await _impCargarMemoria();
+  const ce = coefsEmpresa();
+  const aIA = pend.filter(it => {
+    const m = mem[_descNorm(it.desc) + '|' + normUnidad(it.unidad)];
+    if (m && ce.some(c => c.cod === m.cod_final)) { it.ia = { estado: 'ok', cod: m.cod_final, conf: 'memoria', veces: m.veces }; _iaPendientes--; return false; }
+    return true;
+  });
   const lotes = [];
-  for (let k = 0; k < pend.length; k += IA_LOTE) lotes.push(pend.slice(k, k + IA_LOTE));
+  for (let k = 0; k < aIA.length; k += IA_LOTE) lotes.push(aIA.slice(k, k + IA_LOTE));
   await Promise.all(lotes.map(async lote => {
     const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), IA_TIMEOUT_MS);
     try {
@@ -7884,9 +7895,50 @@ async function _impLanzarIA() {
   if (importData !== data) return;   // el usuario cambió de hoja/archivo mientras tanto
   if (errMsg) notif(`La clasificación con IA falló (${errMsg}). Asigná esos ítems a mano.`);
   data.forEach(i => { if (!i.manual && !i.coefId) _impAplicarIA(i); });
-  const n = data.filter(i => i.ia && i.ia.estado === 'ok' && i.coefId && !i.manual && i.iaNota).length;
-  if (n) notif(`IA: ${n} ítems clasificados — revisá los marcados en amarillo`);
+  const asig = data.filter(i => i.ia && i.ia.estado === 'ok' && i.coefId && !i.manual && i.iaNota);
+  const nMem = asig.filter(i => i.ia.conf === 'memoria').length, nIA = asig.length - nMem;
+  if (asig.length) notif([nMem ? `${nMem} por memoria` : '', nIA ? `${nIA} por IA` : ''].filter(Boolean).join(' · ') + ' — revisá los marcados en amarillo');
   validarImport(); renderImportPreview();
+}
+
+// =====================================================================
+// APRENDIZAJE DEL IMPORT (oct-2026) — tabla import_aprendizaje
+// Se registra cada ítem que necesitó ayuda (IA, memoria o corrección manual) con la tarea FINAL elegida.
+// v_import_memoria → asigna sin IA lo ya confirmado · v_import_reporte → patrones para escribir reglas en el lector.
+// =====================================================================
+const _descNorm = d => _normN(d).replace(/\s+/g, ' ').trim();
+
+async function _impCargarMemoria() {
+  try {
+    const r = await sbFetch(`${SB_URL}/rest/v1/v_import_memoria?select=desc_norm,unidad,cod_final,veces&limit=10000`, { headers: getSBHeaders() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const out = {};
+    (await r.json()).forEach(m => { out[m.desc_norm + '|' + normUnidad(m.unidad)] = m; });
+    return out;
+  } catch (e) { console.warn('[memoria import] no disponible', e); return {}; }
+}
+
+// Se llama al confirmar el import. Nunca bloquea ni hace fallar el import.
+function _impRegistrarAprendizaje(items, obraId) {
+  try {
+    const rows = [];
+    items.forEach(it => {
+      const coef = it.coefId ? coefs.find(c => c.id === it.coefId) : null;
+      if (!coef) return;
+      const base = { empresa: currentEmpresa || null, obra_id: obraId || null, descripcion: it.desc, desc_norm: _descNorm(it.desc),
+                     unidad: normUnidad(it.unidad), rubro: it.rubro || null, subtipo_lector: it.subtipo || null, cod_final: coef.cod };
+      if (it.ia && it.ia.estado === 'ok') {
+        const auto = it.ia.cod || null;
+        rows.push({ ...base, origen: it.ia.conf === 'memoria' ? 'memoria' : 'ia', cod_auto: auto, confianza: it.ia.conf, corregido: auto !== coef.cod });
+      } else if (it.manual) {
+        const auto = it.codLector || null;
+        if (auto === coef.cod) return;   // eligió lo mismo que ya proponía el lector: no enseña nada
+        rows.push({ ...base, origen: 'manual', cod_auto: auto, confianza: null, corregido: !!auto });
+      }
+    });
+    if (!rows.length) return;
+    sbPost('import_aprendizaje', rows).catch(e => console.warn('[aprendizaje import] no se pudo registrar', e));
+  } catch (e) { console.warn('[aprendizaje import]', e); }
 }
 
 function _iaStatus() {
@@ -8499,7 +8551,7 @@ function renderImportPreview() {
     return `<tr style="${bg}">
       <td style="font-family:var(--mono);">${item.origen === 'computo' ? `<input value="${item.nItemOk ? esc(item.nItem) : ''}" placeholder="s/n" title="N° de ítem del cronograma (ej. JS2.11)" style="width:68px;font-size:11px;font-family:var(--mono);${item.nItemOk ? '' : 'border-color:var(--am);'}" onchange="impSetNItem(${idx}, this.value)">` : esc(item.nItem)}</td>
       <td>${item.existe ? '<span style="font-size:9px;background:#fff3cd;color:#8a6d00;padding:1px 5px;border-radius:4px;margin-right:4px;">ya existe</span>' : ''}${esc(item.desc)}
-        <div style="font-size:9px;color:var(--tx3);font-family:var(--mono);">${item.subtipo ? 'lector: ' + item.subtipo : 'lector: sin detectar'}${item.manual ? ' · asignada a mano' : ''}${!item.manual && item.ia ? (item.ia.estado === 'enviando' ? ' · 🤖 IA…' : item.ia.estado === 'error' ? ' · 🤖 IA: error' : ' · 🤖 IA: ' + esc(item.ia.conf) + (item.ia.cod ? ' (' + esc(item.ia.cod) + ')' : '')) : ''}</div></td>
+        <div style="font-size:9px;color:var(--tx3);font-family:var(--mono);">${item.subtipo ? 'lector: ' + item.subtipo : 'lector: sin detectar'}${item.manual ? ' · asignada a mano' : ''}${!item.manual && item.ia ? (item.ia.estado === 'enviando' ? ' · 🤖 IA…' : item.ia.estado === 'error' ? ' · 🤖 IA: error' : (item.ia.conf === 'memoria' ? ' · 🧠 memoria' : ' · 🤖 IA: ' + esc(item.ia.conf)) + (item.ia.cod ? ' (' + esc(item.ia.cod) + ')' : '')) : ''}</div></td>
       <td><input type="number" step="any" value="${item.cant}" style="width:70px;font-size:11px;" onchange="impSetCant(${idx}, this.value)"></td>
       <td>${esc(item.unidad)}${item.unidadExcel && normUnidad(item.unidadExcel) !== item.unidad ? `<div style="font-size:9px;color:var(--tx3);">Excel: ${esc(item.unidadExcel)}</div>` : ''}</td>
       <td style="font-size:10px;color:var(--bl);">${esc(item.ubicacion)}</td>
@@ -8744,6 +8796,7 @@ async function saveImport() {
       await upsertMoPreciosLote(moBatch);
     }
 
+    _impRegistrarAprendizaje(items, obraId);
     closeModal('m-import');
     renderObras();
     popSelects();
