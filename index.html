@@ -372,7 +372,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.2</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.3</span></span>
     </div>
   </div>
 
@@ -1300,7 +1300,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-22.2';
+const APP_BUILD = '2026-10-22.3';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -10036,7 +10036,7 @@ function toggleFaq(i) {
 // Solo usuarios logueados. Antes: Gemini con key por navegador (localStorage), que dejó de responder.
 // =====================================================================
 const CHAT_URL = `${SB_URL}/functions/v1/chat-obra`;
-let chatHistory = []; // {role:'user'|'model', parts:[{text}]}
+let chatHistory = []; // formato OpenAI: {role:'user'|'assistant'|'tool', content, tool_calls?, tool_call_id?}
 let chatOpen = false;
 try { localStorage.removeItem('gemini_key'); } catch (e) {}   // limpia la key vieja de Gemini
 
@@ -10060,7 +10060,13 @@ function chatWelcome() {
 
 function clearChat() { chatWelcome(); }
 
-function buildObraContext() {
+function _chatObraActivaId() {
+  const selIds = ['sel-obra-med','sel-obra-pres','sel-obra-cert','sel-obra-comp','sel-obra-compras','sel-obra-mo','sel-obra-arch','sel-obra-hist'];
+  for (const id of selIds) { const el = document.getElementById(id); if (el && el.value) return el.value; }
+  return obras.length === 1 ? obras[0].id : null;
+}
+function buildObraContext(obraIdForzada) {
+  if (obraIdForzada) { const o = obras.find(x => x.id === obraIdForzada); if (o) return _buildObraContextDe(o.id); }
   // Obra activa: buscar en los selectores visibles
   const selIds = ['sel-obra-med','sel-obra-pres','sel-obra-cert','sel-obra-comp','sel-obra-compras','sel-obra-mo','sel-obra-arch','sel-obra-hist'];
   let obraId = null;
@@ -10070,7 +10076,9 @@ function buildObraContext() {
   }
   if (!obraId && obras.length === 1) obraId = obras[0].id;
   if (!obraId) return '(Sin obra activa seleccionada en la app. El usuario puede seleccionar una obra en cualquier vista.)';
-
+  return _buildObraContextDe(obraId);
+}
+function _buildObraContextDe(obraId) {
   const obra = obras.find(o => o.id === obraId);
   if (!obra) return '';
   const r = computeObra(obraId);
@@ -10108,40 +10116,122 @@ function buildSystemPrompt() {
   return `Sos un asistente especializado en cómputo de obras de construcción en Argentina. Trabajás con la app "Cómputo de Obras" de Bauvek Construcciones.
 Tenés acceso a los datos de la obra activa y respondés preguntas sobre materiales, cantidades, costos, presupuesto, certificados y planificación de obra.
 Usá pesos argentinos ($) con puntos de miles, metros y unidades del sistema métrico. Respondé en español rioplatense, de forma concisa y profesional.
-No inventés datos — si algo no está en el contexto, decíselo al usuario.
+No inventés datos. Tenés HERRAMIENTAS para consultar la app: buscar_obras, resumen_obra, materiales_obra y mediciones_obra.
+Antes de decir que no tenés un dato, buscalo con las herramientas. Si el usuario nombra una obra que no es la activa, usá buscar_obras y después consultá esa obra.
+Cuando des cantidades, citá la obra y de dónde sale el número (material consolidado o medición).
+Hierro: los hierros solo existen si la armadura de cada elemento está cargada en la medición. Si materiales_obra indica mediciones estructurales sin armadura, decilo con el número y explicá que hay que cargar la armadura (o pedir el dato al calculista); no estimes kilos por tu cuenta.
 Cuando hables de costos, aclará que son estimaciones basadas en los precios cargados en la app.
 
 CONTEXTO ACTUAL DE LA APP:
 ${buildObraContext()}`;
 }
 
-async function callAsistente(history, systemOverride) {
-  if (!authToken) throw new Error('Iniciá sesión para usar el asistente');
-  // Últimos 10 mensajes para no exceder tokens
-  const trimmed = history.length > 10 ? history.slice(-10) : history;
-  const messages = trimmed.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.parts?.[0]?.text || '' }));
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000);
-  const dot = document.getElementById('chat-dot');
-  try {
-    const resp = await fetch(CHAT_URL, {
-      method: 'POST', signal: controller.signal,
-      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ system: systemOverride || buildSystemPrompt(), messages })
+// ---- Herramientas del asistente: se ejecutan acá, con los datos ya cargados y calculados ----
+function _chatResolverObra(texto) {
+  const t = _normN(texto || '').trim();
+  if (!t) { const id = _chatObraActivaId(); return id ? { obra: obras.find(o => o.id === id) } : { error: 'No hay obra activa: indicá el nombre de la obra.', obras: obras.map(o => o.nombre) }; }
+  const sig = s => _normN(s).replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const q = sig(t), qPal = q.split(' ').filter(w => w.length > 2 && !['OBRA', 'VIVIENDA', 'CASA', 'DE', 'LOS', 'LAS'].includes(w));
+  const iniciales = q.split(' ').filter(Boolean).map(w => w[0]).join('');   // "Esteban y Matias" → "EYM"
+  const puntaje = o => {
+    const n = sig(`${o.nombre || ''} ${o.cod || ''} ${o.cliente || ''}`);
+    if (n.includes(q)) return 100;
+    let p = qPal.filter(w => n.includes(w)).length * 10;
+    if (iniciales.length >= 2 && n.split(' ').includes(iniciales)) p += 50;
+    return p;
+  };
+  const cand = obras.map(o => ({ o, p: puntaje(o) })).filter(x => x.p > 0).sort((a, b) => b.p - a.p);
+  if (!cand.length) return { error: `No encontré una obra que coincida con "${texto}".`, obras: obras.map(o => o.nombre) };
+  if (cand.length > 1 && cand[0].p === cand[1].p) return { error: 'Hay varias obras posibles: preguntale al usuario cuál.', obras: cand.slice(0, 6).map(x => x.o.nombre) };
+  return { obra: cand[0].o };
+}
+const _r2 = v => +(+v || 0).toFixed(2);
+const CHAT_TOOLS = {
+  buscar_obras({ texto } = {}) {
+    const t = _normN(texto || '');
+    return obras.filter(o => !t || _normN(`${o.nombre} ${o.cod} ${o.cliente}`).includes(t) || _chatResolverObra(texto).obra === o)
+      .map(o => ({ codigo: o.cod, nombre: o.nombre, cliente: o.cliente || '', mediciones: meds.filter(m => (m.obraId || m.obra_id) === o.id).length, activa: o.id === _chatObraActivaId() }));
+  },
+  resumen_obra({ obra } = {}) {
+    const r = _chatResolverObra(obra); if (r.error) return r;
+    return { obra: r.obra.nombre, resumen: buildObraContext(r.obra.id) };
+  },
+  materiales_obra({ obra, filtro } = {}) {
+    const r = _chatResolverObra(obra); if (r.error) return r;
+    const prev = (typeof _obraEnComputo !== 'undefined') ? _obraEnComputo : null;
+    const cons = consolidarMateriales(r.obra.id);
+    try { _obraEnComputo = prev; } catch (e) {}
+    const f = _normN(filtro || '');
+    const lista = Object.values(cons).filter(m => !f || _normN(m.nombre).includes(f) || (f.startsWith('HIERRO') && /ACERO|ADN|BARRA|Ø|DIAM/.test(_normN(m.nombre))))
+      .sort((a, b) => b.subtotal - a.subtotal).slice(0, 60)
+      .map(m => ({ material: m.nombre, cantidad: _r2(m.cantComercialCeil), unidad: m.unComercial, cantidad_base: _r2(m.cantBase), unidad_base: m.unBase, precio_unit: _r2(m.precio), subtotal: Math.round(m.subtotal), rubros: m.rubros, ...(m.mezcla ? { aviso: 'unidades mezcladas entre tareas' } : {}) }));
+    const medsObra = meds.filter(m => (m.obraId || m.obra_id) === r.obra.id);
+    const estr = medsObra.filter(m => { const c = coefs.find(x => x.id === (m.coefId || m.coef_id)); return c && tipoEstructural(c.cod); });
+    const sinArm = estr.filter(m => !/(?:^|\|)\s*(est|ppal|sup|inf|ref|armTipo)\s*:/.test(m.desc || m.descripcion || ''));
+    return { obra: r.obra.nombre, materiales: lista, total_materiales: Object.keys(cons).length,
+      mediciones_estructurales: estr.length, estructurales_sin_armadura: sinArm.length,
+      nota: sinArm.length ? `${sinArm.length} de ${estr.length} mediciones estructurales no tienen la armadura cargada: sus hierros NO están en esta lista.` : '' };
+  },
+  mediciones_obra({ obra, filtro, rubro } = {}) {
+    const r = _chatResolverObra(obra); if (r.error) return r;
+    const rub = computeObra(r.obra.id), f = _normN(filtro || ''), fr = _normN(rubro || '');
+    const out = [];
+    Object.entries(rub).forEach(([nombreRubro, d]) => {
+      if (fr && !_normN(nombreRubro).includes(fr)) return;
+      d.items.forEach(i => {
+        const desc = i.med.desc || i.med.descripcion || '';
+        if (f && !_normN(`${i.coef.cod} ${i.coef.nombre} ${desc}`).includes(f)) return;
+        out.push({ n_item: i.med.n_item || '', rubro: nombreRubro, tarea: `${i.coef.cod} ${i.coef.nombre}`, descripcion: desc.split('|')[0].slice(0, 120),
+          cantidad: _r2(i.cantidad), unidad: i.coef.unidad, ubicacion: i.med.ubicacion || '', mo: Math.round(i.totalMO || 0), materiales: Math.round(i.totalMats || 0) });
+      });
     });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || data.error) {
-      if (dot) dot.className = '';
-      const st = data.status ? ` (${data.status})` : '';
-      if (resp.status === 401) throw new Error('La sesión venció: cerrá sesión y volvé a entrar');
-      if (/OPENAI_API_KEY/.test(data.error || '')) throw new Error('Falta cargar la key de OpenAI en Supabase (secreto OPENAI_API_KEY)');
-      if (data.status === 429) throw new Error('OpenAI sin crédito o con límite alcanzado (429)');
-      throw new Error((data.error || resp.statusText || 'Error') + st);
+    return { obra: r.obra.nombre, total: out.length, mediciones: out.slice(0, 80), ...(out.length > 80 ? { nota: 'Se muestran 80: afiná con filtro o rubro.' } : {}) };
+  }
+};
+const _CHAT_TOOL_LABEL = { buscar_obras: 'Buscando obras', resumen_obra: 'Leyendo el presupuesto', materiales_obra: 'Consultando materiales', mediciones_obra: 'Consultando mediciones' };
+
+async function _chatFetch(body, signal) {
+  const resp = await fetch(CHAT_URL, { method: 'POST', signal,
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || data.error) {
+    const st = data.status ? ` (${data.status})` : '';
+    if (resp.status === 401) throw new Error('La sesión venció: cerrá sesión y volvé a entrar');
+    if (/OPENAI_API_KEY/.test(data.error || '')) throw new Error('Falta cargar la key de OpenAI en Supabase (secreto OPENAI_API_KEY)');
+    if (data.status === 429) throw new Error('OpenAI sin crédito o con límite alcanzado (429)');
+    throw new Error((data.error || resp.statusText || 'Error') + st);
+  }
+  return data;
+}
+
+// history: mensajes en formato OpenAI ({role, content, tool_calls?, tool_call_id?}). Devuelve el texto final
+// y deja en history las llamadas a herramientas para que la conversación siga teniendo el contexto.
+async function callAsistente(history, systemOverride, onTool) {
+  if (!authToken) throw new Error('Iniciá sesión para usar el asistente');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  const dot = document.getElementById('chat-dot');
+  const system = systemOverride || buildSystemPrompt();
+  try {
+    for (let vuelta = 0; vuelta < 5; vuelta++) {
+      let desde = Math.max(0, history.length - 24);
+      while (desde > 0 && history[desde].role !== 'user') desde--;   // no cortar entre una llamada y su resultado
+      const data = await _chatFetch({ system, messages: history.slice(desde), tools: !systemOverride }, controller.signal);
+      if (!data.tool_calls) { if (dot) dot.className = 'ok'; return data.reply || ''; }
+      history.push({ role: 'assistant', content: data.content || null, tool_calls: data.tool_calls });
+      for (const tc of data.tool_calls) {
+        const nombre = tc.function?.name, fn = CHAT_TOOLS[nombre];
+        let args = {}; try { args = JSON.parse(tc.function?.arguments || '{}'); } catch (e) {}
+        if (onTool) onTool(nombre, args);
+        let res;
+        try { res = fn ? fn(args) : { error: `Herramienta desconocida: ${nombre}` }; } catch (e) { res = { error: 'Falló la consulta: ' + e.message }; }
+        history.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(res).slice(0, 14000) });
+      }
     }
-    if (dot) dot.className = 'ok';
-    return data.reply || '';
+    return 'Hice varias búsquedas y no llegué a una respuesta. Probá con una pregunta más puntual.';
   } catch (e) {
-    if (e.name === 'AbortError') throw new Error('La consulta tardó demasiado (45 s). Intentá de nuevo.');
+    if (dot) dot.className = '';
+    if (e.name === 'AbortError') throw new Error('La consulta tardó demasiado. Intentá de nuevo.');
     throw e;
   } finally {
     clearTimeout(timer);
@@ -10173,14 +10263,16 @@ async function chatSend() {
   if (!text || send.disabled) return;
   input.value = ''; input.style.height = '';
   addChatMsg('user', text);
-  chatHistory.push({ role: 'user', parts: [{ text }] });
+  chatHistory.push({ role: 'user', content: text });
   send.disabled = true;
   const typing = addChatMsg('typing', '…');
   try {
-    const reply = await callAsistente([...chatHistory]);
+    const reply = await callAsistente(chatHistory, null, (nombre, args) => {
+      typing.textContent = `🔎 ${_CHAT_TOOL_LABEL[nombre] || nombre}${args && args.obra ? ' de ' + args.obra : ''}${args && args.filtro ? ' · ' + args.filtro : ''}…`;
+    });
     typing.remove();
     addChatMsg('assistant', reply);
-    chatHistory.push({ role: 'model', parts: [{ text: reply }] });
+    chatHistory.push({ role: 'assistant', content: reply });
     // Badge del FAB para conversaciones no leídas
     if (!chatOpen) {
       const fab = document.getElementById('chat-fab-badge');
