@@ -183,6 +183,10 @@ textarea{resize:vertical;min-height:55px;}
 #imp-preview td{vertical-align:top;}
 .imp-foot{flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 76px 12px 0;border-top:1px solid var(--border);margin-top:8px;background:var(--surf);}
 .imp-foot #imp-stats{flex:1 1 0;min-width:0;}
+/* Armadura por defecto del import, pendiente de detallar (oct-2026) */
+.arm-def{display:inline-block;font-size:9px;font-weight:600;color:#8a5a00;background:#fff3cd;border:1px solid #f0c36d;border-radius:3px;padding:0 5px;margin-top:2px;white-space:nowrap;cursor:help;}
+tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
+.arm-def-banner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff8e6;border:1px solid #f0c36d;border-radius:4px;padding:7px 10px;margin-bottom:10px;font-size:11px;color:#6b4a00;}
 /* MO por rendimiento/jornales UOCRA apagada (oct-2026): ver MO_POR_RENDIMIENTO */
 .sin-mo-ref .mo-ref{display:none !important;}
 .imp-foot .btn{flex:0 0 auto;}
@@ -372,7 +376,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.4</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.5</span></span>
     </div>
   </div>
 
@@ -1300,7 +1304,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-22.4';
+const APP_BUILD = '2026-10-22.5';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -4005,6 +4009,7 @@ async function saveMedicion(keepOpen) {
   });
 }
 
+let _medSoloArmDef = false;
 function loadMediciones() {
   setTimeout(actualizarBadgeRevisar, 150);
   const obraId = document.getElementById('sel-obra-med')?.value;
@@ -4024,7 +4029,14 @@ function loadMediciones() {
   // Aplicar filtros
   if (filRubro) obsMeds = obsMeds.filter(m => { const c=coefs.find(x=>x.id===(m.coefId||m.coef_id)); return (c?.rubro||'Sin rubro')===filRubro; });
   if (filPiso)  obsMeds = obsMeds.filter(m => (m.ubicacion||'Global')===filPiso);
+  // Armadura por defecto del import, todavía sin detallar
+  const esArmDef = m => /armDef\s*:\s*import/.test(m.desc || m.descripcion || '');
+  const nArmDef = meds.filter(m => (m.obraId||m.obra_id) === obraId && esArmDef(m)).length;
+  if (_medSoloArmDef && nArmDef) obsMeds = obsMeds.filter(esArmDef);
   if (!obsMeds.length) { body.innerHTML = '<div class="empty">Sin mediciones para ese filtro.</div>'; return; }
+  const bannerArmDef = nArmDef ? `<div class="arm-def-banner"><span class="arm-def" style="font-size:10px;">⚙ ${nArmDef}</span>
+    <span><b>${nArmDef} elemento${nArmDef !== 1 ? 's' : ''} con armadura por defecto</b> (supuesta al importar: Ø10 ppal, est. Ø6 c/25 cm, parrillas c/20 cm). Abrí cada uno con ✎, ajustá la armadura según el cálculo y guardá: la marca desaparece.</span>
+    <label style="display:flex;gap:4px;align-items:center;margin:0;text-transform:none;letter-spacing:0;font-size:11px;"><input type="checkbox" style="width:auto;margin:0;" ${_medSoloArmDef ? 'checked' : ''} onchange="_medSoloArmDef=this.checked;loadMediciones()"> Ver solo pendientes</label></div>` : '';
   const desp = 1 + desperdicio / 100;
   const byRubro = {};
   obsMeds.forEach(med => {
@@ -4037,7 +4049,7 @@ function loadMediciones() {
   Object.values(byRubro).forEach(items => items.sort((a,b) => sortByCod(a.coef||{cod:'999'}, b.coef||{cod:'999'})));
   // Ordenar rubros en orden lógico
   const rubrosOrden = ordenRubros(Object.keys(byRubro));
-  body.innerHTML = rubrosOrden.map(rubro => {
+  body.innerHTML = bannerArmDef + rubrosOrden.map(rubro => {
     const items = byRubro[rubro];
     return `
     <div class="rubro-block">
@@ -4047,9 +4059,10 @@ function loadMediciones() {
         <tbody>${items.map(({med,coef}) => {
           const sinDesp = coef && (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
           const cantDesp = sinDesp ? num(med.cantidad) : num(med.cantidad)*desp;
-          return `<tr>
+          const armDef = esArmDef(med);
+          return `<tr${armDef ? ' class="arm-def-row"' : ''}>
           <td style="font-size:10px;color:var(--tx3);">${coef?coef.cod:''}</td>
-          <td class="hi">${coef?coef.nombre:'(eliminada)'}</td>
+          <td class="hi">${coef?coef.nombre:'(eliminada)'}${armDef ? `<br><span class="arm-def" title="Armadura supuesta al importar, no la del cálculo estructural. Editá la medición, ajustá la armadura y guardá para quitar la marca.">⚙ armadura por defecto</span>` : ''}</td>
           <td style="font-size:10px;color:${med.ubicacion && med.ubicacion !== 'Global' ? 'var(--bl)' : 'var(--tx3)'};">${med.ubicacion||'Global'}</td>
           <td>${formatArmDesc(med.desc||med.descripcion)||'—'}</td>
           <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}${med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad) ? `<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:1})} ${med.unidad_origen||''}</span>` : ''}</td>
@@ -5693,6 +5706,7 @@ function consolidarMateriales(obraId, medsFiltro) {
       consolidado[key].cantBase += mlVal;
       consolidado[key].cantComercial += barras;
       consolidado[key].rubros.add(coef.rubro);
+      if (armData.armDef) consolidado[key].mlDef = (consolidado[key].mlDef || 0) + mlVal;   // armadura por defecto del import, sin detallar
     };
     if (armData.est && !armData.armTipo) {
       const estMat = mats.find(m => m.cod === 'MAT-001');
@@ -5728,6 +5742,7 @@ function consolidarMateriales(obraId, medsFiltro) {
         consolidado[keyAl].cantBase += kgAl;
         consolidado[keyAl].cantComercial += kgAl;
         consolidado[keyAl].rubros.add(coef.rubro);
+        if (armData.armDef) consolidado[keyAl].mlDef = (consolidado[keyAl].mlDef || 0) + kgAl;
       }
     }
   });
@@ -5799,9 +5814,19 @@ function loadCompras() {
 
   const items = Object.values(consolidado).sort((a,b) => b.subtotal - a.subtotal);
   const totalCompra = items.reduce((s,i) => s+i.subtotal, 0);
+  // Hierro que sale de armadura por defecto del import (todavía sin detallar): se marca antes de comprar
+  const conDef = items.filter(m => m.mlDef > 0);
+  const nMedDef = meds.filter(m => (m.obraId||m.obra_id) === obraId && /armDef\s*:\s*import/.test(m.desc || m.descripcion || '')).length;
+  const avisoDef = conDef.length ? `<div class="arm-def-banner"><span class="arm-def" style="font-size:10px;">⚙ estimado</span>
+    <span><b>Parte del hierro sale de armadura por defecto</b> (${nMedDef} elemento${nMedDef !== 1 ? 's' : ''} sin detallar). Verificá con el cálculo estructural antes de comprar: Mediciones → "Ver solo pendientes".</span></div>` : '';
+  const marcaDef = m => {
+    if (!(m.mlDef > 0)) return '';
+    const pct = Math.min(100, Math.round(m.mlDef / (m.cantBase || 1) * 100));
+    return ` <span class="arm-def" title="${pct}% de esta cantidad sale de armadura por defecto del import">⚙ ${pct}% por defecto</span>`;
+  };
 
   if (vista === 'consolidado') {
-    body.innerHTML = `
+    body.innerHTML = avisoDef + `
       <div class="card" style="padding:0;overflow:hidden;">
         <table>
           <thead><tr>
@@ -5810,7 +5835,7 @@ function loadCompras() {
           </tr></thead>
           <tbody>
             ${items.map(m => `<tr>
-              <td class="hi">${m.nombre}${m.mezcla ? ' <span style="color:var(--re);font-size:10px;" title="Este material está cargado con distinta unidad o divisor en distintas tareas (Consumos): la cantidad comercial puede estar mal">⚠ unidades mezcladas</span>' : ''}</td>
+              <td class="hi">${m.nombre}${marcaDef(m)}${m.mezcla ? ' <span style="color:var(--re);font-size:10px;" title="Este material está cargado con distinta unidad o divisor en distintas tareas (Consumos): la cantidad comercial puede estar mal">⚠ unidades mezcladas</span>' : ''}</td>
               <td class="num" style="color:var(--tx3);">${m.cantBase.toFixed(2)} ${m.unBase}</td>
               <td class="num" style="color:var(--bl);font-weight:600;">${m.cantComercialCeil} ${m.unComercial}</td>
               <td class="num">${m.precio ? $p(m.precio) : '<span style="color:var(--re);font-size:10px;">sin precio</span>'}</td>
@@ -5839,7 +5864,7 @@ function loadCompras() {
         <div class="rubro-body">
           <table><thead><tr><th>Material</th><th>Cant. base</th><th>Cant. comercial</th><th>Precio unit.</th><th>Subtotal</th></tr></thead>
           <tbody>${mats.map(m => `<tr>
-            <td class="hi">${m.nombre}</td>
+            <td class="hi">${m.nombre}${marcaDef(m)}</td>
             <td class="num" style="color:var(--tx3);">${m.cantBase.toFixed(2)} ${m.unBase}</td>
             <td class="num" style="color:var(--bl);font-weight:600;">${m.cantComercialCeil} ${m.unComercial}</td>
             <td class="num">${m.precio ? $p(m.precio) : '—'}</td>
@@ -5850,7 +5875,7 @@ function loadCompras() {
       </div>`;
     });
     html += `<div class="total-bar"><span class="tl">Total materiales</span><span class="tv">${$p(totalCompra)}</span></div>`;
-    body.innerHTML = html;
+    body.innerHTML = avisoDef + html;
   }
 }
 
