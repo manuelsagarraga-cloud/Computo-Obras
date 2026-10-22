@@ -7161,10 +7161,17 @@ function detectSubtipo(t) {
     const tubo = t.match(/(?:TUBO|CANO)[^0-9]{0,25}(\d{2,3})\s*X\s*\d{2,3}/);
     const esCM = /^\s*CM\d*\s*[-–]/.test(t) || /\bCM\d+\s*[-–]/.test(t) || /\bCM\b.*UPN/.test(t);
     const esVM = /^\s*VM\d*\s*[-–]/.test(t);
+    // Perfil W (Gerdau): "W200x15", "W 200 x 19,3", "perfil W 250". Peso con coma o punto.
+    const w = t.replace(/,/g, '.').match(/(?:^|[^A-Z])W\s*(150|200|250|310)(?:\s*[X×]\s*(\d{2,3}(?:\.\d)?))?\b/);
+    if (w && (w[2] || /VIGA|PERFIL|COLUMNA|METALIC|DINTEL/.test(t))) {
+      const kg = w[2] ? String(+w[2]).replace('.', '_') : '';
+      return kg ? `herreria_viga_w${w[1]}x${kg}` : `herreria_viga_w${w[1]}`;
+    }
     const deHierro = /METALIC|\b(DE|EN) (HIERRO|ACERO)\b|TUBO ESTRUCT|CANO ESTRUCT/.test(t) && !/HIERROS|Ø|DIAM|ARMADUR|ESTRIBO|\bDEL \d/.test(t);
     if (perf || esCM || esVM || ((has('VIGA') || has('COLUMNA') || has('TUBO')) && deHierro)) {
       const n = perf && perf[2] ? perf[2] : '';
       if (perf && perf[1] === 'IPN') return n ? 'herreria_viga_ipn' + n : 'herreria_viga';
+      if (perf && perf[1] === 'UPN' && n && (has('VIGA') || esVM || has('DINTEL'))) return 'herreria_viga_upn' + n;
       if (has('VIGA') || esVM || /\bNB\b/.test(t) || (perf && perf[1] === 'HEB')) return 'herreria_viga';
       if (perf && perf[1] === 'UPN' && n) return 'herreria_col_upn' + n;
       if (tubo) return 'herreria_col_tubo' + tubo[1];
@@ -7472,6 +7479,13 @@ const MAP_SUBTIPO = {
   'herreria_viga_ipn100': '15.11', 'herreria_viga_ipn120': '15.12', 'herreria_viga_ipn180': '15.13', 'herreria_viga_ipn200': '15.14',
   'herreria_col_upn80': '15.15', 'herreria_col_upn180': '15.16', 'herreria_col_upn200': '15.17',
   'herreria_col_tubo80': '15.18', 'herreria_col_tubo100': '15.19',
+  'herreria_viga_ipn80': '15.21', 'herreria_viga_ipn220': '15.22',
+  'herreria_viga_upn120': '15.23', 'herreria_viga_upn140': '15.24', 'herreria_viga_upn160': '15.25',
+  'herreria_viga_w150x13': '15.26', 'herreria_viga_w150x18': '15.27',
+  'herreria_viga_w200x15': '15.28', 'herreria_viga_w200x19_3': '15.29', 'herreria_viga_w200x26_6': '15.30',
+  'herreria_viga_w250x17_9': '15.31', 'herreria_viga_w250x25_3': '15.32', 'herreria_viga_w310x21': '15.33',
+  // W sin peso: el más liviano de esa altura (el usual en vivienda); el validador avisa que falta el peso
+  'herreria_viga_w150': '15.26', 'herreria_viga_w200': '15.28', 'herreria_viga_w250': '15.31', 'herreria_viga_w310': '15.33',
   'pergola_gl': '15.20', 'escalera_gl': '17.1', 'esmalte_gl': '13.7',
   'subestructura_cielo': '10.10', 'imperm_asfaltica': '6.6',
   'inst_elec_item': '16.22', 'inst_pluvial_item': '16.23',
@@ -7779,6 +7793,8 @@ function validarImport() {
     if (item.incluir && grp.length > 1 && grp[0] !== item) w.push({ lvl: 'warn', msg: `Posible duplicado del ítem ${grp[0].nItem} (misma descripción y ubicación)` });
     const mEq = T.match(/(\d+)\s*(?:EQUIPOS?|UNIDADES)/);
     if (mEq && +mEq[1] !== item.cant && !(item.notas || []).length) w.push({ lvl: 'warn', msg: `El texto dice "${mEq[0].toLowerCase()}" y la cantidad es ${item.cant} ${u}` });
+    if (/^herreria_viga_w\d+$/.test(item.subtipo || '')) w.push({ lvl: 'warn', msg: 'Perfil W sin peso en el texto (ej. W200x19,3): se tomó el más liviano de esa altura — verificá' });
+    else if (/^herreria_viga_w/.test(item.subtipo || '') && !MAP_SUBTIPO[item.subtipo]) w.push({ lvl: 'warn', msg: `Perfil ${item.subtipo.replace('herreria_viga_', '').toUpperCase().replace('_', ',')} sin tarea propia: se asignó la viga genérica — creala si se repite` });
     if (item.subtipo === 'piso_porcelanato' && /INTERIOR/.test(T) && /EXTERIOR/.test(T)) w.push({ lvl: 'warn', msg: 'Interior y exterior en un solo ítem: separá la superficie exterior (porcelanato exterior)' });
     item._calc = null; item._cambioUn = '';
     // Cambio de unidad hecho por el lector a partir del texto (ej. 1 u → 12 m²): avisa, no bloquea
@@ -8066,6 +8082,15 @@ const TEST_CASES_LECTOR = [
   ['Aislación hidrófuga de muros', 'aislacion_h'],
   ['Cañería eléctrica embutida', 'inst_elec_item'],
   ['Canaletas pluviales', 'inst_pluvial_item'],
+  // Perfiles W y vigas UPN simples
+  ['Viga metálica W200x19,3', 'herreria_viga_w200x19_3'],
+  ['VM1 - Perfil W 250 x 17.9 L=5,20m', 'herreria_viga_w250x17_9'],
+  ['Viga perfil W 150x13', 'herreria_viga_w150x13'],
+  ['Viga W 200', 'herreria_viga_w200'],
+  ['Viga metálica UPN 120 (2 unid)', 'herreria_viga_upn120'],
+  ['Dintel UPN 140', 'herreria_viga_upn140'],
+  ['Viga metálica IPN 220', 'herreria_viga_ipn220'],
+  ['Artefacto reflector LED 200 W exterior', 'inst_elec_artefacto'],   // "200 W" (watts) no es un perfil W
   ['RG – Azotado + Rev. grueso', 'rev_azotado_grueso'],
   ['RG - Azotado hidrófugo + Rev. grueso exterior', 'rev_azotado_grueso'],
   ['Rev. grueso interior', 'rev_grueso_int'],
