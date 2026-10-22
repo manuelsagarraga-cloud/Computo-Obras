@@ -372,7 +372,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.3</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.4</span></span>
     </div>
   </div>
 
@@ -1300,7 +1300,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-22.3';
+const APP_BUILD = '2026-10-22.4';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2455,10 +2455,22 @@ function computeObra(obraId) {
           precioUnit: refMat.precio, subtotal: barrasRef * refMat.precio, matFound: true });
       }
     }
+    // Parrilla X/Y (bases aisladas, losas, plateas): antes se calculaba pero no sumaba hierro (oct-2026)
+    if ((armData.x || armData.y) && !armData.armTipo) {
+      const xyCod = armData.diamPpal || (['losa_maciza', 'platea'].includes(tipoEstructural(coef.cod)) ? 'MAT-002' : 'MAT-003');
+      const xyMat = mats.find(m => m.cod === xyCod);
+      const mlXY = num(armData.x || 0) + num(armData.y || 0);
+      const barrasXY = Math.ceil(mlXY / 12);
+      if (xyMat && barrasXY > 0) {
+        matItems.push({ nombre: xyMat.nombre + ' (parrilla)', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
+          cantidadBase: mlXY, cantidadComercial: barrasXY,
+          precioUnit: xyMat.precio, subtotal: barrasXY * xyMat.precio, matFound: true });
+      }
+    }
     // Alambre para ataduras en cualquier elemento con hierros
-    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref) && !armData.armTipo) {
+    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
-      const mlTot = num(armData.est||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0) + num(armData.ref||0);
+      const mlTot = num(armData.est||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0) + num(armData.ref||0) + num(armData.x||0) + num(armData.y||0);
       if (alMat && mlTot > 0) {
         const kgAl = +(mlTot * 0.03).toFixed(2);
         matItems.push({ nombre: alMat.nombre||'Alambre negro nº17', unidad: 'kg', unComercial: 'kg', divisor: 1,
@@ -4842,7 +4854,7 @@ async function saveEditMed() {
 
   // Reconstruir descripción con datos de armadura (como saveMedicion)
   // 1) Quitar pipe-data anterior de la descripción
-  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:'];
+  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:'];
   const pipeIdx = newDesc.lastIndexOf(' | ');
   if (pipeIdx >= 0) {
     const tail = newDesc.slice(pipeIdx + 3);
@@ -5702,10 +5714,14 @@ function consolidarMateriales(obraId, medsFiltro) {
       const rMat = mats.find(m => m.cod === (armData.refDiam||'MAT-003'));
       if (rMat) addConsolidado(rMat, num(armData.ref), '(refuerzo)');
     }
-    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref) && !armData.armTipo) {
+    if ((armData.x || armData.y) && !armData.armTipo) {
+      const xyMat = mats.find(m => m.cod === (armData.diamPpal || (['losa_maciza', 'platea'].includes(tipoEstructural(coef.cod)) ? 'MAT-002' : 'MAT-003')));
+      if (xyMat) addConsolidado(xyMat, num(armData.x || 0) + num(armData.y || 0), '(parrilla)');
+    }
+    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
       if (alMat) {
-        const mlTot = num(armData.est||0)+num(armData.ppal||0)+num(armData.sup||0)+num(armData.inf||0)+num(armData.ref||0);
+        const mlTot = num(armData.est||0)+num(armData.ppal||0)+num(armData.sup||0)+num(armData.inf||0)+num(armData.ref||0)+num(armData.x||0)+num(armData.y||0);
         const kgAl = mlTot * 0.03;
         const keyAl = alMat.nombre||'Alambre negro nº17';
         if (!consolidado[keyAl]) consolidado[keyAl] = { nombre: keyAl, unBase:'kg', unComercial:'kg', divisor:1, cantBase:0, cantComercial:0, precio:alMat.precio, rubros:new Set() };
@@ -7884,6 +7900,9 @@ function validarImport() {
         else if (secc.length >= 2) w.push({ lvl: 'warn', msg: `${secc.length} secciones en el texto: la cantidad del Excel no se puede verificar — conviene un ítem por sección` });
       }
     }
+    item._arm = (item.incluir && coef && item._calc) ? impArmaduraDefecto(item, coef, item._calc) : null;
+    if (item._arm) w.push({ lvl: 'info', msg: `Armadura por defecto: ${item._arm.resumen} → ~${item._arm.barras} barras de 12 m (se edita después en la medición)` });
+    else if (coef && item.incluir && ['columna', 'viga', 'zapata', 'zapata_puntual'].includes(tipoEstructural(coef.cod))) w.push({ lvl: 'warn', msg: 'Sin armadura: faltan dimensiones claras (usá 📐) — el hierro de este ítem no se va a computar' });
     if (item.m3Computo && item._calc && item._calc.coefU === 'm3') {
       const f = v => (+v).toLocaleString('es-AR', { maximumFractionDigits: 3 });
       const dif = Math.abs(item._calc.cantidad - item.m3Computo);
@@ -8825,6 +8844,60 @@ function impSetCant(idx, v) {
   if (!(n >= 0)) return;
   importData[idx].cant = n; _impRefrescar();
 }
+// ---- Armadura por defecto al importar (oct-2026) ----
+// Los mismos valores por defecto que el modal "Nueva/Editar medición": columnas 4Ø10 + est. Ø6 c/25 cm,
+// vigas 2+2 Ø10 + est. c/25 cm, zapatas corridas / vigas de fundación 4Ø10 + est. c/25 cm, bases parrilla Ø10 c/20 cm,
+// losas macizas / plateas Ø8 c/20 cm en X e Y (lados supuestos de una losa cuadrada de igual superficie).
+// Queda en la descripción con el formato de siempre (se edita después desde "Editar medición") y marcado armDef:import.
+function impArmaduraDefecto(item, coef, calc) {
+  if (!coef || !calc || normUnidad(coef.unidad) !== 'm3' || !(calc.cantidad > 0)) return null;
+  const tipo = tipoEstructural(coef.cod);
+  if (!['columna', 'viga', 'zapata', 'zapata_puntual', 'losa_maciza', 'platea'].includes(tipo)) return null;
+  const de = item.dimsEdit, d = de ? { la: de.a, lb: de.b, ml: de.l, cant: de.n } : extractDimsFromDesc(item.desc);
+  let dims = null;
+  if (tipo === 'losa_maciza' || tipo === 'platea') {
+    const esp = calc.esp > 0 ? calc.esp : 0, area = esp > 0 ? calc.cantidad / esp : 0;
+    if (!(area > 0)) return null;
+    const lado = +Math.sqrt(area).toFixed(2);
+    dims = { ladoA: lado, ladoB: lado, ml: esp, sepX: 0.20, sepY: 0.20 };
+  } else {
+    if (!d || !(d.la > 0 && d.lb > 0)) return null;
+    const tieneUnid = !de && /\d+\s*UNID/i.test(item.desc || '');
+    let L, n;
+    if (d.ml > 0) { L = d.ml; n = de ? d.cant : (tieneUnid ? (d.cant || 1) : (d.cant > 1 ? d.cant : item.cant)); }
+    else { if (tieneUnid) return null; L = item.cant; n = 1; }          // sin largo en el texto: la cantidad del Excel es el largo total
+    if (!(L > 0 && n > 0)) return null;
+    if (tipo === 'columna') dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantPpal: 4, diamPpal: 'MAT-003', cantElem: n };
+    else if (tipo === 'viga') dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantSup: 2, cantInf: 2, diamPpal: 'MAT-003', cantElem: n };
+    else if (tipo === 'zapata') { if (n !== 1) return null; dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantPpal: 4, diamPpal: 'MAT-003' }; }
+    else if (tipo === 'zapata_puntual') dims = { ancho: d.la, largo: d.lb, alto: L, sep: 0.20, cant: n };
+  }
+  if (!dims) return null;
+  const r = calcArmadura(tipo, dims);
+  // Solo si el hormigón de la armadura coincide con lo que se guarda (si no, las dimensiones no son confiables)
+  if (!(r.m3 > 0) || Math.abs(r.m3 - calc.cantidad) > Math.max(0.005, calc.cantidad * 0.02)) return null;
+  if (tipo === 'zapata_puntual' || tipo === 'losa_maciza' || tipo === 'platea') r.diamPpal = tipo === 'zapata_puntual' ? 'MAT-003' : 'MAT-002';
+  const ex = [];
+  if (r.mlEstribos) ex.push(`est:${r.mlEstribos}`);
+  if (r.mlPpal) ex.push(`ppal:${r.mlPpal}`);
+  if (r.mlSup) ex.push(`sup:${r.mlSup}`);
+  if (r.mlInf) ex.push(`inf:${r.mlInf}`);
+  if (r.mlX) ex.push(`x:${r.mlX}`);
+  if (r.mlY) ex.push(`y:${r.mlY}`);
+  if (r.diamPpal) ex.push(`diamPpal:${r.diamPpal}`);
+  if (r.resumen) ex.push(`res:${r.resumen.replace(/\|/g, '·')} (armadura por defecto)`);
+  if (dims.sepEst > 0) ex.push(`iSep:${dims.sepEst}`); else if (dims.sep > 0) ex.push(`iSep:${dims.sep}`); else if (dims.sepX > 0) ex.push(`iSep:${dims.sepX}`);
+  if (dims.sepY > 0) ex.push(`iSep2:${dims.sepY}`);
+  if (dims.cantPpal > 0) ex.push(`iNp:${dims.cantPpal}`);
+  if (dims.cantSup > 0) ex.push(`iNs:${dims.cantSup}`);
+  if (dims.cantInf > 0) ex.push(`iNi:${dims.cantInf}`);
+  if (dims.cantElem > 1) ex.push(`iCant:${dims.cantElem}`);
+  if (dims.cant > 1) ex.push(`iCant:${dims.cant}`);
+  ex.push('armDef:import');
+  const mlH = num(r.mlEstribos) + num(r.mlPpal) + num(r.mlSup) + num(r.mlInf) + num(r.mlX) + num(r.mlY);
+  return { desc: ' | ' + ex.join('|'), barras: Math.ceil(num(r.mlEstribos) / 12) + Math.ceil((mlH - num(r.mlEstribos)) / 12), resumen: r.resumen, tipo };
+}
+
 // ---- Dimensiones editables en la vista previa (📐) ----
 let _impDimsAbierto = -1;
 function impToggleDims(idx) { _impDimsAbierto = _impDimsAbierto === idx ? -1 : idx; renderImportPreview(); }
@@ -8940,7 +9013,8 @@ async function saveImport() {
       const descCompleta = `[${item.nItem}] ${item.desc}`;
       const coef = coefs.find(c => c.id === item.coefId);
       const convInfo = calcCantidadImport(item, coef);
-      const descFinal = descCompleta + convInfo.notaDims;
+      const arm = impArmaduraDefecto(item, coef, convInfo);
+      const descFinal = descCompleta + convInfo.notaDims + (arm ? arm.desc : '');
       const etiqueta = extractEtiquetaFromDesc(item.desc || '');
       return {
         obra_id: obraId,
@@ -10119,7 +10193,7 @@ Usá pesos argentinos ($) con puntos de miles, metros y unidades del sistema mé
 No inventés datos. Tenés HERRAMIENTAS para consultar la app: buscar_obras, resumen_obra, materiales_obra y mediciones_obra.
 Antes de decir que no tenés un dato, buscalo con las herramientas. Si el usuario nombra una obra que no es la activa, usá buscar_obras y después consultá esa obra.
 Cuando des cantidades, citá la obra y de dónde sale el número (material consolidado o medición).
-Hierro: los hierros solo existen si la armadura de cada elemento está cargada en la medición. Si materiales_obra indica mediciones estructurales sin armadura, decilo con el número y explicá que hay que cargar la armadura (o pedir el dato al calculista); no estimes kilos por tu cuenta.
+Hierro: los hierros solo existen si la armadura de cada elemento está cargada en la medición; si es "por defecto" del import, decilo como estimación. Si materiales_obra indica mediciones estructurales sin armadura, decilo con el número y explicá que hay que cargar la armadura (o pedir el dato al calculista); no estimes kilos por tu cuenta.
 Cuando hables de costos, aclará que son estimaciones basadas en los precios cargados en la app.
 
 CONTEXTO ACTUAL DE LA APP:
@@ -10167,10 +10241,12 @@ const CHAT_TOOLS = {
       .map(m => ({ material: m.nombre, cantidad: _r2(m.cantComercialCeil), unidad: m.unComercial, cantidad_base: _r2(m.cantBase), unidad_base: m.unBase, precio_unit: _r2(m.precio), subtotal: Math.round(m.subtotal), rubros: m.rubros, ...(m.mezcla ? { aviso: 'unidades mezcladas entre tareas' } : {}) }));
     const medsObra = meds.filter(m => (m.obraId || m.obra_id) === r.obra.id);
     const estr = medsObra.filter(m => { const c = coefs.find(x => x.id === (m.coefId || m.coef_id)); return c && tipoEstructural(c.cod); });
-    const sinArm = estr.filter(m => !/(?:^|\|)\s*(est|ppal|sup|inf|ref|armTipo)\s*:/.test(m.desc || m.descripcion || ''));
+    const sinArm = estr.filter(m => !/(?:^|\|)\s*(est|ppal|sup|inf|ref|x|y|armTipo)\s*:/.test(m.desc || m.descripcion || ''));
+    const porDefecto = estr.filter(m => /armDef:import/.test(m.desc || m.descripcion || '')).length;
     return { obra: r.obra.nombre, materiales: lista, total_materiales: Object.keys(cons).length,
-      mediciones_estructurales: estr.length, estructurales_sin_armadura: sinArm.length,
-      nota: sinArm.length ? `${sinArm.length} de ${estr.length} mediciones estructurales no tienen la armadura cargada: sus hierros NO están en esta lista.` : '' };
+      mediciones_estructurales: estr.length, estructurales_sin_armadura: sinArm.length, armadura_por_defecto: porDefecto,
+      nota: [sinArm.length ? `${sinArm.length} de ${estr.length} mediciones estructurales no tienen la armadura cargada: sus hierros NO están en esta lista.` : '',
+             porDefecto ? `${porDefecto} mediciones usan armadura POR DEFECTO del import (Ø10 ppal, est. Ø6 c/25 cm, parrillas c/20 cm), no la del cálculo estructural: es una estimación.` : ''].filter(Boolean).join(' ') };
   },
   mediciones_obra({ obra, filtro, rubro } = {}) {
     const r = _chatResolverObra(obra); if (r.error) return r;
