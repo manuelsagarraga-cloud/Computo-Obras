@@ -372,7 +372,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-13.2</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.1</span></span>
     </div>
   </div>
 
@@ -1300,7 +1300,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-13.2';
+const APP_BUILD = '2026-10-22.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -4453,7 +4453,16 @@ function extractDimsFromDesc(desc) {
 
   // Patrón B: sección en un paréntesis + altura en otro
   // Ej: (0.18x0.30) ... (2.8 M DE ALTURA) o (2.80 MTS)
-  const matchSec = t.match(/\((\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\)/);
+  // Sección sin paréntesis (oct-2026): "V1 - 1,00 x 0,40", "VF - 0,20 * 0,30", "0,20x0,20 - (1 m de altura)".
+  // Solo pares plausibles: los dos en metros (≤ 2) o los dos en cm (8 a 150); "12x18x33" (ladrillo) no entra.
+  let matchSec = t.match(/\((\d+\.?\d*)\s*[Xx×*]\s*(\d+\.?\d*)\)/);
+  if (!matchSec) {
+    const bare = [...t.matchAll(/(?<![\d.X×*])(\d+\.?\d*)\s*[X×*]\s*(\d+\.?\d*)(?![\d.]*\s*[X×*])/g)]
+      .filter(m => { const a = +m[1], b = +m[2]; return (a > 0 && b > 0) && ((a <= 2 && b <= 2) || (a >= 8 && a <= 150 && b >= 8 && b <= 150)); });
+    const distintas = new Set(bare.map(m => (+m[1]) + 'x' + (+m[2])));
+    if (distintas.size >= 2) return null;   // varias secciones sin largo por sección
+    if (bare.length) matchSec = bare[0];
+  }
   const matchAlt = t.match(/\((\d+\.?\d*)\s*(?:M\s*DE\s*ALTURA|MTS?\s*DE\s*LARGO|MTS?\s*DE\s*ALTURA|ML|M\b)/);
   if (matchSec && matchAlt) {
     let la = parseFloat(matchSec[1]);
@@ -7085,6 +7094,17 @@ function detectSubtipo(t) {
   const term = /REVOQUE|AZOTADO|LATEX|PINTURA|ENLUCIDO|IMPERMEABILIZ|BARNIZ|CAPA AISLAD|AISLACION|MEMBRANA/.test(t);
   const prefijoEstr = /^\s*(?:BASE\s+)?(?:B\d+|C\d+|CE\d*|VF\d*|VR\d*|V\d*|NB\d*|EH\d*|L\d+|Z\d+)\s*[-–(]/.test(t);
   const evalEstr = !term || prefijoEstr;
+  // Etiquetas de plano que NO son estructura (oct-2026): "C1 - Yeso proyectado" es el tipo de cielorraso,
+  // "Z1 - Porcelanato h:10cm" es el tipo de zócalo. La letra sola no alcanza: manda el material.
+  const etiqC = /^\s*C\d+\s*[-–]/.test(t), etiqZ = /^\s*Z\d+\s*[-–]/.test(t);
+  if (etiqZ && /PORCELANATO|CERAMIC|ZOCALO|GRANITO|MARMOL|MADERA|SIMIL|\bH\s*:\s*\d/.test(t)) return 'zocalo';
+  if (etiqC && /YESO|PROYECTAD|DURLOCK|PLACA|SUSPENDID|VIDRIO|MADERA|MACHIMBRE|LONA|REVESTIM|APLICADO/.test(t) && !has('COLUMNA')) {
+    if (has('VIDRIO')) return 'cielorraso_vidrio';
+    if (has('MADERA') || has('MACHIMBRE') || has('REVESTIM')) return 'cielorraso_madera';
+    if (has('LONA')) return 'cielorraso_lona';
+    if (has('DURLOCK') || has('PLACA') || has('SUSPENDID')) return 'cielorraso_susp';
+    return 'cielorraso_yeso';
+  }
 
   // ══ TAREAS PRELIMINARES ══
   if (has('ESTUDIO DE SUELO') || has('ENSAYO DE SUELO')) return 'estudio_suelos';
@@ -7135,6 +7155,7 @@ function detectSubtipo(t) {
   // ══ SUBESTRUCTURA DE CIELORRASO — global contratada, antes de cielorrasos ══
   if (has('SUBESTRUCTUR') || has('CLAVADERA') || (has('ENTRAMADO') && (has('CIELORRASO') || has('CIELORASO')))) return 'subestructura_cielo';
 
+  if (/BAJO (PARRILLA|ASADOR|COCINA|LAVADERO|ISLA|MESADA)/.test(t)) return 'banquina';
   // ══ HOGAR / CALEFACTOR (Tromen, salamandra) — global junto con asador, antes de calefacción ══
   if (/TROMEN|\bHOGAR\b|CALEFACTOR|SALAMANDRA/.test(t)) return 'asador';
 
@@ -7145,7 +7166,7 @@ function detectSubtipo(t) {
   if (has('ESCALERA') && !/REVESTIM|PORCELANATO|BARANDA|PASAMANO|LATEX|PINTURA|ZOCALO|MARMOL|GRANITO|IPN|UPN|PERFIL|METALIC/.test(t)) return 'escalera';
 
   // ══ PÉRGOLA — ANTES que UPN/IPN ══
-  if (has('PERGOLA')) return (has('MADERA') || has('LISTON')) ? 'pergola_gl' : 'pergola';
+  if (has('PERGOLA') && !(/^\s*VIGA/.test(t) && /\b(IPN|UPN)\b|\bW\s*\d{3}/.test(t))) return (has('MADERA') || has('LISTON')) ? 'pergola_gl' : 'pergola';   // "Viga Met. IPN 220 (estructura de pérgola)" es la viga
 
   // ══ BARANDAS — antes de perfiles (una baranda puede describirse con planchuela/caño/UPN) ══
   if (has('BARANDA') || has('BARANDAL')) {
@@ -7186,7 +7207,7 @@ function detectSubtipo(t) {
   if (evalEstr) {
     // ══ FUNDACIONES ══
     if (has('BASE AISLADA') || has('ZAPATA AISLADA') || has('ZAPATA PUNTUAL') || t.match(/\bBASE\s+B\d/)) return 'zapata_puntual';
-    if (has('ZAPATA CORRIDA') || has('BASE CORRIDA') || t.match(/^\s*Z\d*\s*[-–]/)) return 'zapata_corrida';   // "Z0 - 1,00 x 0,15"
+    if (has('ZAPATA CORRIDA') || has('ZAPATA CONTINUA') || has('BASE CORRIDA') || t.match(/^\s*Z\d*\s*[-–]/)) return 'zapata_corrida';   // "Z0 - 1,00 x 0,15"
     if (has('PLATEA')) return 'platea';
     if ((has('VIGA') && (has('FUNDACION') || has('FUND'))) || t.match(/\bVF\d*\b/) || t.match(/^\s*VF[A-Z0-9´']?[A-Z0-9´']?\s*[-–]/) || has('VIGA RIOSTRA') || t.match(/\bVR\d*\b/)) return 'viga_fund';
     if (has('POZO ROMANO') || has('PILOTE') || /\bPEF\b/.test(t)) return 'pozo_romano';   // PEF = pilote excavado fundido
@@ -7206,7 +7227,10 @@ function detectSubtipo(t) {
     if (has('VIGUETA') || has('BOVEDILLA') || has('PRETENSAD')) return 'losa_vigueta';
     if (t.match(/\bL\d+\s*[-–]/)) return 'losa_vigueta';
     // Tabiques / muros de hormigón (T1 -, "tabiques de hormigón visto")
-    if (has('TABIQUE') && (has('HORMIGON') || has('HO VISTO') || has('HºAº') || t.match(/^\s*T\d+\s*[-–]/))) return 'tabique_hormigon';
+    if (has('TABIQUE') && (has('HORMIGON') || has('HO VISTO') || has('HºAº') || t.match(/^\s*T\d+\s*[-–]/))) {
+      if (has('REVESTIM')) return 'rev_ho_visto';             // "Tabique de Hº visto (revestimiento)" en m²: es la terminación
+      return (has('VISTO') ? 'tabique_visto' : 'tabique_hormigon');
+    }
   }
 
   // ══ AISLACIONES (antes de mampostería) ══
@@ -7220,6 +7244,8 @@ function detectSubtipo(t) {
   if (has('MEMBRANA') && (has('BAJO PISO') || has('HUMEDO'))) return 'membrana_piso';
   if (has('LANA DE VIDRIO') || has('AISLACION TERMICA')) return 'aislacion_termica';
 
+  // ══ PIEDRA PARTIDA: revestimiento (12.11) o piso suelto (11.12) ══
+  if (has('PIEDRA PARTIDA')) return (has('REVESTIM') || has('REVESTM')) ? 'rev_piedra_partida' : 'piso_granza';
   // ══ REVESTIMIENTO DE PIEDRA — ANTES de mampostería (caso trampa "...en muro de contención") ══
   if ((has('REVESTIM') || has('REVESTM') || /\bREV\.\s/.test(t)) && (has('PIEDRA') || has('LAJA'))) return 'rev_piedra';
 
@@ -7229,6 +7255,8 @@ function detectSubtipo(t) {
     if (has('MURO ARMADO') || has('MUROS ARMADOS') || (has('BLOQUE') && (has('ARMAD') || has('LLENADO')))) return 'mamp_armado';
     if (has('BLOQUE') && (has('CEMENTICIO') || has('CEMENTO') || has('HORMIGON'))) return 'mamp_cementicio';
     if (has('MURO DE CONTENCION')) return 'mamp_18';
+    // "Muro de ingreso del portante del 18": ladrillo portante sin decir "mampostería" (los canteros siguen en 17.5)
+    { const mp = t.match(/PORTANTES?\s+(?:DEL\s+)?(12|18)\b/); if (mp && !has('CANTERO')) return 'mamp_' + mp[1]; }
     if (has('MAMPOST') || /\bMAMP\b/.test(t)) {
       if (/\b8\s*X\s*18/.test(t)) return 'mamp_8';   // ladrillo 8x18x33: tabique, no portante
       if (has('12X18') || has('12X19') || has('12 X 18') || t.match(/PORTANTE\s+12/)) return 'mamp_12';
@@ -7289,6 +7317,7 @@ function detectSubtipo(t) {
     if (has('MADERA')) return 'cielorraso_madera';
     if (has('YESO') && has('APLICADO')) return 'cielorraso_yeso';
     if (has('LONA') || has('CAMUFLADA')) return 'cielorraso_lona';
+    if (has('VIDRIO')) return 'cielorraso_vidrio';
     return 'cielorraso_yeso';
   }
   if (has('ENGROSADO') && has('ENLUCIDO')) return 'yeso_engrosado';   // 7.17 Engrosado + enlucido de yeso
@@ -7318,9 +7347,9 @@ function detectSubtipo(t) {
   if (has('REVESTIM') || has('REVESTM') || has('ALISTONADO') || /\bWPC\b/.test(t)) {
     if (has('PORCELANATO')) return 'rev_porcelanato';
     if (has('WPC') || has('ALISTONADO')) return 'rev_wpc';
-    if (has('SIMIL MADERA')) return 'rev_simil_madera';
-    if (has('HORMIGON VISTO') || has('HO VISTO')) return 'rev_ho_visto';
     if (has('CERAMICO') || has('SIMIL ROCA')) return 'rev_ceramico';
+    if (has('SIMIL MADERA') || has('MADERA') || has('MACHIMBRE')) return 'rev_simil_madera';   // 12.10: producto por m²
+    if (has('HORMIGON VISTO') || has('HO VISTO')) return 'rev_ho_visto';
     if (has('PIEDRA') || has('LAJA')) return 'rev_piedra';
     if (has('VENECITA')) return 'rev_venecita';
     if (has('LADRILLO') && has('REFRACTARIO')) return 'rev_refractario';
@@ -7371,6 +7400,8 @@ function detectSubtipo(t) {
     return 'inst_gas';
   }
   // Calefacción — antes que agua ("losa radiante por agua caliente")
+  if (/^\s*INSTALACION DE AGUA/.test(t)) return 'inst_agua';   // "...Termotanque y caldera en PB" sigue siendo agua
+  if (/\bTUE\b|USO ESPECIAL/.test(t)) return 'inst_elec_boca';  // toma de uso especial (no "alimentación" de agua)
   if (has('CALEFACCION') || has('PISO RADIANTE') || has('LOSA RADIANTE') || has('COLECTOR') || has('CALDERA')) return 'inst_calef';
   if (has('BOMBEO')) return 'bombeo';                      // antes que cloacal ("sistema de bombeo cloacal")
   if (has('BOMBA') || has('HIDRONEUMAT')) return 'inst_bomba';
@@ -7397,6 +7428,7 @@ function detectSubtipo(t) {
   if (has('TABLERO') && !has('PILAR')) return 'inst_elec_tablero';
   if (has('ARTEFACT')) return 'inst_elec_artefacto';
   if ((has('AMURADO') && has('CAJA')) || has('BOCA') || has('TOMACORRIENTE') || has('TERMOSTATO') || (has('TOMA') && has('INDIVIDUAL')) || /\bTOMA\s+(DOBLE|SIMPLE|TRIPLE|\d)/.test(t)) return 'inst_elec_boca';
+  if (/\bLUZ\b/.test(t) && !/DE OBRA|NATURAL/.test(t)) return 'inst_elec_boca';   // "Luz Ext. en piso"
   if (has('ELECTRIC')) return /COMPLEMENT|ADICIONAL|CANERIA|CABLEAD|ZANJ|TRAMITE|PLANO|MEDIDOR|AMPLIACION|EXTENSION|PROVISORI/.test(t) ? 'inst_elec_item' : 'inst_electrica';
 
   // ══ VARIOS ══
@@ -7494,6 +7526,8 @@ const MAP_SUBTIPO = {
   'pergola_gl': '15.20', 'escalera_gl': '17.1', 'esmalte_gl': '13.7',
   'subestructura_cielo': '10.10', 'imperm_asfaltica': '6.6',
   'inst_elec_item': '16.22', 'inst_pluvial_item': '16.23',
+  // oct-2026 (c): revisión Esteban y Matías
+  'cerco_gl': '1.26', 'cielorraso_vidrio': '10.6', 'rev_piedra_partida': '12.11', 'tabique_visto': '4.29', 'rev_ho_visto': '12.8',
   // Variantes por m² (oct-2026): la versión global queda en el código original. Ver SUBTIPO_VARIANTE_UNIDAD.
   'limpieza_m2': '1.23', 'replanteo_m2': '1.24', 'limpieza_final_m2': '1.25',
   // Movimiento de suelos (2.x — sin cambios)
@@ -7511,7 +7545,7 @@ Object.assign(MAP_SUBTIPO, {
   'rev_azotado_hidro': '', 'rev_azotado_cielo': '',
   'carpeta_cubierta': '',
   'piso_porcelanato_ext': '', 'piso_deck_wpc': '',
-  'rev_simil_madera': '12.6',
+  'rev_simil_madera': '12.10',
   'baranda_metal': '',
   'inst_aa_conducto': '', 'inst_aa_item': '',
   'inst_gas_item': '', 'inst_cloacal_item': '', 'inst_agua_item': '',
@@ -7541,6 +7575,7 @@ const MAP_HO = {
   viga_elab: { H21: '4.8', INSITU: '4.4' }, encadenado_horiz: { H21: '4.21', INSITU: '4.2' },
   losa_maciza: { H21: '4.20', INSITU: '4.6' }, losa_vigueta: { H21: '4.32' },
   tabique_hormigon: { H21: '4.12', INSITU: '4.11' }, escalera: { H21: '4.27', INSITU: '4.10' },
+  tabique_visto: { H21: '4.30', INSITU: '4.13' },
   carpeta_elab: { H17: '8.8', H21: '8.7' }   // carpeta de Hº elaborado: H17 por defecto
 };
 function calidadHo(desc) {
@@ -7582,7 +7617,7 @@ const SUBTIPO_ESPERA = {
   'piso_deck':            { inc: [/DECK/], exc: /WPC|PVC/ },
   'piso_deck_wpc':        { inc: [/WPC|PVC/], rubro: 'Pisos' },
   'rev_wpc':              { inc: [/WPC/], rubro: 'Revestimientos' },
-  'rev_simil_madera':     { inc: [/SIMIL MADERA/], exc: /WPC/ },
+  'rev_simil_madera':     { inc: [/MADERA/], exc: /WPC|CERAMIC/, rubro: 'Revestimientos' },
   'baranda_metal':        { inc: [/BARANDA/], rubro: 'Herrería' },
   'inst_gas':             { inc: [/GAS/], exc: /COMPLEMENT/ },
   'inst_cloacal':         { inc: [/CLOAC/], exc: /COMPLEMENT/ },
@@ -7616,6 +7651,8 @@ function detectSubtipoCtx(desc, seccion) {
   const D = _normN(desc), S = _normN(seccion);
   let t = desc || '';
   if (/REVESTIM/.test(S) && !/REVESTIM/.test(D)) t = 'Revestimiento ' + t;
+  if (/CIELO\s*R?RASO/.test(S) && !/CIELO\s*R?RASO|LATEX|PINTURA/.test(D)) t = 'Cielorraso ' + t;   // "C1 - Yeso proyectado" bajo "Cielorasos"
+  if (/ZOCALO/.test(S) && !/ZOCALO/.test(D)) t = 'Zocalo ' + t;
   if (/EXTERIOR/.test(S) && /PORCELANATO/.test(D) && !/INTERIOR|EXTERIOR/.test(D)) t += ' exterior';
   const sist = [['\\bGAS\\b', ' gas'], ['CLOAC', ' cloacal'], ['AIRE ACONDICIONADO', ' aire acondicionado'], ['CALEFACCION', ' calefaccion']];
   sist.forEach(([re, w]) => { if (new RegExp(re).test(S) && !new RegExp(re).test(D)) t += w; });
@@ -7703,7 +7740,7 @@ function autoCorregirItem(item) {
       return;
     }
     const m2 = [...T.replace(/,/g, '.').matchAll(/(\d+(?:\.\d+)?)\s*M2\b/g)];
-    if (m2.length === 1 && +m2[0][1] > 0) {
+    if (m2.length === 1 && +m2[0][1] > 0 && item.subtipo !== 'banquina') {   // banquina se cuenta por unidad: los m² del texto son informativos
       item.cant = +m2[0][1]; item.unidad = 'm2';
       item.notas.push(`Cantidad ${m2[0][1]} m² tomada del texto; el Excel decía 1 u`);
     }
@@ -7714,6 +7751,14 @@ function autoCorregirItem(item) {
 function calcCantidadImport(item, coef) {
   let cantidad = item.cant, notaDims = '', convertida = false, esp = 0, anchoInfo = null;
   const tipo = coef ? tipoEstructural(coef.cod) : '';
+  // Dimensiones cargadas a mano en la vista previa (📐): sección × largo × unidades. Quedan en la descripción
+  // con el formato que entiende extractDimsFromDesc, así "Editar medición" las vuelve a leer.
+  const de = item.dimsEdit;
+  if (de && de.a > 0 && de.b > 0 && de.l > 0 && de.n > 0 && normUnidad(coef?.unidad) === 'm3') {
+    const f = v => +(+v).toFixed(3);
+    return { cantidad: +(de.a * de.b * de.l * de.n).toFixed(4), notaDims: ` - (${f(de.a)}x${f(de.b)}) - ${de.n} unid - (${f(de.l)} m de altura)`,
+             convertida: true, coefU: 'm3', itemU: normUnidad(item.unidad), esp: 0, anchoInfo: null, tipo, seccProm: null, manualDims: true };
+  }
   let seccProm = null;
   if (tipo) {
     const secc = ((item.desc || '').replace(/,/g, '.').match(/\((\d+\.?\d*)\s*[Xx×]\s*(\d+\.?\d*)\)/g) || [])
@@ -7752,6 +7797,10 @@ function calcCantidadImport(item, coef) {
       cantidad = +(item.cant * anchoInfo.ancho).toFixed(4);
       notaDims = ` (${item.cant} ml × ${anchoInfo.ancho} ancho muro)`; convertida = true;
     }
+  }
+  // Tarea global con el Excel en m²/ml/m³ (ej. "Piscina 30 m²" → Pileta global): es UN global; la cantidad del Excel queda en la nota
+  if (coefU === 'gl' && itemU && !['gl', 'u'].includes(itemU) && !convertida) {
+    notaDims = ` (${item.cant} ${itemU} según Excel)`; cantidad = 1; convertida = true;
   }
   return { cantidad, notaDims, convertida, coefU, itemU, esp, anchoInfo, tipo, seccProm };
 }
@@ -7809,7 +7858,10 @@ function validarImport() {
       const nC = _normN(coef.nombre);
       if (/COMPLETA/.test(nC) && item.incluir && cntCoef[coef.id] > 1) w.push({ lvl: 'warn', msg: `"${coef.nombre}" está en ${cntCoef[coef.id]} ítems: cada uno computa una instalación entera` });
       const calc = calcCantidadImport(item, coef); item._calc = calc;
-      if (calc.convertida && calc.coefU && calc.itemU && calc.coefU !== calc.itemU) {
+      if (calc.manualDims) {
+        const f = v => (+v).toLocaleString('es-AR', { maximumFractionDigits: 3 });
+        w.push({ lvl: 'info', msg: `Dimensiones cargadas a mano: ${f(item.dimsEdit.a)} × ${f(item.dimsEdit.b)} m × ${f(item.dimsEdit.l)} m × ${item.dimsEdit.n} unid = ${f(calc.cantidad)} m³` });
+      } else if (calc.convertida && calc.coefU && calc.itemU && calc.coefU !== calc.itemU) {
         const f = v => (+v).toLocaleString('es-AR', { maximumFractionDigits: 3 });
         w.push({ lvl: 'warn', tag: 'unidad', msg: `Cambio de unidad: ${f(item.cant)} ${u} → ${f(calc.cantidad)} ${coef.unidad}${calc.notaDims || ''} — verificá` });
         if (!item._cambioUn) item._cambioUn = `${f(item.cant)} ${u}`;
@@ -7852,7 +7904,8 @@ function validarImport() {
 const SUBTIPO_VARIANTE_UNIDAD = {
   'limpieza': { m2: 'limpieza_m2' }, 'replanteo': { m2: 'replanteo_m2' }, 'limpieza_final': { m2: 'limpieza_final_m2' },
   'escalera': { gl: 'escalera_gl', u: 'escalera_gl' }, 'pergola': { gl: 'pergola_gl', u: 'pergola_gl' },
-  'esmalte': { gl: 'esmalte_gl', u: 'esmalte_gl' }
+  'esmalte': { gl: 'esmalte_gl', u: 'esmalte_gl' },
+  'cerco': { gl: 'cerco_gl', u: 'cerco_gl' }
 };
 function subtipoSegunUnidad(subtipo, unidad) {
   const v = (SUBTIPO_VARIANTE_UNIDAD[subtipo] || {})[normUnidad(unidad)];
@@ -8087,6 +8140,27 @@ const TEST_CASES_LECTOR = [
   ['Aislación hidrófuga de muros', 'aislacion_h'],
   ['Cañería eléctrica embutida', 'inst_elec_item'],
   ['Canaletas pluviales', 'inst_pluvial_item'],
+  // oct-2026 (c): Excel Esteban y Matías
+  ['C1 - Yeso proyectado Interior PB h: +2,80 m *', 'cielorraso_yeso'],
+  ['C5 - Vidrio Templado PA h: +2,60 m **', 'cielorraso_vidrio'],
+  ['C6 - Revestimiento de madera Exterior PA h: +2,60 m **', 'cielorraso_madera'],
+  ['C1 - (11 unid) 0,20x0,20 - (1 m de altura)', 'columna_elab'],
+  ['Z1  - Porcelanato Simil Hormigón. h:10cm', 'zocalo'],
+  ['Z0 - 1,00 x 0,15', 'zapata_corrida'],
+  ['Zapata continua (95x30) - PSS', 'zapata_corrida'],
+  ['Muro de ingreso del portante del 18 (h: 2,80 mts)*', 'mamp_18'],
+  ['Canteros con portantes del 18 (h: 2,00 mts aprox)*', 'cantero'],
+  ['S10 - Piedra partida (En Exterior) *', 'piso_granza'],
+  ['Revestimiento de piedra partida', 'rev_piedra_partida'],
+  ['S13 - Revestimiento de madera (En Interior)*', 'rev_simil_madera'],
+  ['Revestimiento cerámico símil madera', 'rev_ceramico'],
+  ['Tabiques de Hormigon Visto (revestimiento) - esp: 10cm', 'rev_ho_visto'],
+  ['Tabiques de Hormigon Visto - esp: 20cm', 'tabique_visto'],
+  ['Viga Met. - IPN 220 (PA) (Estructura de pergola)*', 'herreria_viga_ipn220'],
+  ['Bajo parrilla - H: 0,12cm (1,65 m2)', 'banquina'],
+  ['Instalación de agua para 2 baños en PB. Termotanque y caldera en PB.', 'inst_agua'],
+  ['Alimentacion para Uso Especial (TUE)', 'inst_elec_boca'],
+  ['Luz Ext. En Piso', 'inst_elec_boca'],
   // Perfiles W y vigas UPN simples
   ['Viga metálica W200x19,3', 'herreria_viga_w200x19_3'],
   ['VM1 - Perfil W 250 x 17.9 L=5,20m', 'herreria_viga_w250x17_9'],
@@ -8224,7 +8298,7 @@ const TEST_CASES_LECTOR = [
   ['MAMP. LADRILLO CERAMICO HUECO PORTANTE 12x18x33', 'mamp_12'],
   ['MAMP. LADRILLO CERAMICO HUECO PORTANTE 8x18x33', 'mamp_8'],
   ['R6 - rev. De piedra formato natural de color a definir - ext', 'rev_piedra'],
-  ['T1 - TABIQUES DE HORMIGON VISTO PA - esp: 20cm', 'tabique_hormigon'],
+  ['T1 - TABIQUES DE HORMIGON VISTO PA - esp: 20cm', 'tabique_visto'],   // visto → 4.29 (antes 4.28 genérico)
   ['Tabiques de hormigón armado esp 15cm', 'tabique_hormigon'],
   ['Toma doble 20A', 'inst_elec_boca'],
   ['Rev. fino interior', 'rev_fino_int'],
@@ -8303,10 +8377,23 @@ function processImportRows(rows, ws) {
     } catch (e) {}
     return fallback;
   }
+  // Prefijo de obra en una columna aparte (col. B "EM" + col. D "2.23" → EM2.23). Se toma si se repite en ≥60 % de los ítems numerados.
+  let prefObra = '';
+  { const cnt = {}; let nNum = 0; const excl = new Set([colMap.nItem, colMap.desc, colMap.cant, colMap.un, colMap.contratista, colMap.costoUnit]);
+    for (let i = 0; i < rows.length; i++) { const r = rows[i] || []; if (!parseNItem(String(r[colMap.nItem] ?? '').trim())) continue; nNum++;
+      for (let j = 0; j < Math.min(r.length, colMap.desc); j++) { if (excl.has(j)) continue; const v = String(r[j] || '').trim().toUpperCase(); if (/^[A-Z]{1,4}$/.test(v)) cnt[v] = (cnt[v] || 0) + 1; } }
+    const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+    if (best && nNum >= 3 && best[1] >= nNum * 0.6) prefObra = best[0]; }
+  const conPref = c => { const p = parseNItem(c); return p && !p.prefijo && prefObra ? prefObra + p.num : c; };
+  let currentEtiqueta = '';
   let debugRows=[];
-  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=itemTexto(i,String(row[colMap.nItem]||'').trim()),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;currentUbicacion='Global';currentSeccion='';continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const esUbic=/^\s*(PLANTA\b|SUBSUELO|PSS\b|PB\b|PA\b)/i.test(col1);if(esUbic){const u=detectUbic(col1);if(u)currentUbicacion=u;}else{currentSeccion=col1;currentUbicacion='Global';}const m=mapRubro(col1);if(m)currentRubro=m;continue;}const hasNum=!!parseNItem(col0);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
+  for(let i=0;i<rows.length;i++){const row=rows[i];if(!row||row.length<2)continue;const col0=itemTexto(i,String(row[colMap.nItem]||'').trim()),col1=String(row[colMap.desc]||'').trim(),cantVal=parseNum(row[colMap.cant]),col3=String(row[colMap.un]||'').trim(),col4=String(row[colMap.contratista]||'').trim(),costoUnit=parseNum(row[colMap.costoUnit]);if(debugRows.length<8)debugRows.push({i,col0,col1,cantVal,col3,col4});if(!col0&&!col1)continue;if(col1.toUpperCase().includes('DESIGNAC'))continue;if(/^\d+$/.test(col0)&&col1&&cantVal===0){const m=mapRubro(col1);if(m)currentRubro=m;else if(col1.length>3)currentRubro=col1;currentUbicacion='Global';currentSeccion='';currentEtiqueta='';continue;}if((!col0||col0==='')&&col1&&cantVal===0&&!col1.startsWith('*')){const esUbic=/^\s*(PLANTA\b|SUBSUELO|PSS\b|PB\b|PA\b)/i.test(col1);const esEtiq=/^\s*[A-Z]{1,3}\d+[A-Z]?(?:\s*\/\s*[A-Z]{0,3}\d+)*\s*[-–(]/i.test(col1)&&col1.length<45;
+if(esUbic){const u=detectUbic(col1);if(u)currentUbicacion=u;currentEtiqueta='';}
+else if(esEtiq){currentEtiqueta=col1.replace(/\s+/g,' ').trim();}   /* "C1 - (11 unid)": etiqueta del elemento de la fila siguiente; no cambia planta ni sección */
+else{currentSeccion=col1;currentUbicacion='Global';currentEtiqueta='';}const m=mapRubro(col1);if(m)currentRubro=m;continue;}const col0p=conPref(col0);const hasNum=!!parseNItem(col0p);// Filtrar filas de metadatos [0.XX] — son datos de superficie, no tareas constructivas
     const esMetadato = /^\[0\.\d+\]/.test(col1) || /^[A-Za-z]{0,4}0[\.,]\d+$/.test(col0);
-    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?parseNItem(col0).key:'s/n',nItemOk:hasNum,desc:col1,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(col1,currentSeccion),incluir:true};if(/^\s*S\d+\s*[-–]/.test(col1)&&it.unidad==='ml')it.subtipo='zocalo';   /* piso S# medido en ml = zócalo (misma descripción que el piso) */
+    const descEf=(currentEtiqueta&&/^\s*\(?\s*\d/.test(col1))?currentEtiqueta+' '+col1:col1;   /* "0,20x0,20 - (1 m de altura)" bajo "C1 - (11 unid)" */
+    if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?parseNItem(col0p).key:'s/n',nItemOk:hasNum,desc:descEf,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(descEf,currentSeccion),incluir:true};if(/^\s*S\d+\s*[-–]/.test(col1)&&it.unidad==='ml')it.subtipo='zocalo';   /* piso S# medido en ml = zócalo (misma descripción que el piso) */
 autoCorregirItem(it);importData.push(it);}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
   impNormalizarNItems();
@@ -8680,7 +8767,7 @@ function renderImportPreview() {
       <td>${esc(item.unidad)}${item.unidadExcel && normUnidad(item.unidadExcel) !== item.unidad ? `<div style="font-size:9px;color:var(--tx3);">Excel: ${esc(item.unidadExcel)}</div>` : ''}</td>
       <td style="font-size:10px;color:var(--bl);">${esc(item.ubicacion)}</td>
       <td style="min-width:250px;"><input list="imp-coef-list" value="${coef ? esc(_coefLabel(coef)) : ''}" placeholder="— sin tarea: elegí una —" style="width:100%;font-size:11px;${coef ? '' : 'border-color:var(--re);'}" onchange="impSetCoef(${idx}, this.value)"></td>
-      <td class="num" style="font-size:10px;white-space:nowrap;">${final}</td>
+      <td class="num" style="font-size:10px;white-space:nowrap;">${final}${coef && normUnidad(coef.unidad) === 'm3' && item.incluir ? `<div><button class="btn" style="padding:0 5px;font-size:10px;margin-top:2px;${item.dimsEdit ? 'border-color:var(--bl);color:var(--bl);' : ''}" title="Editar sección, largo y unidades" onclick="impToggleDims(${idx})">📐${item.dimsEdit ? ' editado' : ''}</button></div>` : ''}</td>
       <td style="font-size:10px;min-width:170px;max-width:230px;">${avisos}</td>
       <td class="num" style="white-space:nowrap;">${(() => {
         if (!item.costoUnit) return '—';
@@ -8692,7 +8779,7 @@ function renderImportPreview() {
         return igual ? exc : `<div style="font-size:9px;color:var(--tx3);">Excel ${exc}</div><div style="font-weight:600;" title="${esc(pm.regla)}">→ ${guard}</div>`;
       })()}</td>
       <td class="imp-incl"><input type="checkbox" title="Incluir en el import" ${item.incluir ? 'checked' : ''} onchange="impSetIncluir(${idx}, this.checked)"></td>
-    </tr>`;
+    </tr>${_impDimsAbierto === idx && coef ? _impFilaDims(item, idx) : ''}`;
   };
 
   preview.innerHTML = datalist + `
@@ -8737,6 +8824,41 @@ function impSetCant(idx, v) {
   const n = parseFloat(String(v).replace(',', '.'));
   if (!(n >= 0)) return;
   importData[idx].cant = n; _impRefrescar();
+}
+// ---- Dimensiones editables en la vista previa (📐) ----
+let _impDimsAbierto = -1;
+function impToggleDims(idx) { _impDimsAbierto = _impDimsAbierto === idx ? -1 : idx; renderImportPreview(); }
+function _impFilaDims(item, idx) {
+  const d0 = item.dimsEdit || (() => {
+    const d = extractDimsFromDesc(item.desc) || {};
+    const u = normUnidad(item.unidad);
+    // Sin largo en el texto: si el Excel está en ml, la cantidad ES el largo total (1 unidad); si está en u, son unidades
+    const l = d.ml > 0 ? d.ml : (u === 'ml' ? item.cant : 0);
+    const n = d.ml > 0 ? (d.cant || 1) : (u === 'u' ? item.cant : 1);
+    return { a: d.la || '', b: d.lb || '', l: l || '', n: n || 1 };
+  })();
+  const inp = (k, v, lbl, w) => `<label style="display:inline-flex;gap:3px;align-items:center;font-size:10px;text-transform:none;letter-spacing:0;margin:0 8px 0 0;">${lbl}<input id="imp-dim-${k}-${idx}" type="number" step="any" min="0" value="${v}" style="width:${w}px;font-size:11px;"></label>`;
+  return `<tr style="background:var(--bl-l);"><td></td><td colspan="9" style="padding:6px 8px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;">
+      <b style="font-size:10px;margin-right:6px;">📐 Dimensiones</b>
+      ${inp('a', d0.a, 'Ancho (m)', 60)} × ${inp('b', d0.b, 'Alto / prof. (m)', 60)}
+      ${inp('l', d0.l, 'Largo o altura (m)', 64)} ${inp('n', d0.n, 'Unidades', 50)}
+      <button class="btn btn-primary" style="padding:2px 8px;font-size:11px;" onclick="impSetDims(${idx})">Aplicar</button>
+      ${item.dimsEdit ? `<button class="btn" style="padding:2px 8px;font-size:11px;" onclick="impSetDims(${idx}, true)">Quitar</button>` : ''}
+      <span style="font-size:10px;color:var(--tx3);">Valores en metros: 20 cm = 0,20. m³ = ancho × alto × largo × unidades.</span>
+    </div></td></tr>`;
+}
+function impSetDims(idx, quitar) {
+  const item = importData[idx]; if (!item) return;
+  if (quitar) { delete item.dimsEdit; _impDimsAbierto = -1; _impRefrescar(); return; }
+  const g = k => { const v = parseFloat(String(document.getElementById(`imp-dim-${k}-${idx}`)?.value || '').replace(',', '.')); return v > 0 ? v : 0; };
+  let d = { a: g('a'), b: g('b'), l: g('l'), n: Math.round(g('n')) || 1 };
+  // Si cargan cm (20 en vez de 0,20) se corrige la sección; el largo queda como está
+  if (d.a > 5) d.a = d.a / 100;
+  if (d.b > 5) d.b = d.b / 100;
+  if (!(d.a > 0 && d.b > 0 && d.l > 0)) { notif('Completá ancho, alto y largo (en metros)'); return; }
+  item.dimsEdit = d; _impDimsAbierto = -1;
+  _impRefrescar();
 }
 function impSetIncluir(idx, chk) { importData[idx].incluir = chk; _impRefrescar(); }
 function _coefDesdeLabel(v) {
