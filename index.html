@@ -372,7 +372,7 @@ textarea{resize:vertical;min-height:55px;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.1</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.2</span></span>
     </div>
   </div>
 
@@ -1300,7 +1300,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-22.1';
+const APP_BUILD = '2026-10-22.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -10031,86 +10031,23 @@ function toggleFaq(i) {
 
 
 // =====================================================================
-// ASISTENTE IA — Google Gemini Flash (free tier)
+// ASISTENTE IA — OpenAI vía Edge Function "chat-obra" (oct-2026)
+// La key vive en Supabase (secreto OPENAI_API_KEY); el navegador no guarda ninguna key.
+// Solo usuarios logueados. Antes: Gemini con key por navegador (localStorage), que dejó de responder.
 // =====================================================================
-let GEMINI_MODEL = 'gemini-2.0-flash'; // modelo estable y gratuito
-const GEMINI_ENDPOINT = () => `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
-// Detecta automáticamente el mejor modelo Flash gratuito disponible
-async function detectGeminiModel(key) {
-  try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-    if (!r.ok) return;
-    const data = await r.json();
-    const models = (data.models || [])
-      .filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent'))
-      .map(m => m.name.replace('models/', ''))
-      .filter(n => n.includes('flash') && !n.includes('preview') && !n.includes('exp') && !n.includes('thinking') && !n.includes('lite') && !n.includes('2.5'));
-    // Preferir gemini-2.0-flash (estable, gratis, sin congestión)
-    const preferidos = ['2.0-flash', '1.5-flash'];
-    models.sort((a, b) => {
-      const idxA = preferidos.findIndex(p => a.includes(p));
-      const idxB = preferidos.findIndex(p => b.includes(p));
-      return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
-    });
-    if (models.length > 0) {
-      GEMINI_MODEL = models[0];
-      const sub = document.getElementById('chat-subtitle');
-      if (sub) sub.textContent = GEMINI_MODEL + ' · Gratuito';
-      console.log('Gemini model detectado:', GEMINI_MODEL);
-    }
-  } catch(e) { console.warn('No se pudo detectar modelo Gemini:', e.message); }
-}
+const CHAT_URL = `${SB_URL}/functions/v1/chat-obra`;
 let chatHistory = []; // {role:'user'|'model', parts:[{text}]}
 let chatOpen = false;
-let geminiKey = localStorage.getItem('gemini_key') || '';
+try { localStorage.removeItem('gemini_key'); } catch (e) {}   // limpia la key vieja de Gemini
 
 function toggleChat() {
   chatOpen = !chatOpen;
   const panel = document.getElementById('chat-panel');
   panel.classList.toggle('open', chatOpen);
   if (chatOpen) {
-    if (!geminiKey) { showKeySetup(); return; }
-    if (chatHistory.length === 0) {
-      detectGeminiModel(geminiKey).then(() => {}); // actualizar modelo en background
-      chatWelcome();
-    }
+    if (chatHistory.length === 0) chatWelcome();
     setTimeout(() => document.getElementById('chat-input')?.focus(), 100);
   }
-}
-
-function showKeySetup() {
-  const msgs = document.getElementById('chat-messages');
-  const row = document.getElementById('chat-input-row');
-  msgs.innerHTML = `<div id="chat-key-setup">
-    <p><b>Configurá tu API key de Gemini</b> (gratuita)</p>
-    <p>1. Entrá a <a href="https://aistudio.google.com" target="_blank" style="color:var(--gr);">aistudio.google.com</a><br>
-    2. "Get API key" → "Create API key"<br>
-    3. Pegala abajo y guardá</p>
-    <input id="chat-key-input" type="password" placeholder="Pegá tu API key de Google AI Studio">
-    <button class="btn btn-primary" onclick="saveGeminiKey()" style="font-size:11px;padding:6px 14px;">Guardar y conectar</button>
-    <p style="font-size:10px;color:var(--tx3);">La key se guarda solo en este dispositivo (localStorage).</p>
-  </div>`;
-  row.style.display = 'none';
-}
-
-function saveGeminiKey() {
-  const key = document.getElementById('chat-key-input')?.value.trim();
-  if (!key || key.length < 20) { notif('Key inválida — pegá la clave completa de Google AI Studio'); return; }
-  geminiKey = key;
-  localStorage.setItem('gemini_key', key);
-  document.getElementById('chat-input-row').style.display = 'flex';
-  chatWelcome();
-  testGeminiKey();
-}
-
-async function testGeminiKey() {
-  const dot = document.getElementById('chat-dot');
-  try {
-    await detectGeminiModel(geminiKey); // primero detectar el modelo disponible
-    const r = await callGemini([{role:'user', parts:[{text:'hola'}]}], 'Respondé solo "ok".');
-    if (r) { dot.className = 'ok'; }
-  } catch(e) { dot.className = ''; notif('Error al verificar key: ' + e.message); }
 }
 
 function chatWelcome() {
@@ -10178,45 +10115,46 @@ CONTEXTO ACTUAL DE LA APP:
 ${buildObraContext()}`;
 }
 
-async function callGemini(history, systemOverride) {
-  if (!geminiKey) { showKeySetup(); throw new Error('Sin key'); }
-  // Limitar historial a los últimos 10 mensajes para no exceder tokens
+async function callAsistente(history, systemOverride) {
+  if (!authToken) throw new Error('Iniciá sesión para usar el asistente');
+  // Últimos 10 mensajes para no exceder tokens
   const trimmed = history.length > 10 ? history.slice(-10) : history;
+  const messages = trimmed.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.parts?.[0]?.text || '' }));
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), 45000);
+  const dot = document.getElementById('chat-dot');
   try {
-    const resp = await fetch(`${GEMINI_ENDPOINT()}?key=${geminiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemOverride || buildSystemPrompt() }] },
-        contents: trimmed,
-        generationConfig: { maxOutputTokens: 800, temperature: 0.3 }
-      })
+    const resp = await fetch(CHAT_URL, {
+      method: 'POST', signal: controller.signal,
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system: systemOverride || buildSystemPrompt(), messages })
     });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      const msg = err?.error?.message || resp.statusText;
-      if (msg.includes('API_KEY')) { geminiKey = ''; localStorage.removeItem('gemini_key'); showKeySetup(); }
-      throw new Error(msg);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data.error) {
+      if (dot) dot.className = '';
+      const st = data.status ? ` (${data.status})` : '';
+      if (resp.status === 401) throw new Error('La sesión venció: cerrá sesión y volvé a entrar');
+      if (/OPENAI_API_KEY/.test(data.error || '')) throw new Error('Falta cargar la key de OpenAI en Supabase (secreto OPENAI_API_KEY)');
+      if (data.status === 429) throw new Error('OpenAI sin crédito o con límite alcanzado (429)');
+      throw new Error((data.error || resp.statusText || 'Error') + st);
     }
-    const data = await resp.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  } catch(e) {
-    if (e.name === 'AbortError') throw new Error('La consulta tardó demasiado (30s). Intentá de nuevo.');
+    if (dot) dot.className = 'ok';
+    return data.reply || '';
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('La consulta tardó demasiado (45 s). Intentá de nuevo.');
     throw e;
   } finally {
     clearTimeout(timer);
   }
 }
+const callGemini = callAsistente;   // compatibilidad con llamadas viejas
 
 function addChatMsg(role, text) {
   const msgs = document.getElementById('chat-messages');
   const div = document.createElement('div');
   div.className = 'chat-msg ' + role;
   // Formatear markdown básico
-  div.innerHTML = text
+  div.innerHTML = String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
     .replace(/\n/g, '<br>');
   msgs.appendChild(div);
@@ -10239,7 +10177,7 @@ async function chatSend() {
   send.disabled = true;
   const typing = addChatMsg('typing', '…');
   try {
-    const reply = await callGemini([...chatHistory]);
+    const reply = await callAsistente([...chatHistory]);
     typing.remove();
     addChatMsg('assistant', reply);
     chatHistory.push({ role: 'model', parts: [{ text: reply }] });
@@ -10288,7 +10226,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="chat-dot"></div>
       <div>
         <div id="chat-title">Asistente de obra</div>
-        <div id="chat-subtitle">Gemini 2.5 Flash · Gratuito</div>
+        <div id="chat-subtitle">OpenAI gpt-4o-mini</div>
       </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
