@@ -161,6 +161,11 @@ textarea{resize:vertical;min-height:55px;}
 .tb{background:var(--bl-l);color:var(--bl);}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(26,23,20,.6);z-index:100;align-items:center;justify-content:center;}
 .modal-overlay.open{display:flex;}
+.tarea-picker{width:100%;font-family:var(--mono);font-size:12px;line-height:1.5;padding:4px;border:1px solid var(--border);border-radius:4px;}
+.tarea-picker option{padding:3px 6px;white-space:normal;}
+.tarea-picker optgroup{font-family:var(--sans,inherit);font-size:11px;color:var(--tx2);}
+.tarea-elegida{margin-top:6px;font-size:12px;line-height:1.4;padding:6px 10px;border-radius:4px;background:var(--bl-l);color:var(--tx);min-height:18px;}
+.tarea-elegida:empty{display:none;}
 .modal{background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:24px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;}
 .modal-title{font-family:var(--serif);font-size:17px;font-weight:500;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;}
 .modal-close{background:none;border:none;cursor:pointer;font-size:16px;color:var(--tx3);}
@@ -376,7 +381,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-22.5</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-25.1</span></span>
     </div>
   </div>
 
@@ -719,13 +724,14 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
 
 <datalist id="dl-contratistas"></datalist>
 <div class="modal-overlay" id="m-medicion">
-  <div class="modal">
+  <div class="modal" style="width:820px;">
     <div class="modal-title">Nueva medición <button class="modal-close" onclick="closeModal('m-medicion')">✕</button></div>
     <div class="form-grid">
-      <div class="fg"><label>Tarea</label>
-        <input id="med-tarea-filter" placeholder="Buscar tarea..." oninput="filterTareas()" style="margin-bottom:4px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;width:100%;box-sizing:border-box;">
-        <select id="med-tarea-sel" onchange="onTareaChange();moModalSync('med')" size="6" style="width:100%;font-size:11px;"></select></div>
-      <div class="fg"><label>Ubicación</label><select id="med-ubicacion"><option value="Global">Global (sin planta específica)</option></select></div>
+      <div class="fg" style="grid-column:1/-1;"><label>Tarea</label>
+        <input id="med-tarea-filter" placeholder="Buscar tarea por nombre, código o rubro..." oninput="filterTareas()" style="margin-bottom:4px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:100%;box-sizing:border-box;">
+        <select id="med-tarea-sel" class="tarea-picker" onchange="onTareaChange();moModalSync('med');tareaElegidaLabel('med-tarea-sel','med-tarea-elegida')" size="10"></select>
+        <div id="med-tarea-elegida" class="tarea-elegida"></div></div>
+      <div class="fg" style="grid-column:1/-1;"><label>Ubicación</label><select id="med-ubicacion"><option value="Global">Global (sin planta específica)</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:8px;"><label>Descripción (opcional)</label><input id="med-desc" placeholder="Ej: Muro frente N"></div>
     <div id="med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
@@ -744,13 +750,14 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
 
 <!-- MODAL EDITAR MEDICIÓN -->
 <div class="modal-overlay" id="m-edit-med">
-  <div class="modal" style="width:600px;">
+  <div class="modal" style="width:820px;">
     <div class="modal-title">Editar medición <button class="modal-close" onclick="closeModal('m-edit-med')">✕</button></div>
     <div class="form-grid">
-      <div class="fg"><label>Tarea</label>
-        <input id="edit-med-tarea-filter" placeholder="Buscar tarea..." oninput="filterTareasEdit()" style="margin-bottom:4px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;width:100%;box-sizing:border-box;">
-        <select id="edit-med-tarea" onchange="onEditTareaChange();moModalSync('edit',editingMedId)" size="4" style="width:100%;font-size:11px;"></select></div>
-      <div class="fg"><label>Ubicación</label><select id="edit-med-ubic"><option value="Global">Global</option></select></div>
+      <div class="fg" style="grid-column:1/-1;"><label>Tarea</label>
+        <input id="edit-med-tarea-filter" placeholder="Buscar tarea por nombre, código o rubro..." oninput="filterTareasEdit()" style="margin-bottom:4px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:100%;box-sizing:border-box;">
+        <select id="edit-med-tarea" class="tarea-picker" onchange="onEditTareaChange();moModalSync('edit',editingMedId);tareaElegidaLabel('edit-med-tarea','edit-med-tarea-elegida')" size="8"></select>
+        <div id="edit-med-tarea-elegida" class="tarea-elegida"></div></div>
+      <div class="fg" style="grid-column:1/-1;"><label>Ubicación</label><select id="edit-med-ubic"><option value="Global">Global</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:8px;"><label>Descripción</label><input id="edit-med-desc"></div>
     <div id="edit-med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
@@ -1046,7 +1053,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">PASO 4 &mdash; Cargar la primera medicion</div>
-            <div style="font-size:11px;color:var(--tx2);">En el campo <b>Buscar tarea</b> escribir el nombre o codigo de la tarea (ej: "6.1" o "tabique"). Seleccionarla. Ingresar <b>Largo</b> y <b>Ancho</b>. Si son varias superficies, apretar <b>+ Sumar</b> para acumularlas. Al final apretar <b>Agregar y cerrar</b>.</div>
+            <div style="font-size:11px;color:var(--tx2);">En el campo <b>Buscar tarea</b> escribir el nombre o codigo de la tarea (ej: "5.4" o "muro"). Seleccionarla. Ingresar <b>Largo</b> y <b>Ancho</b>. Si son varias superficies, apretar <b>+ Sumar</b> para acumularlas. Al final apretar <b>Agregar y cerrar</b>.</div>
           </div>
           <div style="background:var(--gr-l);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--gr);margin-bottom:4px;">A PARTIR DE ACA TODO ES AUTOMATICO</div>
@@ -1304,7 +1311,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-22.5';
+const APP_BUILD = '2026-10-25.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2757,9 +2764,18 @@ function filterTareas() {
   filtered.forEach(c => { if (!groups[c.rubro]) groups[c.rubro] = []; groups[c.rubro].push(c); });
   const rubrosOrden = ordenRubros(Object.keys(groups));
   sel.innerHTML = rubrosOrden.map(rubro =>
-    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
+    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}" title="${c.cod} — ${(c.nombre||'').replace(/"/g,'&quot;')} (${c.unidad})">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
   ).join('');
   if (filtered.length) { sel.selectedIndex = 0; onTareaChange(); moModalSync('med'); }
+  tareaElegidaLabel('med-tarea-sel', 'med-tarea-elegida');
+}
+
+// Muestra el nombre completo de la tarea elegida debajo del selector (el select corta los nombres largos)
+function tareaElegidaLabel(selId, outId) {
+  const sel = document.getElementById(selId), out = document.getElementById(outId);
+  if (!sel || !out) return;
+  const c = coefs.find(x => x.id === sel.value);
+  out.innerHTML = c ? `<b style="font-family:var(--mono);">${c.cod}</b> — ${c.nombre} <span style="color:var(--tx3);">· ${c.unidad} · ${c.rubro}</span>` : '';
 }
 
 function filterTareasEdit() {
@@ -2775,11 +2791,12 @@ function filterTareasEdit() {
   filtered.forEach(c => { if (!groups[c.rubro]) groups[c.rubro] = []; groups[c.rubro].push(c); });
   const rubrosOrden = ordenRubros(Object.keys(groups));
   sel.innerHTML = rubrosOrden.map(rubro =>
-    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
+    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}" title="${c.cod} — ${(c.nombre||'').replace(/"/g,'&quot;')} (${c.unidad})">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
   ).join('');
   // Mantener la selección si sigue visible
   if (prev && filtered.some(c => c.id === prev)) sel.value = prev;
   else if (filtered.length) { sel.selectedIndex = 0; onEditTareaChange(); moModalSync('edit', editingMedId); }
+  tareaElegidaLabel('edit-med-tarea', 'edit-med-tarea-elegida');
 }
 
 // ---- Modal de medición: precio de MO + contratista ----
@@ -2866,7 +2883,7 @@ function openModalMedicion() {
   // Rubros en orden lógico
   const rubrosOrden = ordenRubros(Object.keys(groups));
   sel.innerHTML = rubrosOrden.map(rubro =>
-    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
+    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}" title="${c.cod} — ${(c.nombre||'').replace(/"/g,'&quot;')} (${c.unidad})">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
   ).join('');
   // Poblar ubicaciones según obra
   const obra = obras.find(o => o.id === obraId);
@@ -2940,17 +2957,20 @@ function tipoEstructural(cod) {
   const c = (cod||'').toString();
   if (['4.1','4.14'].includes(c)) return 'columna';
   if (['4.6','4.19'].includes(c)) return 'losa_maciza';
-  if (['4.2','4.3','4.4','4.5','4.15','4.16','4.17','4.18','4.24'].includes(c)) return 'viga';
+  // Vigas: incluye las vigas de encadenado de fundación (3.6 / 3.16) — antes caían como zapata corrida
+  if (['3.6','3.16','4.2','4.3','4.4','4.5','4.15','4.16','4.17','4.18','4.24'].includes(c)) return 'viga';
   if (['4.11','4.13','4.28','4.29'].includes(c)) return 'tabique_hormigon';
-  if (['3.2','3.5','3.6','3.7','3.8','3.16','3.19'].includes(c)) return 'zapata';
-  if (['3.14','3.18'].includes(c)) return 'zapata_puntual';
+  // Zapata corrida: solo zapatas corridas. El Hº ciclópeo (3.7) no lleva armadura → usa DIMS_CIMIENTO.
+  if (['3.2','3.8'].includes(c)) return 'zapata';
+  // Bases puntuales y cabezales (3.5 / 3.19): bloque con parrilla en dos direcciones
+  if (['3.5','3.14','3.18','3.19'].includes(c)) return 'zapata_puntual';
   if (['3.4','3.12'].includes(c)) return 'pozo';
   if (['3.3','3.17'].includes(c)) return 'platea';
   if (['4.31'].includes(c)) return 'losa_vigueta';
   if (['4.33','4.34'].includes(c)) return 'losa_nervurada';
   if (['9.4','9.5'].includes(c)) return 'cubierta_teja';
   if (['9.6'].includes(c)) return 'cubierta_alivianado';
-  if (['4.26'].includes(c)) return 'escalera';
+  if (['4.10','4.26'].includes(c)) return 'escalera';
   return null;
 }
 
@@ -3204,20 +3224,37 @@ function armDiagramaSVG(tipo, v) {
   }
 
   else if (tipo === 'viga') {
-    const A = v.la || 0.20, B = v.lb || 0.40, L = v.ml || 4, sep = v.sep || 0.25, ns = v.ns || 2, ni = v.ni || 2;
+    // Subtipo por código: viga entre apoyos / encadenado superior (sobre muro) / encadenado inferior / de fundación
+    const cod = (v.cod || '').toString();
+    const sub = ['3.6','3.16'].includes(cod) ? 'fund' : ['4.5','4.24'].includes(cod) ? 'coron'
+              : ['4.2','4.16'].includes(cod) ? 'sup' : ['4.3','4.17'].includes(cod) ? 'inf' : 'viga';
+    const defA = sub === 'viga' ? 0.20 : 0.20, defB = sub === 'viga' ? 0.40 : (sub === 'coron' ? 0.20 : 0.30);
+    const A = v.la || defA, B = v.lb || defB, L = v.ml || 4, sep = v.sep || 0.25, ns = v.ns || 2, ni = v.ni || 2;
     const bx = 36, bw = 350, by = 60, bh = 74;
-    b += _S.rect(bx-26, by-14, 26, bh+28, _cHor, 'var(--bg)') + _S.rect(bx+bw, by-14, 26, bh+28, _cHor, 'var(--bg)');
-    b += _S.text(bx-13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9}) + _S.text(bx+bw+13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9});
+    const titulos = { viga:'Viga entre apoyos', sup:'Encadenado superior — apoyado en continuo sobre el muro', coron:'Coronamiento — remate continuo sobre el muro',
+                      inf:'Encadenado inferior — bajo el muro, en continuo', fund:'Viga de encadenado de fundación — bajo el muro, sobre el suelo' };
+    b += _S.text(8, 14, titulos[sub], {size:10,b:true,c:'var(--tx)'});
+    const banda = (y, h, label, dash) => _S.rect(bx-26, y, bw+52, h, _cHor, 'var(--bg)', 1, dash) + _S.text(bx+bw+30, y+h/2+3, label, {c:'var(--tx3)',size:9});
+    if (sub === 'viga') {
+      b += _S.rect(bx-26, by-14, 26, bh+28, _cHor, 'var(--bg)') + _S.rect(bx+bw, by-14, 26, bh+28, _cHor, 'var(--bg)');
+      b += _S.text(bx-13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9}) + _S.text(bx+bw+13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9});
+    } else {
+      if (sub === 'sup' || sub === 'coron') b += banda(by+bh, 10, 'muro', '4 3');
+      if (sub === 'inf' || sub === 'fund') b += banda(by-34, 10, 'muro', '4 3');
+      if (sub === 'fund') b += banda(by+bh, 10, 'suelo', '2 3');
+    }
     b += _S.rect(bx, by, bw, bh, _cHor, 'var(--bg)');
     const n = Math.min(Math.ceil(L/sep)+1, 24);
     for (let i = 0; i < n; i++) { const x = bx + 8 + i*((bw-16)/(n-1)); b += _S.line(x, by+7, x, by+bh-7, _cEst, 1.1); }
     const x1 = bx+8, x2 = bx+bw-8;
     for (let i = 0; i < Math.min(ni,3); i++) { const y = by+bh-10-i*6; b += _S.path(`M${x1} ${y-20} L${x1} ${y} L${x2} ${y} L${x2} ${y-20}`, _cMain, 2.2); }
     for (let i = 0; i < Math.min(ns,3); i++) { const y = by+10+i*6; b += _S.path(`M${x1+4} ${y+20} L${x1+4} ${y} L${x2-4} ${y} L${x2-4} ${y+20}`, _cRef, 2.2); }
-    // dobladura 45° (hierro doblado) — esquema
-    b += _S.path(`M${bx+95} ${by+bh-10} L${bx+150} ${by+10}`, _cMain, 1.6, 'none', '5 3');
-    b += _S.text(bx+60, by+bh+20, 'dobladura 45° (Δ₂)', {c:_cMain,size:9});
-    b += _S.text((x1+x2)/2, by-20, `Perchas / hierros superiores: ${ns} ${dl}`, {a:'middle',c:_cRef,size:10,b:true});
+    // dobladura 45° (hierro doblado) — solo en vigas entre apoyos; los encadenados van con barras rectas
+    if (sub === 'viga') {
+      b += _S.path(`M${bx+95} ${by+bh-10} L${bx+150} ${by+10}`, _cMain, 1.6, 'none', '5 3');
+      b += _S.text(bx+60, by+bh+20, 'dobladura 45° (Δ₂)', {c:_cMain,size:9});
+    }
+    b += _S.text((x1+x2)/2, sub === 'inf' || sub === 'fund' ? by-8 : by-20, `${sub === 'viga' ? 'Perchas / hierros superiores' : 'Hierros superiores'}: ${ns} ${dl}`, {a:'middle',c:_cRef,size:10,b:true});
     b += _S.text(x2, by+bh+20, `Hierros inferiores: ${ni} ${dl}`, {a:'end',c:_cMain,size:10,b:true});
     b += _dimH(bx, bx+bw, by+bh+52, `L = ${_fm(L)} m   →   hierro = luz + luz/6 = ${_fm(L+L/6)} m`);
     // sección
@@ -3228,9 +3265,10 @@ function armDiagramaSVG(tipo, v) {
     for (let i = 0; i < Math.min(ni,4); i++) b += _S.dot(cx-w/2+8+i*((w-16)/Math.max(1,Math.min(ni,4)-1||1)), cy+h/2-8, 3.8, _cMain);
     b += _S.text(cx, cy+h/2+18, `${_fm(A*100,0)} × ${_fm(B*100,0)} cm`, {a:'middle',size:11,b:true});
     const H = Math.round(B*100);
-    notas = [`Longitud de cada hierro = <b>luz + luz/6</b> (Chandías: incluye ganchos, dobladuras y empalmes) · empalme 0,60 m si pasa de 12 m`,
-             `Chandías: gancho ${dl} (ADN-420) = ${gancho} mm por dos ganchos · cada dobladura a 45° en viga de ${H} cm suma Δ₂ = ${chandiasDobladura45(H)} cm (Tabla 7.9) — ya contemplado en el 1/6`,
-             `Perchas: Chandías las toma como 2 Ø8 sup. (≈ 0,80 kg por m de luz)`];
+    notas = [`Longitud de cada hierro = <b>luz + luz/6</b> (Chandías: incluye ganchos, dobladuras y empalmes) · empalme 0,60 m si pasa de 12 m`];
+    if (sub === 'viga') notas.push(`Chandías: gancho ${dl} (ADN-420) = ${gancho} mm por dos ganchos · cada dobladura a 45° en viga de ${H} cm suma Δ₂ = ${chandiasDobladura45(H)} cm (Tabla 7.9) — ya contemplado en el 1/6`,
+             `Perchas: Chandías las toma como 2 Ø8 sup. (≈ 0,80 kg por m de luz)`);
+    else notas.push(`Apoyo continuo: barras rectas con gancho en los extremos, sin dobladuras · típico 2 + 2 barras (4 en total) y estribos Ø6`);
   }
 
   else if (tipo === 'zapata') {
@@ -3392,7 +3430,7 @@ function renderArmDiagrama() {
     np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0,
     diam: document.getElementById('dim-diam-ppal')?.value || document.getElementById('dim-hierro-diam')?.value || 'MAT-003',
     armTipo: document.getElementById('dim-arm-tipo')?.value || 'hierros',
-    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo')
+    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), cod: coef.cod
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   cont.innerHTML = armDiagramaSVG(tipo, v);
@@ -3596,7 +3634,7 @@ function onTareaChange() {
   else if (tipo === 'tabique_hormigon') {
     wrap.innerHTML = `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Tabique de hormigón · Espesor × Alto × Largo · Armadura en parrilla o Malla SIMA
+        Muro de hormigón · Espesor × Alto × Largo · Armadura en parrilla o Malla SIMA
       </div>
       ${ig('dim-la','Espesor (m)','0.20')}
       ${ig('dim-lb','Alto (m)')}
@@ -4393,7 +4431,7 @@ function _buildEditDimsWrap(coef, wrap) {
     wrap.innerHTML = `
       <div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Tabique de hormigón · Espesor × Alto × Largo · Armadura en parrilla o Malla SIMA
+        Muro de hormigón · Espesor × Alto × Largo · Armadura en parrilla o Malla SIMA
       </div>
       ${ige('dim-la','Espesor (m)','0.20')}
       ${ige('dim-lb','Alto (m)')}
@@ -4578,7 +4616,7 @@ function renderEditArmDiagrama() {
     np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0,
     diam: document.getElementById('e-dim-diam-ppal')?.value || document.getElementById('e-dim-hierro-diam')?.value || 'MAT-003',
     armTipo: document.getElementById('e-dim-arm-tipo')?.value || 'hierros',
-    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo')
+    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), cod: coef.cod
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   cont.innerHTML = armDiagramaSVG(tipo, v);
@@ -4806,7 +4844,7 @@ function openEditMed(medId) {
   [...ce].sort(sortByCod).forEach(c => { if (!groups[c.rubro]) groups[c.rubro] = []; groups[c.rubro].push(c); });
   const rubrosOrden2 = ordenRubros(Object.keys(groups));
   sel.innerHTML = rubrosOrden2.map(rubro =>
-    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
+    `<optgroup label="${rubro}">${groups[rubro].map(c => `<option value="${c.id}" title="${c.cod} — ${(c.nombre||'').replace(/"/g,'&quot;')} (${c.unidad})">${c.cod} — ${c.nombre} (${c.unidad})</option>`).join('')}</optgroup>`
   ).join('');
   sel.value = med.coefId || med.coef_id;
 
@@ -7573,7 +7611,8 @@ function detectSubtipo(t) {
     if (has('VIGUETA') || has('BOVEDILLA') || has('PRETENSAD')) return 'losa_vigueta';
     if (t.match(/\bL\d+\s*[-–]/)) return 'losa_vigueta';
     // Tabiques / muros de hormigón (T1 -, "tabiques de hormigón visto")
-    if (has('TABIQUE') && (has('HORMIGON') || has('HO VISTO') || has('HºAº') || t.match(/^\s*T\d+\s*[-–]/))) {
+    const muroHo = has('MURO') && !has('BLOQUE') && !has('LADRILL') && (has('HORMIGON') || has('HºAº') || has('H°A°') || has('HOAO') || has('HO ARMADO'));
+    if (muroHo || (has('TABIQUE') && (has('HORMIGON') || has('HO VISTO') || has('HºAº') || t.match(/^\s*T\d+\s*[-–]/)))) {
       if (has('REVESTIM')) return 'rev_ho_visto';             // "Tabique de Hº visto (revestimiento)" en m²: es la terminación
       return (has('VISTO') ? 'tabique_visto' : 'tabique_hormigon');
     }
@@ -8650,6 +8689,9 @@ const TEST_CASES_LECTOR = [
   ['R6 - rev. De piedra formato natural de color a definir - ext', 'rev_piedra'],
   ['T1 - TABIQUES DE HORMIGON VISTO PA - esp: 20cm', 'tabique_visto'],   // visto → 4.29 (antes 4.28 genérico)
   ['Tabiques de hormigón armado esp 15cm', 'tabique_hormigon'],
+  ['Muro de hormigón armado esp 20cm', 'tabique_hormigon'],          // muro de Hº = mismo elemento que el tabique de Hº
+  ['Muro de contención de HºAº e=25', 'tabique_hormigon'],
+  ['Muro de bloque de hormigón 20', 'mamp_cementicio'],              // bloque de Hº sigue siendo mampostería
   ['Toma doble 20A', 'inst_elec_boca'],
   ['Rev. fino interior', 'rev_fino_int'],
   // Certificado Rossi (oct 2026)
