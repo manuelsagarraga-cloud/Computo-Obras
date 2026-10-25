@@ -2935,20 +2935,22 @@ const BARRA_MAX = 12.0; // longitud máxima de barra comercial (m)
 const EMPALME = 0.60; // longitud de empalme para ADN-420 Ø≤16 (m)
 
 function tipoEstructural(cod) {
-  // Numeración vigente: H17 (default), H21 e in situ tienen códigos propios.
+  // Numeración vigente: un solo coeficiente por elemento (H17 default). El tipo de Hº se elige con mat_overrides.
+  // Los códigos "in situ" (mezcla en obra) siguen existiendo aparte.
   const c = (cod||'').toString();
-  if (['4.1','4.7','4.14'].includes(c)) return 'columna';
-  if (['4.6','4.19','4.20'].includes(c)) return 'losa_maciza';   // in situ / H17 / H21
-  if (['4.2','4.3','4.4','4.5','4.8','4.15','4.16','4.17','4.18','4.21','4.22','4.23','4.24','4.25'].includes(c)) return 'viga';
-  if (['4.11','4.12','4.13','4.28','4.29','4.30'].includes(c)) return 'tabique_hormigon';
-  if (['3.2','3.5','3.6','3.7','3.8','3.9','3.13','3.16','3.19','3.20'].includes(c)) return 'zapata';  // incluye cabezales 3.5 / 3.19 / 3.20
-  if (['3.14','3.15','3.18'].includes(c)) return 'zapata_puntual';
-  if (['3.4','3.11','3.12'].includes(c)) return 'pozo';
-  if (['3.3','3.10','3.17'].includes(c)) return 'platea';
-  if (['4.31','4.32'].includes(c)) return 'losa_vigueta';
+  if (['4.1','4.14'].includes(c)) return 'columna';
+  if (['4.6','4.19'].includes(c)) return 'losa_maciza';
+  if (['4.2','4.3','4.4','4.5','4.15','4.16','4.17','4.18','4.24'].includes(c)) return 'viga';
+  if (['4.11','4.13','4.28','4.29'].includes(c)) return 'tabique_hormigon';
+  if (['3.2','3.5','3.6','3.7','3.8','3.16','3.19'].includes(c)) return 'zapata';
+  if (['3.14','3.18'].includes(c)) return 'zapata_puntual';
+  if (['3.4','3.12'].includes(c)) return 'pozo';
+  if (['3.3','3.17'].includes(c)) return 'platea';
+  if (['4.31'].includes(c)) return 'losa_vigueta';
   if (['4.33','4.34'].includes(c)) return 'losa_nervurada';
   if (['9.4','9.5'].includes(c)) return 'cubierta_teja';
   if (['9.6'].includes(c)) return 'cubierta_alivianado';
+  if (['4.26'].includes(c)) return 'escalera';
   return null;
 }
 
@@ -3412,11 +3414,11 @@ function toggleArmTabique() {
 
 // ── Carga por dimensiones (Opción A) o cantidad directa (Opción B) para tareas de solo m² / m³ ──
 const DIMS_MURO   = ['5.1','5.2','5.3','5.4','5.5','5.6','5.7','5.8','5.9','5.10','5.11','6.2','6.3','6.4','7.1','7.2','7.3','7.4','7.5','7.6','7.7','7.9','7.10','7.11','7.12','7.13','7.14','7.15','12.1','12.2','12.3','12.4','12.5','12.6','12.7','12.8','12.9','13.1','13.2','13.5'];
-const DIMS_HORIZ  = ['4.31','4.32','4.33','4.34','6.1','6.5','7.16','8.5','9.1','9.2','9.3','9.4','9.5','9.7','10.1','10.2','10.3','10.4','10.5','10.6','10.8','11.1','11.2','11.5','11.6','11.7','11.8','11.9','11.10','11.11','11.12','11.13','11.14','11.15','13.3','15.8','17.4','17.5'];
-const DIMS_ESPESOR= ['8.1','8.2','8.3','8.4','8.6','8.7','9.6','9.8'];
+const DIMS_HORIZ  = ['4.31','4.33','4.34','6.1','6.5','7.16','8.5','9.1','9.2','9.3','9.4','9.5','9.7','10.1','10.2','10.3','10.4','10.5','10.6','10.8','11.1','11.2','11.5','11.6','11.7','11.8','11.9','11.10','11.11','11.12','11.13','11.14','11.15','13.3','15.8','17.4','17.5'];
+const DIMS_ESPESOR= ['8.1','8.2','8.3','8.4','8.6','8.8','9.6','9.8'];
 const DIMS_SUELO  = ['2.1','2.2','2.3','2.4','2.5','2.6'];
 const DIMS_CIMIENTO=['3.1','3.7'];
-const DIMS_DIRECTO= ['4.10','4.26','4.27','7.8','13.4','13.6'];
+const DIMS_DIRECTO= ['4.10','4.26','7.8','13.4','13.6'];
 function dimsConfig(coef) {
   const u = String(coef.unidad||'').toLowerCase();
   if (u !== 'm2' && u !== 'm3') return null;
@@ -7787,13 +7789,13 @@ function detectSubtipo(t) {
 }
 
 const MAP_SUBTIPO = {
-  // Fundaciones (3.x — sin cambios)
-  'zapata_puntual': '3.15', 'zapata_corrida': '3.9', 'viga_fund': '3.13',
-  'platea': '3.10', 'pozo_romano': '3.11', 'cabezal': '3.20',
-  // Estructura — Hº elaborado H21 por default salvo 'in situ' explícito (4.x)
-  'columna_elab': '4.7', 'viga_elab': '4.8', 'tabique_hormigon': '4.12',
-  'encadenado_vert': '4.7', 'encadenado_horiz': '4.21',
-  'losa_maciza': '4.20', 'losa_vigueta': '4.32',
+  // Fundaciones (3.x — unificados, un coef por elemento con selector de Hº)
+  'zapata_puntual': '3.18', 'zapata_corrida': '3.8', 'viga_fund': '3.16',
+  'platea': '3.17', 'pozo_romano': '3.12', 'cabezal': '3.19',
+  // Estructura — Hº elaborado unificado, tipo se elige con mat_overrides (4.x)
+  'columna_elab': '4.14', 'viga_elab': '4.15', 'tabique_hormigon': '4.28',
+  'encadenado_vert': '4.14', 'encadenado_horiz': '4.16',
+  'losa_maciza': '4.19', 'losa_vigueta': '4.31',
   // Mampostería (5.x — antes 6.x)
   'mamp_12': '5.3', 'mamp_18': '5.4', 'mamp_cementicio': '5.9', 'mamp_comun': '5.5',
   // Aislaciones (6.x — rubro nuevo)
@@ -7839,7 +7841,7 @@ const MAP_SUBTIPO = {
   'inst_electrica': '16.6', 'inst_aa': '16.7', 'inst_calef': '16.8',
   'inst_gas': '16.9',
   // Varios (17.x — nuevo)
-  'escalera': '4.27', 'pileta': '17.2', 'asador': '17.3',
+  'escalera': '4.26', 'pileta': '17.2', 'asador': '17.3',
   'vereda': '17.4', 'cantero': '17.5', 'banquina': '17.6', 'bombeo': '17.7',
   // Preliminares (1.x)
   'estudio_suelos': '1.4', 'calc_estructural': '1.5',
@@ -7877,7 +7879,7 @@ const MAP_SUBTIPO = {
   // Movimiento de suelos (2.x — sin cambios)
   'excavacion': '2.1', 'relleno': '2.4', 'retiro_tierra': '2.6',
   // Hº genéricos
-  'armadura': '4.7', 'hormigon_llenado': '4.7'
+  'armadura': '4.14', 'hormigon_llenado': '4.14'
 };
 
 // Subtipos nuevos (oct 2026, revisión obra Casali). Van sin código fijo: se resuelven por NOMBRE
@@ -7911,16 +7913,17 @@ Object.assign(MAP_SUBTIPO, {
   'inst_elec_boca': '', 'inst_elec_tablero': '', 'inst_elec_artefacto': '', 'inst_elec_led': '', 'inst_senales': '',
   'cortinero': '', 'rev_ho_visto': '', 'piso_granza': ''
 });
+// MAP_HO: variantes de hormigón por subtipo. Solo INSITU (mezcla en obra) sigue como coef separado.
+// H21 ya no tiene coef propio: se usa el coef unificado + mat_overrides para elegir tipo de Hº.
 const MAP_HO = {
-  zapata_puntual: { H21: '3.15', INSITU: '3.14' }, zapata_corrida: { H21: '3.9', INSITU: '3.2' },
-  platea: { H21: '3.10', INSITU: '3.3' }, viga_fund: { H21: '3.13', INSITU: '3.6' },
-  pozo_romano: { H21: '3.11', INSITU: '3.4' }, cabezal: { H21: '3.20', INSITU: '3.5' },
-  columna_elab: { H21: '4.7', INSITU: '4.1' }, encadenado_vert: { H21: '4.7', INSITU: '4.1' },
-  viga_elab: { H21: '4.8', INSITU: '4.4' }, encadenado_horiz: { H21: '4.21', INSITU: '4.2' },
-  losa_maciza: { H21: '4.20', INSITU: '4.6' }, losa_vigueta: { H21: '4.32' },
-  tabique_hormigon: { H21: '4.12', INSITU: '4.11' }, escalera: { H21: '4.27', INSITU: '4.10' },
-  tabique_visto: { H21: '4.30', INSITU: '4.13' },
-  carpeta_elab: { H17: '8.8', H21: '8.7' }   // carpeta de Hº elaborado: H17 por defecto
+  zapata_puntual: { INSITU: '3.14' }, zapata_corrida: { INSITU: '3.2' },
+  platea: { INSITU: '3.3' }, viga_fund: { INSITU: '3.6' },
+  pozo_romano: { INSITU: '3.4' }, cabezal: { INSITU: '3.5' },
+  columna_elab: { INSITU: '4.1' }, encadenado_vert: { INSITU: '4.1' },
+  viga_elab: { INSITU: '4.4' }, encadenado_horiz: { INSITU: '4.2' },
+  losa_maciza: { INSITU: '4.6' },
+  tabique_hormigon: { INSITU: '4.11' }, escalera: { INSITU: '4.10' },
+  tabique_visto: { INSITU: '4.13' }
 };
 function calidadHo(desc) {
   const t = _normN(desc);
