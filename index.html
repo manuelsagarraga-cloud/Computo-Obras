@@ -2327,8 +2327,18 @@ function computeObra(obraId) {
     const sinDesp = (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
     const cantDesp = sinDesp ? cantidad : cantidad * desp;
     const coefMats = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats||'[]') : []);
+    // mat_overrides: { "nombre_original": "id_seleccionado" }
+    const overrides = (med.mat_overrides && typeof med.mat_overrides === 'object') ? med.mat_overrides : {};
     const matItems = coefMats.map(cm => {
-      const mat = findMat(cm.matRef);
+      let mat;
+      let matNombre = cm.matRef;
+      // Si hay un override para este material, usar el material alternativo
+      if (overrides[cm.matRef]) {
+        const pool = matsEmpresa();
+        mat = pool.find(m => m.id === overrides[cm.matRef]);
+        if (mat) matNombre = mat.nombre;
+      }
+      if (!mat) mat = findMat(cm.matRef);
       const qtyBase = cantDesp * num(cm.coef);
       const { divisor, unComercial } = _divComercial(cm);
       // Sin redondear por medición (antes cada medición sumaba hasta 1 bolsa de más); se redondea en la lista de compras
@@ -2336,7 +2346,7 @@ function computeObra(obraId) {
       const precio = mat ? mat.precio : 0;
       const subtotal = qtyComercial * precio;
       return {
-        nombre: cm.matRef,
+        nombre: matNombre,
         unidad: cm.un,
         unComercial,
         divisor,
@@ -2935,6 +2945,10 @@ function tipoEstructural(cod) {
   if (['3.14','3.15','3.18'].includes(c)) return 'zapata_puntual';
   if (['3.4','3.11','3.12'].includes(c)) return 'pozo';
   if (['3.3','3.10','3.17'].includes(c)) return 'platea';
+  if (['4.31','4.32'].includes(c)) return 'losa_vigueta';
+  if (['4.33','4.34'].includes(c)) return 'losa_nervurada';
+  if (['9.4','9.5'].includes(c)) return 'cubierta_teja';
+  if (['9.6'].includes(c)) return 'cubierta_alivianado';
   return null;
 }
 
@@ -3398,7 +3412,7 @@ function toggleArmTabique() {
 
 // ── Carga por dimensiones (Opción A) o cantidad directa (Opción B) para tareas de solo m² / m³ ──
 const DIMS_MURO   = ['5.1','5.2','5.3','5.4','5.5','5.6','5.7','5.8','5.9','5.10','5.11','6.2','6.3','6.4','7.1','7.2','7.3','7.4','7.5','7.6','7.7','7.9','7.10','7.11','7.12','7.13','7.14','7.15','12.1','12.2','12.3','12.4','12.5','12.6','12.7','12.8','12.9','13.1','13.2','13.5'];
-const DIMS_HORIZ  = ['4.9','4.31','4.32','4.33','4.34','6.1','6.5','7.16','8.5','9.1','9.2','9.3','9.4','9.5','9.7','10.1','10.2','10.3','10.4','10.5','10.6','10.8','11.1','11.2','11.5','11.6','11.7','11.8','11.9','11.10','11.11','11.12','11.13','11.14','11.15','13.3','15.8','17.4','17.5'];
+const DIMS_HORIZ  = ['4.31','4.32','4.33','4.34','6.1','6.5','7.16','8.5','9.1','9.2','9.3','9.4','9.5','9.7','10.1','10.2','10.3','10.4','10.5','10.6','10.8','11.1','11.2','11.5','11.6','11.7','11.8','11.9','11.10','11.11','11.12','11.13','11.14','11.15','13.3','15.8','17.4','17.5'];
 const DIMS_ESPESOR= ['8.1','8.2','8.3','8.4','8.6','8.7','9.6','9.8'];
 const DIMS_SUELO  = ['2.1','2.2','2.3','2.4','2.5','2.6'];
 const DIMS_CIMIENTO=['3.1','3.7'];
@@ -3672,6 +3686,42 @@ function onTareaChange() {
       <div class="ig-item"><div class="ig-label">M³ (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
   }
 
+  else if (tipo === 'losa_vigueta') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Losa de viguetas pretensadas · Superficie + capa de compresión
+      </div>
+      ${ig('dim-la','Largo del paño (m)')}
+      ${ig('dim-lb','Ancho del paño (m)')}
+      ${ig('dim-sep','Separación entre viguetas (m)','0.50')}
+      ${ig('dim-ml','Espesor capa de compresión (m)','0.05','0.01')}
+      ${ig('dim-cant-elem','Cantidad de paños','1','1')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Resultado calculado</div>
+        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
+      </div>
+      <div class="ig-item"><div class="ig-label">M² de losa (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.01" style="color:var(--gr);font-weight:600;" readonly></div>`;
+    calcDimLosaVigueta();
+  }
+
+  else if (tipo === 'losa_nervurada') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Losa nervurada con casetones · Superficie + nervios + capa de compresión
+      </div>
+      ${ig('dim-la','Largo del paño (m)')}
+      ${ig('dim-lb','Ancho del paño (m)')}
+      ${ig('dim-sep','Separación entre nervios (m)','0.50')}
+      ${ig('dim-ml','Espesor capa de compresión (m)','0.05','0.01')}
+      ${ig('dim-cant-elem','Cantidad de paños','1','1')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Resultado calculado</div>
+        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
+      </div>
+      <div class="ig-item"><div class="ig-label">M² de losa (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.01" style="color:var(--gr);font-weight:600;" readonly></div>`;
+    calcDimLosaNervurada();
+  }
+
   else if (dimsConfig(coef)) {
     const cfg = dimsConfig(coef);
     wrap.innerHTML = dimsWidgetHTML(cfg);
@@ -3715,6 +3765,103 @@ function onTareaChange() {
   if (tipo) {
     wrap.insertAdjacentHTML('afterbegin', '<div id="arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>');
     renderArmDiagrama();
+  }
+
+  // ── Selector de tipo de hormigón variable ──
+  // Si el coeficiente tiene un material de hormigón en mats, mostramos un dropdown
+  // para que el usuario elija qué tipo usar (H8/H17/H21/H25/alivianado/pendiente)
+  const coefMatsArr = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats || '[]') : []);
+  const matHormigon = coefMatsArr.find(m => (m.matRef || '').toLowerCase().includes('hormigón'));
+  if (matHormigon) {
+    // Buscar todos los materiales de hormigón disponibles en la tabla
+    const pool = matsEmpresa();
+    const hormigones = pool.filter(m => m.nombre && m.nombre.toLowerCase().includes('hormigón') && (m.nombre.toLowerCase().includes('elaborad') || m.nombre.toLowerCase().includes('alivian') || m.nombre.toLowerCase().includes('pendiente')));
+    if (hormigones.length > 1) {
+      const opts = hormigones.map(h =>
+        `<option value="${h.id}" ${h.nombre === matHormigon.matRef ? 'selected' : ''}>${h.nombre}</option>`
+      ).join('');
+      wrap.insertAdjacentHTML('beforeend', `
+        <div style="grid-column:1/-1;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+          <div class="ig-label" style="margin-bottom:4px;">Tipo de hormigón</div>
+          <select class="ig-input" id="sel-hormigon-tipo" style="font-family:var(--mono);font-size:11px;padding:6px;max-width:380px;">
+            ${opts}
+          </select>
+          <div style="font-size:9px;color:var(--tx3);margin-top:3px;">
+            El coeficiente usa ${matHormigon.coef} ${matHormigon.un || 'm³'}/${coef.unidad} de hormigón. Seleccioná el tipo a usar en esta medición.
+          </div>
+        </div>`);
+      // Guardar el matRef original del hormigón para usarlo como key en mat_overrides
+      window._hormigonOriginalMatRef = matHormigon.matRef;
+    } else {
+      window._hormigonOriginalMatRef = null;
+    }
+  } else {
+    window._hormigonOriginalMatRef = null;
+  }
+}
+
+// ── Cálculos para losa de viguetas ──
+function calcDimLosaVigueta() {
+  const g = id => document.getElementById(id);
+  const largo = num(g('dim-la')?.value);
+  const ancho = num(g('dim-lb')?.value);
+  const sep   = num(g('dim-sep')?.value) || 0.50;
+  const espCC = num(g('dim-ml')?.value) || 0.05;
+  const cantP = num(g('dim-cant-elem')?.value) || 1;
+  const m2 = largo * ancho * cantP;
+  const cantViguetas = largo > 0 ? Math.ceil(ancho / sep) * cantP : 0;
+  const cantBovedillas = largo > 0 ? Math.round(m2 * 5.6) : 0; // ~5.6 u/m² estándar
+  const m3Horm = m2 * espCC; // capa de compresión
+  const preview = g('arm-preview');
+  if (preview) {
+    let html = '';
+    if (m2 > 0) {
+      html += `<b>Superficie:</b> ${m2.toFixed(2)} m²<br>`;
+      html += `<b>Viguetas:</b> ~${cantViguetas} u (sep. ${sep}m)<br>`;
+      html += `<b>Bovedillas:</b> ~${cantBovedillas} u (~5.6/m²)<br>`;
+      html += `<b>Hº capa compresión:</b> ${m3Horm.toFixed(3)} m³ (esp. ${espCC}m)<br>`;
+    }
+    preview.innerHTML = html;
+  }
+  const res = g('dim-res');
+  if (res) res.value = m2 > 0 ? +m2.toFixed(2) : '';
+
+  // Guardar para saveMedicion
+  if (m2 > 0) {
+    window._armResult = { m3: +m2.toFixed(2), resumen: `${cantP > 1 ? cantP + ' paños · ' : ''}${largo}×${ancho}m · sep ${sep}m · CC ${espCC}m` };
+    window._armTipo = 'losa_vigueta';
+    window._armDims = { largo, ancho, sep, espCC, cantElem: cantP };
+  }
+}
+
+// ── Cálculos para losa nervurada con casetones ──
+function calcDimLosaNervurada() {
+  const g = id => document.getElementById(id);
+  const largo = num(g('dim-la')?.value);
+  const ancho = num(g('dim-lb')?.value);
+  const sep   = num(g('dim-sep')?.value) || 0.50;
+  const espCC = num(g('dim-ml')?.value) || 0.05;
+  const cantP = num(g('dim-cant-elem')?.value) || 1;
+  const m2 = largo * ancho * cantP;
+  const cantCasetones = largo > 0 ? Math.round(m2 / (sep * sep)) * cantP : 0;
+  const m3Horm = m2 * espCC;
+  const preview = g('arm-preview');
+  if (preview) {
+    let html = '';
+    if (m2 > 0) {
+      html += `<b>Superficie:</b> ${m2.toFixed(2)} m²<br>`;
+      html += `<b>Casetones:</b> ~${cantCasetones} u (sep. ${sep}m)<br>`;
+      html += `<b>Hº capa compresión:</b> ${m3Horm.toFixed(3)} m³ (esp. ${espCC}m)<br>`;
+    }
+    preview.innerHTML = html;
+  }
+  const res = g('dim-res');
+  if (res) res.value = m2 > 0 ? +m2.toFixed(2) : '';
+
+  if (m2 > 0) {
+    window._armResult = { m3: +m2.toFixed(2), resumen: `${cantP > 1 ? cantP + ' paños · ' : ''}${largo}×${ancho}m · sep ${sep}m · CC ${espCC}m` };
+    window._armTipo = 'losa_nervurada';
+    window._armDims = { largo, ancho, sep, espCC, cantElem: cantP };
   }
 }
 
@@ -3901,6 +4048,9 @@ function calcDimEstructural() {
   }
   else if (tipo === 'pozo') dims = { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
   else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('dim-ref-diam')?.value||'MAT-003' };
+  else if (tipo === 'losa_vigueta') { calcDimLosaVigueta(); return; }
+  else if (tipo === 'losa_nervurada') { calcDimLosaNervurada(); return; }
+  else if (tipo === 'cubierta_teja' || tipo === 'cubierta_alivianado') return; // sin armadura, usa dimsConfig
 
   const r = calcArmadura(tipo, dims);
   if (!r.m3) return;
@@ -3984,11 +4134,31 @@ async function saveMedicion(keepOpen) {
     if (extras.length) descFinal = (desc ? desc + ' | ' : '') + extras.join('|');
     window._armResult = null;
   }
+  // Para losa_vigueta/losa_nervurada: guardar dims en pipe-data aunque no haya armResult
+  if (!window._armResult && window._armTipo && (window._armTipo === 'losa_vigueta' || window._armTipo === 'losa_nervurada') && window._armDims) {
+    const d = window._armDims;
+    const extras2 = [];
+    if (d.sep > 0) extras2.push(`iSep:${d.sep}`);
+    if (d.espCC > 0) extras2.push(`iEspCC:${d.espCC}`);
+    if (d.cantElem > 1) extras2.push(`iCant:${d.cantElem}`);
+    if (extras2.length) descFinal = (descFinal ? descFinal + ' | ' : '') + extras2.join('|');
+  }
 
   await withSync(async () => {
     const ubicacion = document.getElementById('med-ubicacion')?.value || 'Global';
     const revision = document.getElementById('sel-revision')?.value || 'Rev00';
-    const data = { obra_id: obraId, coef_id: coefId, descripcion: descFinal, cantidad, fecha: new Date().toLocaleDateString('es-AR'), ubicacion, revision };
+    // mat_overrides: si el usuario cambió el tipo de hormigón
+    // Formato: { "nombre_material_original": "id_material_seleccionado" }
+    let matOverrides = {};
+    if (window._hormigonOriginalMatRef) {
+      const selHormId = document.getElementById('sel-hormigon-tipo')?.value;
+      // Buscar el mat seleccionado para ver si es diferente al original
+      const selMat = mats.find(m => m.id === selHormId);
+      if (selMat && selMat.nombre !== window._hormigonOriginalMatRef) {
+        matOverrides[window._hormigonOriginalMatRef] = selHormId;
+      }
+    }
+    const data = { obra_id: obraId, coef_id: coefId, descripcion: descFinal, cantidad, fecha: new Date().toLocaleDateString('es-AR'), ubicacion, revision, mat_overrides: matOverrides };
     const res = await sbPost('mediciones', data);
     const med = res[0] || data;
     meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion});
@@ -4300,6 +4470,38 @@ function _buildEditDimsWrap(coef, wrap) {
       </div>
       ${previewBlock}`;
   }
+  else if (tipo === 'losa_vigueta') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Losa de viguetas pretensadas · Superficie + capa de compresión
+      </div>
+      ${ige('dim-la','Largo del paño (m)')}
+      ${ige('dim-lb','Ancho del paño (m)')}
+      ${ige('dim-sep','Separación entre viguetas (m)','0.50')}
+      ${ige('dim-ml','Espesor capa de compresión (m)','0.05','0.01')}
+      ${ige('dim-cant-elem','Cantidad de paños','1','1')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Resultado calculado</div>
+        <div id="e-arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
+      </div>
+      <div class="ig-item"><div class="ig-label">M² de losa (calculado)</div><input class="ig-input" id="e-dim-res" type="number" step="0.01" style="color:var(--gr);font-weight:600;" readonly></div>`;
+  }
+  else if (tipo === 'losa_nervurada') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Losa nervurada con casetones · Superficie + capa de compresión
+      </div>
+      ${ige('dim-la','Largo del paño (m)')}
+      ${ige('dim-lb','Ancho del paño (m)')}
+      ${ige('dim-sep','Separación entre nervios (m)','0.50')}
+      ${ige('dim-ml','Espesor capa de compresión (m)','0.05','0.01')}
+      ${ige('dim-cant-elem','Cantidad de paños','1','1')}
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Resultado calculado</div>
+        <div id="e-arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
+      </div>
+      <div class="ig-item"><div class="ig-label">M² de losa (calculado)</div><input class="ig-input" id="e-dim-res" type="number" step="0.01" style="color:var(--gr);font-weight:600;" readonly></div>`;
+  }
   else if (tipo === 'losa') {
     wrap.innerHTML = `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
@@ -4315,6 +4517,39 @@ function _buildEditDimsWrap(coef, wrap) {
   }
   else {
     wrap.innerHTML = '';
+  }
+
+  // ── Selector de hormigón variable en modal de edición ──
+  const coefMatsArr2 = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats || '[]') : []);
+  const matHormEdit = coefMatsArr2.find(m => (m.matRef || '').toLowerCase().includes('hormigón'));
+  if (matHormEdit) {
+    const pool = matsEmpresa();
+    const hormigones = pool.filter(m => m.nombre && m.nombre.toLowerCase().includes('hormigón') && (m.nombre.toLowerCase().includes('elaborad') || m.nombre.toLowerCase().includes('alivian') || m.nombre.toLowerCase().includes('pendiente')));
+    if (hormigones.length > 1) {
+      // Determinar selección actual: si la medición tiene mat_overrides, preseleccionar
+      const med = editingMedId ? meds.find(m => m.id === editingMedId) : null;
+      const overrides = (med && med.mat_overrides && typeof med.mat_overrides === 'object') ? med.mat_overrides : {};
+      const overriddenId = overrides[matHormEdit.matRef];
+      const opts = hormigones.map(h => {
+        const selected = overriddenId ? (h.id === overriddenId) : (h.nombre === matHormEdit.matRef);
+        return `<option value="${h.id}" ${selected ? 'selected' : ''}>${h.nombre}</option>`;
+      }).join('');
+      wrap.insertAdjacentHTML('beforeend', `
+        <div style="grid-column:1/-1;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+          <div class="ig-label" style="margin-bottom:4px;">Tipo de hormigón</div>
+          <select class="ig-input" id="e-sel-hormigon-tipo" style="font-family:var(--mono);font-size:11px;padding:6px;max-width:380px;">
+            ${opts}
+          </select>
+          <div style="font-size:9px;color:var(--tx3);margin-top:3px;">
+            El coeficiente usa ${matHormEdit.coef} ${matHormEdit.un || 'm³'}/${coef.unidad} de hormigón. Seleccioná el tipo a usar en esta medición.
+          </div>
+        </div>`);
+      window._editHormigonOriginalMatRef = matHormEdit.matRef;
+    } else {
+      window._editHormigonOriginalMatRef = null;
+    }
+  } else {
+    window._editHormigonOriginalMatRef = null;
   }
 }
 
@@ -4370,6 +4605,41 @@ function calcEditDimEstructural() {
   }
   else if (tipo === 'pozo') dims = { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
   else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('e-dim-ref-diam')?.value||'MAT-003' };
+  else if (tipo === 'losa_vigueta') {
+    const largo = g('dim-la'), ancho = g('dim-lb'), sep = g('dim-sep') || 0.50;
+    const espCC = g('dim-ml') || 0.05, cantP = g('dim-cant-elem') || 1;
+    const m2 = largo * ancho * cantP;
+    const cantViguetas = largo > 0 ? Math.ceil(ancho / sep) * cantP : 0;
+    const cantBovedillas = largo > 0 ? Math.round(m2 * 5.6) : 0;
+    const m3Horm = m2 * espCC;
+    const preview = document.getElementById('e-arm-preview');
+    const res = document.getElementById('e-dim-res');
+    if (m2 > 0) {
+      if (preview) preview.innerHTML = `<b>Superficie:</b> ${m2.toFixed(2)} m² (${cantP} paño${cantP>1?'s':''})<br><b>Viguetas:</b> ${cantViguetas} u (sep ${sep}m)<br><b>Bovedillas:</b> ~${cantBovedillas} u<br><b>Hº capa compresión:</b> ${m3Horm.toFixed(3)} m³ (esp ${espCC}m)`;
+      if (res) res.value = +m2.toFixed(2);
+      document.getElementById('edit-med-cant').value = +m2.toFixed(2);
+    } else { if (preview) preview.textContent = ''; }
+    window._editArmResult = null;
+    window._editArmDims = { largo, ancho, sep, espCC, cantElem: cantP };
+    return;
+  }
+  else if (tipo === 'losa_nervurada') {
+    const largo = g('dim-la'), ancho = g('dim-lb'), sep = g('dim-sep') || 0.50;
+    const espCC = g('dim-ml') || 0.05, cantP = g('dim-cant-elem') || 1;
+    const m2 = largo * ancho * cantP;
+    const cantCasetones = largo > 0 ? Math.round(m2 * 4) : 0;
+    const m3Horm = m2 * espCC;
+    const preview = document.getElementById('e-arm-preview');
+    const res = document.getElementById('e-dim-res');
+    if (m2 > 0) {
+      if (preview) preview.innerHTML = `<b>Superficie:</b> ${m2.toFixed(2)} m² (${cantP} paño${cantP>1?'s':''})<br><b>Casetones:</b> ~${cantCasetones} u (sep nervios ${sep}m)<br><b>Hº capa compresión:</b> ${m3Horm.toFixed(3)} m³ (esp ${espCC}m)`;
+      if (res) res.value = +m2.toFixed(2);
+      document.getElementById('edit-med-cant').value = +m2.toFixed(2);
+    } else { if (preview) preview.textContent = ''; }
+    window._editArmResult = null;
+    window._editArmDims = { largo, ancho, sep, espCC, cantElem: cantP };
+    return;
+  }
   else if (tipo === 'losa') {
     // Losa simple: superficie × espesor, sin armadura
     const la = g('dim-la'), lb = g('dim-lb');
@@ -4648,6 +4918,9 @@ function openEditMed(medId) {
           document.getElementById('e-dim-ref-largo').value = armData.iRefLargo;
         if (armData.iRefSep && document.getElementById('e-dim-ref-sep'))
           document.getElementById('e-dim-ref-sep').value = armData.iRefSep;
+        // Losa vigueta/nervurada: espesor capa compresión
+        if (armData.iEspCC && document.getElementById('e-dim-ml'))
+          document.getElementById('e-dim-ml').value = armData.iEspCC;
         if (skipCalcPrefill) {
           const pv = document.getElementById('e-arm-preview');
           if (pv) pv.textContent = 'Las dimensiones del texto no coinciden con la cantidad cargada — ajustá algún campo para recalcular (la cantidad no se modificó)';
@@ -4912,15 +5185,43 @@ async function saveEditMed() {
     if (extras.length) newDesc = (newDesc ? newDesc + ' | ' : '') + extras.join('|');
     window._editArmResult = null;
   }
+  // Para losa_vigueta/losa_nervurada: guardar dims en pipe-data
+  if (!window._editArmResult && window._editArmDims) {
+    const coefEdit = coefs.find(c => c.id === newCoefId);
+    const tipoEdit = coefEdit ? tipoEstructural(coefEdit.cod) : null;
+    if (tipoEdit === 'losa_vigueta' || tipoEdit === 'losa_nervurada') {
+      const d = window._editArmDims;
+      const extras2 = [];
+      if (d.sep > 0) extras2.push(`iSep:${d.sep}`);
+      if (d.espCC > 0) extras2.push(`iEspCC:${d.espCC}`);
+      if (d.cantElem > 1) extras2.push(`iCant:${d.cantElem}`);
+      if (extras2.length) newDesc = (newDesc ? newDesc + ' | ' : '') + extras2.join('|');
+    }
+  }
   const newUbic = document.getElementById('edit-med-ubic').value;
   const revNota = document.getElementById('edit-med-rev-nota').value.trim();
+
+  // mat_overrides: si el usuario cambió el tipo de hormigón en el modal de edición
+  let editMatOverrides = (med.mat_overrides && typeof med.mat_overrides === 'object') ? {...med.mat_overrides} : {};
+  if (window._editHormigonOriginalMatRef) {
+    const selHormId = document.getElementById('e-sel-hormigon-tipo')?.value;
+    const selMat = mats.find(m => m.id === selHormId);
+    if (selMat && selMat.nombre !== window._editHormigonOriginalMatRef) {
+      editMatOverrides[window._editHormigonOriginalMatRef] = selHormId;
+    } else {
+      // Si volvió al material original, quitar el override
+      delete editMatOverrides[window._editHormigonOriginalMatRef];
+    }
+  }
 
   // Detectar si algo cambió
   const oldCoefId = med.coefId || med.coef_id;
   const oldDesc = med.desc || med.descripcion || '';
   const oldCant = num(med.cantidad);
   const oldUbic = med.ubicacion || 'Global';
-  const changed = newCoefId !== oldCoefId || newDesc !== oldDesc || newCant !== oldCant || newUbic !== oldUbic;
+  const oldOverrides = (med.mat_overrides && typeof med.mat_overrides === 'object') ? med.mat_overrides : {};
+  const overridesChanged = JSON.stringify(editMatOverrides) !== JSON.stringify(oldOverrides);
+  const changed = newCoefId !== oldCoefId || newDesc !== oldDesc || newCant !== oldCant || newUbic !== oldUbic || overridesChanged;
 
   const moF = moLeerModal('edit');
   const moEx = _moByMed[editingMedId];
@@ -4953,7 +5254,8 @@ async function saveEditMed() {
       ubicacion: newUbic,
       revision: newRev,
       revision_fecha: new Date().toLocaleDateString('es-AR'),
-      revision_nota: revNota || (changed ? 'Editado' : '')
+      revision_nota: revNota || (changed ? 'Editado' : ''),
+      mat_overrides: editMatOverrides
     };
     const valorPrevio = { coef_id: oldCoefId, descripcion: oldDesc, cantidad: oldCant, ubicacion: oldUbic };
     await sbPatch('mediciones', editingMedId, patch);
@@ -4970,6 +5272,7 @@ async function saveEditMed() {
     med.revision = newRev;
     med.revision_fecha = patch.revision_fecha;
     med.revision_nota = patch.revision_nota;
+    med.mat_overrides = editMatOverrides;
     invalidateComputeCache();
 
     closeModal('m-edit-med');
