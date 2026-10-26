@@ -381,7 +381,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-26.1</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-26.2</span></span>
     </div>
   </div>
 
@@ -1311,7 +1311,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-26.1';
+const APP_BUILD = '2026-10-26.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -1528,9 +1528,21 @@ async function sbFetch(url, opts) {
 }
 
 async function sbGet(table, params='') {
-  const r = await sbFetch(`${SB_URL}/rest/v1/${table}?${params}&order=created_at.asc`, { headers: getSBHeaders() });
-  if (!r.ok) throw new Error(`GET ${table}: ${r.status}`);
-  return r.json();
+  // Supabase devuelve como máximo 1000 filas por request y no avisa: sin límite explícito, se pagina hasta traer todo.
+  if (/(^|&)(limit|offset)=/.test(params)) {
+    const r = await sbFetch(`${SB_URL}/rest/v1/${table}?${params}&order=created_at.asc`, { headers: getSBHeaders() });
+    if (!r.ok) throw new Error(`GET ${table}: ${r.status}`);
+    return r.json();
+  }
+  const PAGE = 1000, all = [];
+  for (let off = 0; off < 200000; off += PAGE) {
+    const r = await sbFetch(`${SB_URL}/rest/v1/${table}?${params}&order=created_at.asc,id.asc&limit=${PAGE}&offset=${off}`, { headers: getSBHeaders() });
+    if (!r.ok) throw new Error(`GET ${table}: ${r.status}`);
+    const part = await r.json();
+    all.push(...part);
+    if (part.length < PAGE) break;
+  }
+  return all;
 }
 async function sbPost(table, data) {
   const r = await sbFetch(`${SB_URL}/rest/v1/${table}`, { method:'POST', headers:getSBHeaders(), body:JSON.stringify(data) });
@@ -2031,15 +2043,13 @@ async function arrancarApp() {
 
 async function loadAllData() {
   // Cargar todo en paralelo
+  const fallas = [];
+  const leer = (t) => sbGet(t).catch(e => { fallas.push(t); console.warn('No se pudo leer', t, e); return null; });
   const [o, m, mo_data, c, med, idx, pe] = await Promise.all([
-    sbGet('obras').catch(()=>[]),
-    sbGet('materiales').catch(()=>[]),
-    sbGet('mano_obra').catch(()=>[]),
-    sbGet('coeficientes').catch(()=>[]),
-    sbGet('mediciones').catch(()=>[]),
-    sbGet('indices_cac').catch(()=>[]),
-    sbGet('precios_empresa').catch(()=>[]),
+    leer('obras'), leer('materiales'), leer('mano_obra'), leer('coeficientes'),
+    leer('mediciones'), leer('indices_cac'), leer('precios_empresa'),
   ]);
+  if (fallas.length) notif(`No se pudieron cargar: ${fallas.join(', ')}. Revisá la conexión y recargá la página antes de editar.`);
   obras = o || [];
   mats = m || [];
   mo = (mo_data || []).map(x => ({...x, desc: x.descripcion}));
@@ -2051,12 +2061,13 @@ async function loadAllData() {
   await loadMoPrecios();
 
   // Si las tablas están vacías, sembrar datos por defecto
-  if (!mats.length) await seedMateriales();
-  if (!mo.length) await seedMO();
-  if (!coefs.length) await seedCoefs();
+  // Sembrar solo si la lectura FUNCIONÓ y la tabla está realmente vacía (base nueva)
+  if (m && !m.length) await seedMateriales();
+  if (mo_data && !mo_data.length) await seedMO();
+  if (c && !c.length) await seedCoefs();
 
   // Recargar después de seed
-  if (!mats.length || !mo.length || !coefs.length) {
+  if ((m && !m.length) || (mo_data && !mo_data.length) || (c && !c.length)) {
     const [m2, mo2, c2] = await Promise.all([
       sbGet('materiales').catch(()=>[]),
       sbGet('mano_obra').catch(()=>[]),
@@ -5867,7 +5878,7 @@ function importMaterialesExcel(input) {
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const wb = _limpiarWB(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }));
       const ws = wb.Sheets[wb.SheetNames[0]];
       const filas = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
       if (!filas.length) { notif('El archivo está vacío'); input.value=''; return; }
@@ -7632,7 +7643,7 @@ function parseImportFile() {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const wb = _limpiarWB(XLSX.read(e.target.result, { type: 'binary' }));
       _impWB = wb; _impModoManual = false;
       _impCands = impHojasCandidatas(wb);
       if (!_impCands.length) _impCands = [{ name: wb.SheetNames[0], n: 0 }];
@@ -7644,6 +7655,22 @@ function parseImportFile() {
     } catch (err) { notif('Error al leer: ' + err.message); }
   };
   reader.readAsBinaryString(file);
+}
+
+// Las planillas llegan de terceros y su texto se muestra en la vista previa: se neutralizan < y > para que
+// una celda no pueda inyectar HTML/JS en la app (con la sesión del usuario).
+function _limpiarWB(wb) {
+  (wb.SheetNames || []).forEach(n => {
+    const ws = wb.Sheets[n];
+    Object.keys(ws || {}).forEach(k => {
+      if (k[0] === '!') return;
+      const c = ws[k];
+      if (c && typeof c.v === 'string' && /[<>]/.test(c.v)) c.v = c.v.replace(/</g, '‹').replace(/>/g, '›');
+      if (c && typeof c.w === 'string' && /[<>]/.test(c.w)) c.w = c.w.replace(/</g, '‹').replace(/>/g, '›');
+      if (c && c.h) delete c.h;
+    });
+  });
+  return wb;
 }
 
 function detectSubtipo(t) {
