@@ -1318,7 +1318,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-26.4';
+const APP_BUILD = '2026-10-26.5';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -8427,9 +8427,19 @@ function calcCantidadImport(item, coef) {
   }
   // Tarea global con el Excel en m²/ml/m³ (ej. "Piscina 30 m²" → Pileta global): es UN global; la cantidad del Excel queda en la nota
   if (coefU === 'gl' && itemU && !['gl', 'u'].includes(itemU) && !convertida) {
-    notaDims = ` (${item.cant} ${itemU} según Excel)`; cantidad = 1; convertida = true;
+    // Escaleras: se cuentan por unidad ("2 escaleras", "(2 unid)", "x 2"); sin número en el texto, es 1
+    cantidad = (item.subtipo === 'escalera' || item.subtipo === 'escalera_gl') ? cantEscaleras(item.desc) : 1;
+    notaDims = ` (${item.cant} ${itemU} según Excel)`; convertida = true;
   }
   return { cantidad, notaDims, convertida, coefU, itemU, esp, anchoInfo, tipo, seccProm };
+}
+
+// Cantidad de escaleras escrita en la descripción (la escalera va global por unidad: 2 escaleras = 2, nunca m² ni m³)
+function cantEscaleras(desc) {
+  const t = _normN(desc || '');
+  const m = t.match(/\b(\d{1,2})\s*(?:ESCALERAS|UNID|UN\b|U\b)/) || t.match(/\bX\s*(\d{1,2})\b/);
+  const n = m ? parseInt(m[1], 10) : 1;
+  return n > 0 ? n : 1;
 }
 
 const RANGO_ESPESOR = {
@@ -8465,7 +8475,7 @@ function validarImport() {
     if (item.cant === 1 && mMts ) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u} pero el texto menciona ${mMts[1]} m — ¿la cantidad real es esa?` });
     if (item.ubicTexto && item.ubicacion !== 'Global' && item.ubicTexto !== item.ubicacion) w.push({ lvl: 'warn', msg: `El texto dice ${item.ubicTexto} pero el ítem está bajo ${item.ubicacion} en el Excel` });
     if (u && item.cant === 1 && !['gl', 'u'].includes(u)) w.push({ lvl: 'warn', msg: `Cantidad 1 ${u}: parece un valor provisorio — cargá la cantidad real` });
-    if (u === 'gl' && item.cant > 1) w.push({ lvl: 'warn', msg: `${item.cant} gl: un global debería ser 1 — ¿la unidad es otra (m², u)?` });
+    if (u === 'gl' && item.cant > 1 && !/^escalera/.test(item.subtipo || '')) w.push({ lvl: 'warn', msg: `${item.cant} gl: un global debería ser 1 — ¿la unidad es otra (m², u)?` });
     // Backlog #4: el precio de MO salió igual al N° de ítem (ej. 2.66) → la columna de costo se leyó mal
     if (item.costoUnit > 0 && item.nItemOk && Math.abs(item.costoUnit - parseFloat(String(item.nItem).replace(/^[A-Z]+/i, '').replace(',', '.'))) < 1e-9) w.push({ lvl: 'err', msg: `El precio de MO (${item.costoUnit}) es igual al N° de ítem: la columna de costo está mal leída — revisá el Excel antes de importar` });
     if (item.nItem === 's/n') w.push({ lvl: 'warn', msg: item.origen === 'computo' ? 'Sin N° de ítem: no se va a vincular con el cronograma' : 'Ítem sin número en el Excel' });
@@ -8911,7 +8921,8 @@ const TEST_CASES_LECTOR = [
   ['Vereda perimetral c/cordón', 'vereda'],
   ['Cerco perimetral', 'cerco'],
   ['Escalera de HºAº', 'escalera'],
-  ['[JS2.76] ESCALERA CIRCULACIÓN INTERIOR Hº - PB a PA', 'escalera'],   // oct-2026: toda escalera de Hº → 17.1 global
+  ['[JS2.76] ESCALERA CIRCULACIÓN INTERIOR Hº - PB a PA', 'escalera'],
+  ['2 escaleras de HºAº PB a PA', 'escalera'],   // oct-2026: toda escalera de Hº → 17.1 global
   ['Baranda de escalera metálica', 'baranda_metal'],
   // Terminaciones sobre elementos: no deben caer en estructura/mampostería
   ['Revoque grueso sobre mampostería', 'rev_grueso_int'],
