@@ -1318,7 +1318,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-26.5';
+const APP_BUILD = '2026-10-26.6';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -9415,6 +9415,7 @@ function renderImportPreview() {
       <td class="num" style="font-size:10px;white-space:nowrap;">${final}${coef && normUnidad(coef.unidad) === 'm3' && item.incluir ? `<div><button class="btn" style="padding:0 5px;font-size:10px;margin-top:2px;${item.dimsEdit ? 'border-color:var(--bl);color:var(--bl);' : ''}" title="Editar sección, largo y unidades" onclick="impToggleDims(${idx})">📐${item.dimsEdit ? ' editado' : ''}</button></div>` : ''}</td>
       <td style="font-size:10px;min-width:170px;max-width:230px;">${avisos}</td>
       <td class="num" style="white-space:nowrap;">${(() => {
+        if (impMOaCompletar(item, coef)) return '<span style="color:var(--tx3);" title="La MO de la escalera se carga en cada obra">a completar</span>';
         if (!item.costoUnit) return '—';
         const pm = coef && calc ? impPrecioMO(item, coef, calc.cantidad) : null;
         const exc = `${$p(item.costoUnit)}${item.unidadExcel ? '/' + esc(normUnidad(item.unidadExcel)) : ''}`;
@@ -9453,7 +9454,12 @@ function _impRefrescar() { validarImport(); renderImportPreview(); }
 //  · El Excel trae un precio propio en nuestra unidad (ej. viga: renglón en m³) → ese precio, sin tocar.
 //  · Misma unidad → mismo precio (aunque cambie la cantidad: un revoque en m² no baja de precio).
 //  · Unidad distinta (ml→m³, ml→m², m²→m³) → se conserva el TOTAL del Excel: precio = total ÷ cantidad nuestra.
+// Escaleras: la MO se carga a mano en cada obra (oct-2026). El import no trae precio: queda "a completar".
+function impMOaCompletar(item, coef) {
+  return /^escalera/.test((item && item.subtipo) || '') || /escalera/i.test((coef && coef.nombre) || '');
+}
 function impPrecioMO(item, coef, cantNuestra) {
+  if (impMOaCompletar(item, coef)) return null;
   const p = num(item.costoUnit);
   if (!(p > 0) || !coef) return null;
   const uN = normUnidad(coef.unidad), uX = normUnidad(item.unidadExcel || item.unidad);
@@ -9711,9 +9717,10 @@ async function saveImport() {
       .filter(med => med.item.costoUnit > 0 || med.item.contratista)
       .map(med => {
         // El certificado multiplica costo_unit × cantidad de la medición: se reparte el total de la regla de MO
-        const pm = impPrecioMO(med.item, coefs.find(c => c.id === med.coef_id), med.cantidad);
+        const coefC = coefs.find(c => c.id === med.coef_id);
+        const pm = impPrecioMO(med.item, coefC, med.cantidad);
         const cantN = num(med.cantidad);
-        const costoUnit = pm ? +(cantN > 0 ? pm.total / cantN : pm.precio).toFixed(2) : med.item.costoUnit;
+        const costoUnit = impMOaCompletar(med.item, coefC) ? 0 : pm ? +(cantN > 0 ? pm.total / cantN : pm.precio).toFixed(2) : med.item.costoUnit;
         return {
           cert_id: cert.id,
           med_id: med.id,
@@ -9744,7 +9751,7 @@ async function saveImport() {
     // (el total queda idéntico aunque la unidad haya cambiado, ej: Excel en m², nuestro en m³).
     // Tareas en GL: se guarda el monto global. Se conserva el precio/unidad de origen.
     const moBatch = mediciones
-      .filter(med => med.item.costoUnit > 0)
+      .filter(med => med.item.costoUnit > 0 && !impMOaCompletar(med.item, coefs.find(c => c.id === med.coef_id)))
       .map(med => {
         const coefM = coefs.find(c => c.id === med.coef_id);
         const uNuestra = String(coefM?.unidad || '').toLowerCase();
