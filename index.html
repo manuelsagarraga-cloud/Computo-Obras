@@ -381,7 +381,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-26.2</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-26.3</span></span>
     </div>
   </div>
 
@@ -471,7 +471,8 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div id="page-materiales" class="page">
       <div class="card">
         <div class="card-header"><div class="card-title">Base de materiales</div>
-          <div style="display:flex;gap:8px;align-items:center;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input id="mat-search" placeholder="Buscar material o código..." oninput="filterMats()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;min-width:220px;">
             <button class="btn" onclick="exportMaterialesExcel()">↓ Exportar Excel</button>
             <label class="btn" style="cursor:pointer;margin:0;">↑ Importar Excel
               <input type="file" id="mat-import-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importMaterialesExcel(this)">
@@ -1295,11 +1296,17 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
 // =====================================================================
 // SUPABASE CONFIG
 // =====================================================================
+// Contador de operaciones en curso: el spinner se oculta cuando termina la ÚLTIMA (antes la primera que
+// terminaba lo apagaba aunque otra siguiera guardando). hideBusy(true) fuerza el cierre (errores no capturados).
+let _busyN = 0;
 function showBusy(msg) {
+  _busyN++;
   const el = document.getElementById('loading-overlay');
   if (el) { el.querySelector('div:last-child').textContent = msg || 'Procesando...'; el.classList.remove('hidden'); el.style.display='flex'; }
 }
-function hideBusy() {
+function hideBusy(forzar) {
+  _busyN = forzar ? 0 : Math.max(0, _busyN - 1);
+  if (_busyN > 0) return;
   const el = document.getElementById('loading-overlay');
   if (el) { el.classList.add('hidden'); el.style.display = 'none'; }
 }
@@ -1311,12 +1318,12 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-26.2';
+const APP_BUILD = '2026-10-26.3';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
 window.addEventListener('unhandledrejection', e => {
-  hideBusy();
+  hideBusy(true);
   console.error('Error no capturado:', e && e.reason);
 });
 // MO = precio del contratista (unitario o global). El cálculo por rendimiento/jornales UOCRA queda apagado:
@@ -3469,6 +3476,27 @@ function armDiagramaSVG(tipo, v) {
              k.vEstimado ? 'Volumen del casetón estimado (tronco de pirámide). Si tenés la ficha del proveedor, cargalo: es lo que más mueve el hormigón' : 'Volumen del casetón tomado de la ficha'];
   }
 
+  else if (tipo === 'escalera') {
+    const p = v.esc || escNorm({}), L = p.l || 3, H = p.h || 1.4, n = Math.max(2, Math.round(H / 0.175));
+    const sc = Math.min(330 / L, 170 / H), x0 = 40, y0 = 222, hu = L * sc / (n - 1), ch = H * sc / n, e = 22;
+    b += _S.text(8, 14, 'Escalera de HºAº — corte longitudinal', {size:10,b:true,c:'var(--tx)'});
+    let d = `M${x0} ${y0}`;
+    for (let i = 0; i < n; i++) { const x = x0 + i * hu, y = y0 - i * ch; d += ` L${x} ${y - ch}` + (i < n - 1 ? ` L${x + hu} ${y - ch}` : ''); }
+    const xt = x0 + (n - 1) * hu, yt = y0 - n * ch;
+    d += ` L${xt + 50} ${yt} L${xt + 50} ${yt + e} L${xt} ${yt + e} L${x0 + e} ${y0 + e * 0.6} L${x0} ${y0 + e * 0.6} Z`;
+    b += _S.path(d, _cHor, 1.2, 'var(--bg)');
+    // losa: cara inferior de (x0+e, y0+0.6e) a (xt, yt+e); barras abajo (tracción), repartición encima
+    const bx1 = x0 + e + 6, by1 = y0 + e * 0.6 - 4, bx2 = xt - 4, by2 = yt + e - 4;
+    b += _S.line(bx1, by1, bx2, by2, _cMain, 2.2);
+    for (let i = 0; i < 8; i++) { const t = (i + 0.5) / 8; b += _S.dot(bx1 + t * (bx2 - bx1), by1 + t * (by2 - by1) - 4, 2.4, _cEst); }
+    b += _S.text(xt + 25, yt - 6, p.d > 0 ? 'descanso' : '', {a:'middle',c:'var(--tx3)',size:9});
+    b += _dimH(x0, xt, y0 + 26, `largo en planta ${_fm(L)} m`) + _dimV(xt + 66, yt, y0, `H ${_fm(H)} m`, false);
+    b += _S.text(x0, 42, `${n} escalones · contrahuella ${_fm(H / n * 100, 1)} cm · huella ${_fm(L / (n - 1) * 100, 1)} cm`, {size:10});
+    b += _leyenda(330, 40, [{c:_cMain,t:'barras principales (losa)'},{c:_cEst,t:'repartición Ø6',dot:true}]);
+    notas = [`Se mide en m² <b>en planta</b>. Chandías: Hº de los tramos = 0,22 m³ por m² en planta (pendiente + escalones); los descansos como losa de 8 cm`,
+             `Acero: ${_fm(p.kg, 1)} kg/m² (≈ 100 kg por m³ de Hº, Tabla 7.18). Si tenés la planilla del calculista, cargá ese valor`];
+  }
+
   else if (tipo === 'losa_vigueta') {
     const sep = v.sep || 0.50, cc = v.ml || 0.05, x0 = 30, yTop = 80, sc = 230, hcc = Math.max(8, cc*sc*0.8), hb = 34;
     const n = 3, ancho = n * sep * sc;
@@ -3510,6 +3538,7 @@ function renderArmDiagrama() {
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
+  if (tipo === 'escalera') v.esc = escLeer(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
@@ -3826,6 +3855,11 @@ function onTareaChange() {
     calcDimLosaNervurada();
   }
 
+  else if (tipo === 'escalera') {
+    wrap.innerHTML = escModalHTML('', ig, 'calcDimEstructural()');
+    calcDimEscalera();
+  }
+
   else if (dimsConfig(coef)) {
     const cfg = dimsConfig(coef);
     wrap.innerHTML = dimsWidgetHTML(cfg);
@@ -4024,6 +4058,80 @@ function nervMatItems(coef, med, desp) {
   return out;
 }
 
+// ── Escaleras de HºAº (4.10 / 4.26), por m² EN PLANTA ──────────────────────────
+// Chandías 7.x: Hº de tramos = 0,22 × superficie en planta (incluye pendiente y escalones); descansos = losa de 8 cm.
+// Hierro: ~100 kg por m³ de Hº (Tabla 7.18) → con 0,16 m³/m² del coeficiente ≈ 16 kg/m². Editable.
+// Reparto supuesto: 80 % barras principales (Ø elegido) + 20 % repartición Ø6.
+function escNorm(p) {
+  p = p || {};
+  const n = (v, d) => (v === undefined || v === null || v === '' || isNaN(parseFloat(v))) ? d : parseFloat(v);
+  return { a: n(p.a, 0), l: n(p.l, 0), h: n(p.h, 0), t: Math.max(1, n(p.t, 1)), d: Math.max(0, n(p.d, 0)),
+           kg: Math.max(0, n(p.kg, 16)), dm: NERV_KG_ML[p.dm] ? p.dm : 'MAT-003' };
+}
+function escStr(p) { return ['a','l','h','t','d','kg','dm'].map(k => `${k}=${p[k]}`).join(';'); }
+function escParse(str) { const o = {}; (str || '').split(';').forEach(kv => { const i = kv.indexOf('='); if (i > 0) o[kv.slice(0, i)] = kv.slice(i + 1); }); return escNorm(o); }
+function escLeer(pfx) {
+  const v = id => { const x = document.getElementById(pfx + id); return x && x.value !== '' ? x.value : undefined; };
+  return escNorm({ a: v('dim-la'), l: v('dim-lb'), h: v('dim-ml'), t: v('dim-cant-elem'), d: v('esc-desc'), kg: v('esc-kg'), dm: v('dim-diam-ppal') });
+}
+function escCargar(pfx, p) {
+  const set = (id, val) => { const x = document.getElementById(pfx + id); if (x && val !== undefined && val !== 0) x.value = val; };
+  set('dim-la', p.a); set('dim-lb', p.l); set('dim-ml', p.h); set('dim-cant-elem', p.t); set('esc-desc', p.d); set('esc-kg', p.kg); set('dim-diam-ppal', p.dm);
+}
+function escModalHTML(pfx, igf, onch) {
+  return `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Escalera de HºAº · se mide en m² EN PLANTA (tramos + descansos) · Chandías: Hº tramo = 0,22 m³ por m² en planta
+      </div>
+      ${igf('dim-la','Ancho de la escalera (m)','1.00')}
+      ${igf('dim-lb','Largo del tramo en planta (m)')}
+      ${igf('dim-ml','Altura a salvar por tramo (m)','1.40')}
+      ${igf('dim-cant-elem','Cantidad de tramos','1','1')}
+      ${igf('esc-desc','Descansos (m² en planta)','0')}
+      ${igf('esc-kg','Acero (kg/m²)','16','0.5')}
+      <div class="ig-item"><div class="ig-label">Ø barras principales</div>
+        <select class="ig-input" id="${pfx}dim-diam-ppal" onchange="${onch}" style="font-family:var(--mono);font-size:11px;padding:6px;">
+          <option value="MAT-002">Ø8mm</option><option value="MAT-003" selected>Ø10mm</option><option value="MAT-004">Ø12mm</option>
+        </select></div>
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Resultado calculado</div>
+        <div id="${pfx}arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
+      </div>
+      <div class="ig-item"><div class="ig-label">M² en planta (calculado)</div><input class="ig-input" id="${pfx}dim-res" type="number" step="0.01" style="color:var(--gr);font-weight:600;" readonly></div>`;
+}
+// Calcula, muestra y deja listo el resultado para guardar (barras en ppal: / repartición Ø6 en est:)
+function escActualizarUI(pfx, coef) {
+  const p = escLeer(pfx);
+  const m2Tramo = p.a * p.l * p.t, m2 = m2Tramo + p.d;
+  const f = (x, d = 2) => (+x).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const cm = coef && Array.isArray(coef.mats) ? coef.mats.find(x => esHormigonElegible(x.matRef)) : null;
+  const horCoef = cm ? m2 * num(cm.coef) : 0, horCh = 0.22 * m2Tramo + 0.08 * p.d;
+  const kgTot = m2 * p.kg, mlPpal = 0.8 * kgTot / NERV_KG_ML[p.dm], mlRep = 0.2 * kgTot / NERV_KG_ML['MAT-001'];
+  const n = p.h > 0 ? Math.max(2, Math.round(p.h / 0.175)) : 0;
+  const prev = document.getElementById(pfx + 'arm-preview');
+  if (prev) {
+    let h = '';
+    if (m2 > 0) {
+      h += `<b>Superficie en planta:</b> ${f(m2)} m² (tramos ${f(m2Tramo)} + descansos ${f(p.d)})<br>`;
+      if (n) h += `<b>Escalones:</b> ${n} por tramo · contrahuella ${f(p.h / n * 100, 1)} cm · huella ${f(p.l / Math.max(1, n - 1) * 100, 1)} cm<br>`;
+      if (cm) h += `<b>Hº:</b> ${f(horCoef, 3)} m³ según el coeficiente (${f(num(cm.coef), 2)} m³/m²) · Chandías daría ${f(horCh, 3)} m³<br>`;
+      h += `<b>Acero:</b> ${f(kgTot, 0)} kg → ${Math.ceil(mlPpal / 12)} barras ${(DIAM_LABEL[p.dm] || '')} + ${Math.ceil(mlRep / 12)} barras Ø6 de repartición`;
+    }
+    prev.innerHTML = h;
+  }
+  const res = document.getElementById(pfx + 'dim-res');
+  if (res) res.value = m2 > 0 ? +m2.toFixed(2) : '';
+  const r = m2 > 0 ? { m3: +m2.toFixed(2), mlPpal: +mlPpal.toFixed(2), mlEstribos: +mlRep.toFixed(2), diamPpal: p.dm,
+    resumen: `${p.t > 1 ? p.t + ' tramos · ' : ''}${p.a}×${p.l} m en planta${p.d ? ' + ' + p.d + ' m² descansos' : ''} · ${p.kg} kg/m²` } : null;
+  return { m2, p, r };
+}
+function calcDimEscalera() {
+  const coef = coefs.find(c => c.id === document.getElementById('med-tarea-sel')?.value);
+  const { m2, p, r } = escActualizarUI('', coef);
+  window._armResult = r; window._armTipo = 'escalera';
+  window._armDims = m2 > 0 ? { esc: escStr(p) } : null;
+}
+
 // HTML de los datos de la losa (mismo formulario en "Nueva" y "Editar"; pfx '' o 'e-')
 function nervModalHTML(pfx, igf, onch) {
   const sel = (id, label, opts, def) => `<div class="ig-item"><div class="ig-label">${label}</div>
@@ -4095,13 +4203,6 @@ function calcDimLosaNervurada() {
   }
 }
 
-function calcDim() {
-  const a = num(document.getElementById('dim-a')?.value);
-  const b = num(document.getElementById('dim-b')?.value);
-  const c = num(document.getElementById('dim-c')?.value);
-  const res = document.getElementById('dim-res');
-  if (res) res.value = c ? +(a*b*c).toFixed(4) : +(a*b).toFixed(4);
-}
 
 // Calcula la línea actual (a×b[×c] − vanos) y, si no hay líneas sumadas, la copia al total
 function calcDimAcum() {
@@ -4279,6 +4380,7 @@ function calcDimEstructural() {
   else if (tipo === 'pozo') dims = { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
   else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('dim-ref-diam')?.value||'MAT-003' };
   else if (tipo === 'losa_vigueta') { calcDimLosaVigueta(); return; }
+  else if (tipo === 'escalera') { calcDimEscalera(); return; }
   else if (tipo === 'losa_nervurada') { calcDimLosaNervurada(); return; }
   else if (tipo === 'cubierta_teja' || tipo === 'cubierta_alivianado') return; // sin armadura, usa dimsConfig
 
@@ -4360,6 +4462,7 @@ async function saveMedicion(keepOpen) {
       if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
       if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
       if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+      if (d.esc) extras.push(`esc:${d.esc}`);
     }
     if (extras.length) descFinal = (desc ? desc + ' | ' : '') + extras.join('|');
     window._armResult = null;
@@ -4536,6 +4639,39 @@ function onEditTareaChange() {
   // Generar el HTML del widget directamente
   _buildEditDimsWrap(coef, wrap);
   renderEditArmDiagrama();
+}
+
+// ── Editar: ayudante de medidas para tareas no estructurales ──
+function editDimsHTML(cfg) {
+  const inp = (id, lab) => `<div class="ig-item" style="flex:1;min-width:90px;"><div class="ig-label">${lab}</div><input class="ig-input" id="e-${id}" type="number" step="0.01" placeholder="0.00" oninput="calcEditDims()"></div>`;
+  return `<div style="grid-column:1/-1;">
+      <div style="font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:6px;">
+        Recalcular con medidas (opcional) · si las cargás, reemplazan la cantidad
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;">
+        ${cfg.labels.map((l, i) => inp(['dim-a','dim-b','dim-c'][i], l)).join('')}
+        ${cfg.vanos ? inp('dim-vanos', 'Vanos a descontar (m²)') : ''}
+        <div class="ig-item" style="flex:1;min-width:90px;"><div class="ig-label">= ${cfg.un}</div><div id="e-dim-linea" style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--gr);padding:7px 0;">—</div></div>
+      </div></div>`;
+}
+function calcEditDims() {
+  const g = id => num(document.getElementById('e-' + id)?.value);
+  const a = g('dim-a'), b = g('dim-b'), c = g('dim-c'), v = g('dim-vanos');
+  const hayC = !!document.getElementById('e-dim-c');
+  const val = (a > 0 && b > 0 && (!hayC || c > 0)) ? Math.max(0, a * b * (hayC ? c : 1) - v) : 0;
+  const out = document.getElementById('e-dim-linea');
+  if (out) out.textContent = val > 0 ? val.toLocaleString('es-AR', { maximumFractionDigits: 3 }) : '—';
+  if (val > 0) document.getElementById('edit-med-cant').value = +val.toFixed(4);
+}
+// Si la descripción quedó como la arma "Nueva medición" ("3×4×0.1 −2 vanos"), se precargan las medidas
+function editDimsPrecargar(cfg) {
+  const med = editingMedId ? meds.find(m => m.id === editingMedId) : null;
+  const d = String((med && (med.desc || med.descripcion)) || '').split('|')[0].trim();
+  const m = d.match(/^(\d+(?:\.\d+)?)×(\d+(?:\.\d+)?)(?:×(\d+(?:\.\d+)?))?(?:\s*−(\d+(?:\.\d+)?) vanos)?\s*$/);
+  if (!m) return;
+  const set = (id, v) => { const el = document.getElementById('e-' + id); if (el && v) el.value = v; };
+  set('dim-a', m[1]); set('dim-b', m[2]); set('dim-c', m[3]); set('dim-vanos', m[4]);
+  calcEditDims();
 }
 
 function _buildEditDimsWrap(coef, wrap) {
@@ -4723,6 +4859,9 @@ function _buildEditDimsWrap(coef, wrap) {
   else if (tipo === 'losa_nervurada') {
     wrap.innerHTML = '<div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>' + nervModalHTML('e-', ige, 'calcEditDimEstructural()');
   }
+  else if (tipo === 'escalera') {
+    wrap.innerHTML = '<div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>' + escModalHTML('e-', ige, 'calcEditDimEstructural()');
+  }
   else if (tipo === 'losa') {
     wrap.innerHTML = `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
@@ -4739,6 +4878,9 @@ function _buildEditDimsWrap(coef, wrap) {
   else {
     wrap.innerHTML = '';
   }
+
+  // Tareas no estructurales (muro, piso, contrapiso, excavación…): mismas medidas que en "Nueva medición"
+  if (!tipo) { const cfg = dimsConfig(coef); if (cfg && cfg.labels) { wrap.innerHTML = editDimsHTML(cfg); setTimeout(() => editDimsPrecargar(cfg), 0); } }
 
   // ── Selector de hormigón variable en modal de edición ──
   const coefMatsArr2 = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats || '[]') : []);
@@ -4801,6 +4943,7 @@ function renderEditArmDiagrama() {
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
+  if (tipo === 'escalera') v.esc = escLeer(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
@@ -4843,6 +4986,13 @@ function calcEditDimEstructural() {
     } else { if (preview) preview.textContent = ''; }
     window._editArmResult = null;
     window._editArmDims = { largo, ancho, sep, espCC, cantElem: cantP };
+    return;
+  }
+  else if (tipo === 'escalera') {
+    const { m2, p, r } = escActualizarUI('e-', coef);
+    if (m2 > 0) document.getElementById('edit-med-cant').value = +m2.toFixed(2);
+    window._editArmResult = r;
+    window._editArmDims = m2 > 0 ? { esc: escStr(p) } : null;
     return;
   }
   else if (tipo === 'losa_nervurada') {
@@ -5059,6 +5209,14 @@ function openEditMed(medId) {
   if (coef) {
     _buildEditDimsWrap(coef, wrap);
     const tipo = tipoEstructural(coef.cod);
+    if (tipo === 'escalera') {
+      const mEsc = (med.desc || med.descripcion || '').match(/(?:^|\|)\s*esc:([^|]*)/);
+      setTimeout(() => {
+        if (mEsc) escCargar('e-', escParse(mEsc[1]));
+        else { const c0 = num(med.cantidad); if (c0 > 0) { document.getElementById('e-dim-la').value = 1; document.getElementById('e-dim-lb').value = c0; } }
+        calcEditDimEstructural();
+      }, 60);
+    }
     if (tipo === 'losa_nervurada') {
       const dsc = med.desc || med.descripcion || '';
       const mNv = dsc.match(/(?:^|\|)\s*nv:([^|]*)/);
@@ -5362,7 +5520,7 @@ async function saveEditMed() {
 
   // Reconstruir descripción con datos de armadura (como saveMedicion)
   // 1) Quitar pipe-data anterior de la descripción
-  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:'];
+  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:','esc:'];
   const pipeIdx = newDesc.lastIndexOf(' | ');
   if (pipeIdx >= 0) {
     const tail = newDesc.slice(pipeIdx + 3);
@@ -5403,6 +5561,7 @@ async function saveEditMed() {
       if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
       if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
       if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+      if (d.esc) extras.push(`esc:${d.esc}`);
     }
     if (extras.length) newDesc = (newDesc ? newDesc + ' | ' : '') + extras.join('|');
     window._editArmResult = null;
@@ -5816,6 +5975,7 @@ function renderMats() {
     <td><input type="month" value="${m.mes_base||''}" onchange="updateMatMesBase('${m.id}',this.value)" style="font-size:10px;padding:3px 5px;width:120px;"></td>
     <td>${m._override ? `<button class="btn-icon" onclick="quitarOverride('${m.cod}')" title="Volver al precio de la base común">↺</button>` : `<button class="btn-icon" onclick="delMat('${m.id}')">✕</button>`}</td>
   </tr>`).join('');
+  filterMats();   // mantener el filtro del buscador al redibujar
 }
 
 async function updateMatMesBase(id, val) {
@@ -6133,9 +6293,6 @@ function toggleRubro(id) {
   if (icon) icon.textContent = open ? '▾' : '▴';
 }
 
-async function delCoef(id) {
-  await withSync(async () => { await sbDelete('coeficientes', id); coefs=coefs.filter(c=>c.id!==id); renderCoefs(); notif('Eliminado'); });
-}
 
 // =====================================================================
 // LISTA DE COMPRAS
@@ -6670,9 +6827,6 @@ function exportCompras() {
 function moContratistasConocidos() {
   return [...new Set(moPrecios.map(r => (r.contratista||'').trim()).filter(Boolean))].sort();
 }
-function moDatalistHTML() {
-  return `<datalist id="dl-contratistas">${moContratistasConocidos().map(c => `<option value="${String(c).replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
-}
 function moResumenSinPrecio(obraId) {
   const r = computeObra(obraId);
   let n = 0, total = 0;
@@ -6802,7 +6956,6 @@ async function moAplicarContrRubro(obraId, rubro, contratista) {
   loadMOPrecios();
 }
 
-function saveMOPrecios() { loadMOPrecios(); notif('Los precios se guardan al editar cada celda ✓'); }
 
 // =====================================================================
 // INFORMACIÓN DE SUSTENTO — solo lectura. UOCRA / jornales: nunca suman.
