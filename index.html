@@ -381,7 +381,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div class="topbar-right">
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
-      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-25.2</span></span>
+      <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-26.1</span></span>
     </div>
   </div>
 
@@ -1311,7 +1311,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-25.2';
+const APP_BUILD = '2026-10-26.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2953,6 +2953,16 @@ const ANCLAJE = 0.25; // anclaje 25cm por extremo → +0.50 por barra
 const BARRA_MAX = 12.0; // longitud máxima de barra comercial (m)
 const EMPALME = 0.60; // longitud de empalme para ADN-420 Ø≤16 (m)
 
+// Material de hormigón que se puede cambiar por otro tipo (H8/H17/H21/H25/alivianado/pendiente).
+// Vigueta, loseta o terminación "hormigón visto" NO son hormigón a elegir aunque el nombre diga "hormigón".
+function esHormigonElegible(nombre) {
+  const n = String(nombre || '').toLowerCase();
+  return n.includes('hormigón') && (n.includes('elaborad') || n.includes('alivian') || n.includes('pendiente'))
+      && !/vigueta|loseta|bovedilla|premoldead|terminaci|visto/.test(n);
+}
+// Cabezales (de pilotes): misma cuenta que la base aislada (bloque con parrilla), otro nombre y otro esquema
+function esCabezal(cod) { return ['3.5','3.19'].includes(String(cod || '')); }
+
 function tipoEstructural(cod) {
   // Numeración vigente: un solo coeficiente por elemento (H17 default). El tipo de Hº se elige con mat_overrides.
   // Los códigos "in situ" (mezcla en obra) siguen existiendo aparte.
@@ -3320,10 +3330,16 @@ function armDiagramaSVG(tipo, v) {
     const yb = cy0+ch-10, ph = Math.min(28, ch-14);
     b += _S.path(`M${cx0+8} ${yb-ph} L${cx0+8} ${yb} L${cx0+cw-8} ${yb} L${cx0+cw-8} ${yb-ph}`, _cMain, 2.4);
     for (let i = 0; i < 9; i++) b += _S.dot(cx0+22+i*((cw-44)/8), yb-7, 2.6, _cRef);
-    b += _S.text(cx0+cw/2, cy0+ch+18, `corte — alto ${_fm(Al)} m`, {a:'middle',size:10,b:true});
+    const cab = esCabezal(v.cod);
+    if (cab) {
+      [cx0+cw*0.22, cx0+cw*0.78].forEach(x => { b += _S.rect(x-11, cy0+ch, 22, 40, _cHor, 'var(--bg)', 1.2, '4 3'); });
+      b += _S.text(cx0+cw+6, cy0+ch+28, 'pilotes (aparte)', {c:'var(--tx3)',size:9});
+    }
+    b += _S.text(cx0+cw/2, cab ? cy0+ch+54 : cy0+ch+18, `${cab ? 'cabezal' : 'corte'} — alto ${_fm(Al)} m`, {a:'middle',size:10,b:true});
     b += _S.text(cx0+8, yb-ph-5, 'pata 25 cm', {c:_cMain,size:9});
     b += _leyenda(30, 222, [{c:_cMain,t:`barras en X (${dl}) c/${_fm(sep*100,0)} cm, con patas`},{c:_cRef,t:'barras en Y'}]);
     notas = [`Parrilla en dos direcciones · barra = lado + <b>25 cm por extremo</b> de pata de anclaje · recubrimiento 2,5 cm`];
+    if (esCabezal(v.cod)) notas.push('Cabezal: une las cabezas de los pilotes con la columna. El hormigón y hierro de los pilotes van en su propio ítem (3.4 / 3.12)');
   }
 
   else if (tipo === 'tabique_hormigon') {
@@ -3394,7 +3410,12 @@ function armDiagramaSVG(tipo, v) {
     }
     // corte
     const cx0 = 340, cw = 200, th = Math.max(14, Math.min(e*200, 40)), cy0 = 112;
-    b += _S.rect(cx0-16, cy0-14, 16, th+44, _cHor, 'var(--bg)') + _S.rect(cx0+cw, cy0-14, 16, th+44, _cHor, 'var(--bg)');
+    b += _S.text(8, 14, tipo === 'platea' ? 'Platea de fundación — apoyada sobre el suelo' : 'Losa maciza — apoyada en vigas / muros', {size:10,b:true,c:'var(--tx)'});
+    if (tipo === 'platea') {
+      b += _S.rect(cx0-16, cy0+th, cw+32, 10, _cHor, 'var(--bg)', 1, '2 3') + _S.text(cx0+cw+20, cy0+th+9, 'suelo', {c:'var(--tx3)',size:9});
+    } else {
+      b += _S.rect(cx0-16, cy0-14, 16, th+44, _cHor, 'var(--bg)') + _S.rect(cx0+cw, cy0-14, 16, th+44, _cHor, 'var(--bg)');
+    }
     b += _S.rect(cx0, cy0, cw, th, _cHor, 'var(--bg)');
     const yb = cy0+th-5;
     b += _S.path(`M${cx0+6} ${yb-14} L${cx0+6} ${yb} L${cx0+cw-6} ${yb} L${cx0+cw-6} ${yb-14}`, _cMain, 2.4);
@@ -3409,7 +3430,49 @@ function armDiagramaSVG(tipo, v) {
     }
     b += _leyenda(24, 238, [{c:_cMain,t:'barras X (inferiores)'},{c:_cRef,t:'barras Y (dash)',dash:'4 2'}]);
     notas = [`Chandías: cada hierro de losa/platea = <b>luz + luz/6</b> (incluye ganchos, dobladuras y empalmes); Chandías no da una regla propia para refuerzos sobre apoyos`,
-             hayRef ? `Refuerzo cargado: lo que figure en la planilla de armadura. Si dejás el largo vacío se asume luz/2 (≈ luz/4 a cada lado del apoyo, criterio usual)` : `Si la losa lleva refuerzos (bastones sobre apoyos), cargalos abajo: ml de apoyos, largo de cada bastón y separación`];
+             hayRef ? `Refuerzo cargado: lo que figure en la planilla de armadura. Si dejás el largo vacío se asume luz/2 (≈ luz/4 a cada lado del apoyo, criterio usual)` : (tipo === 'platea' ? `Si la platea lleva refuerzos (bajo columnas o muros), cargalos abajo: ml, largo de cada bastón y separación` : `Si la losa lleva refuerzos (bastones sobre apoyos), cargalos abajo: ml de apoyos, largo de cada bastón y separación`)];
+  }
+
+  else if (tipo === 'losa_nervurada') {
+    const p = v.nv || nervNorm({}), k = nervPorM2(p);
+    const c = p.cas === '80' ? 0.80 : 0.60, sc = 300 / (2 * k.intereje + p.b);
+    const x0 = 30, yTop = 70, hcc = Math.max(8, p.cc * sc), hcas = Math.max(24, p.h * sc), base = yTop + hcc + hcas;
+    b += _S.text(8, 14, 'Losa nervurada con casetones — corte', {size:10,b:true,c:'var(--tx)'});
+    b += _S.rect(x0, yTop, 2 * k.intereje * sc + p.b * sc, hcc + hcas, _cHor, 'var(--bg)');
+    const con = Math.min(0.04 * (p.h / 0.25) * sc, c * sc / 4);
+    for (let i = 0; i < 2; i++) {
+      const xa = x0 + p.b * sc + i * k.intereje * sc, w = c * sc;
+      b += _S.path(`M${xa} ${base} L${xa+con} ${yTop+hcc} L${xa+w-con} ${yTop+hcc} L${xa+w} ${base} Z`, 'var(--tx3)', 1.2, 'var(--surf, #eee)', p.sis === 'eps' ? '' : '4 3');
+      b += _S.text(xa + w/2, yTop + hcc + hcas/2 + 4, p.sis === 'eps' ? 'EPS' : 'casetón', {a:'middle',c:'var(--tx3)',size:9});
+    }
+    for (let i = 0; i < 3; i++) { const xn = x0 + p.b*sc/2 + i*k.intereje*sc; b += _S.dot(xn, base-7, 3.5, _cMain); }
+    b += _S.line(x0+3, yTop+hcc/2, x0 + 2*k.intereje*sc + p.b*sc - 3, yTop+hcc/2, _cRef, 1.4, '3 2');
+    b += _dimH(x0 + p.b*sc/2, x0 + p.b*sc/2 + k.intereje*sc, base + 24, `intereje ${_fm(k.intereje)} m`);
+    const xr = x0 + 2*k.intereje*sc + p.b*sc + 14;
+    b += _dimV(xr, yTop, yTop+hcc, `capa ${_fm(p.cc*100,0)} cm`, false) + _dimV(xr, yTop+hcc, base, `casetón ${_fm(p.h*100,0)} cm`, false);
+    b += _S.text(x0 + p.b*sc/2, yTop - 8, `nervio ${_fm(p.b*100,0)} cm`, {a:'middle',size:9,c:_cMain});
+    b += _leyenda(30, 212, [{c:_cMain,t:'barras de nervio',dot:true},{c:_cRef,t:'malla en capa de compresión',dash:'3 2'}]);
+    b += _S.text(300, 212, `Hº ${_fm(k.hor,3)} m³/m² (macizado ${_fm(p.mac,0)} %)`, {size:10,b:true});
+    b += _S.text(300, 227, `${_fm(k.nCas)} casetones ${p.cas}×${p.cas}/m²`, {size:10});
+    notas = [`Hº por m² = (alto casetón + capa) − casetones/m² × volumen del casetón · casetones/m² = 1 / intereje²`,
+             k.vEstimado ? 'Volumen del casetón estimado (tronco de pirámide). Si tenés la ficha del proveedor, cargalo: es lo que más mueve el hormigón' : 'Volumen del casetón tomado de la ficha'];
+  }
+
+  else if (tipo === 'losa_vigueta') {
+    const sep = v.sep || 0.50, cc = v.ml || 0.05, x0 = 30, yTop = 80, sc = 230, hcc = Math.max(8, cc*sc*0.8), hb = 34;
+    const n = 3, ancho = n * sep * sc;
+    b += _S.text(8, 14, 'Losa de viguetas pretensadas y bovedillas — corte', {size:10,b:true,c:'var(--tx)'});
+    b += _S.rect(x0, yTop, ancho, hcc, _cHor, 'var(--bg)');
+    b += _S.line(x0+3, yTop+hcc/2, x0+ancho-3, yTop+hcc/2, _cRef, 1.4, '3 2');
+    for (let i = 0; i <= n; i++) {
+      const xv = x0 + i*sep*sc;
+      b += _S.path(`M${xv-4} ${yTop+hcc} L${xv-4} ${yTop+hcc+hb-6} L${xv-12} ${yTop+hcc+hb-6} L${xv-12} ${yTop+hcc+hb} L${xv+12} ${yTop+hcc+hb} L${xv+12} ${yTop+hcc+hb-6} L${xv+4} ${yTop+hcc+hb-6} L${xv+4} ${yTop+hcc}`, _cMain, 1.6);
+      if (i < n) b += _S.rect(xv+14, yTop+hcc+3, sep*sc-28, hb-6, 'var(--tx3)', 'none', 1, '3 2') + _S.text(xv+sep*sc/2, yTop+hcc+hb/2+4, 'bovedilla', {a:'middle',c:'var(--tx3)',size:9});
+    }
+    b += _dimH(x0, x0+sep*sc, yTop+hcc+hb+22, `sep. viguetas ${_fm(sep)} m`);
+    b += _dimV(x0+ancho+14, yTop, yTop+hcc, `capa ${_fm(cc*100,0)} cm`, false);
+    b += _leyenda(30, 212, [{c:_cMain,t:'vigueta pretensada'},{c:_cRef,t:'malla en capa de compresión',dash:'3 2'}]);
+    notas = [`Viguetas = ancho del paño / separación · bovedillas ≈ 5,6 u/m² · Hº = superficie × capa de compresión`];
   }
 
   if (!b) return '';
@@ -3435,6 +3498,7 @@ function renderArmDiagrama() {
     refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), cod: coef.cod
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
+  if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
@@ -3453,7 +3517,7 @@ function toggleArmTabique() {
 }
 
 // ── Carga por dimensiones (Opción A) o cantidad directa (Opción B) para tareas de solo m² / m³ ──
-const DIMS_MURO   = ['5.1','5.2','5.3','5.4','5.5','5.6','5.7','5.8','5.9','5.10','5.11','6.2','6.3','6.4','7.1','7.2','7.3','7.4','7.5','7.6','7.7','7.9','7.10','7.11','7.12','7.13','7.14','7.15','12.1','12.2','12.3','12.4','12.5','12.6','12.7','12.8','12.9','13.1','13.2','13.5'];
+const DIMS_MURO   = ['7.17','12.10','12.11','5.1','5.2','5.3','5.4','5.5','5.6','5.7','5.8','5.9','5.10','5.11','6.2','6.3','6.4','7.1','7.2','7.3','7.4','7.5','7.6','7.7','7.9','7.10','7.11','7.12','7.13','7.14','7.15','12.1','12.2','12.3','12.4','12.5','12.6','12.7','12.8','12.9','13.1','13.2','13.5'];
 const DIMS_HORIZ  = ['4.31','4.33','4.34','6.1','6.5','7.16','8.5','9.1','9.2','9.3','9.4','9.5','9.7','10.1','10.2','10.3','10.4','10.5','10.6','10.8','11.1','11.2','11.5','11.6','11.7','11.8','11.9','11.10','11.11','11.12','11.13','11.14','11.15','13.3','15.8','17.4','17.5'];
 const DIMS_ESPESOR= ['8.1','8.2','8.3','8.4','8.6','8.8','9.6','9.8'];
 const DIMS_SUELO  = ['2.1','2.2','2.3','2.4','2.5','2.6'];
@@ -3619,13 +3683,13 @@ function onTareaChange() {
   else if (tipo === 'zapata_puntual') {
     wrap.innerHTML = `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata puntual aislada · Ancho × Largo × Alto · Recubrimiento: 2.5cm
+        ${esCabezal(coef.cod) ? 'Cabezal de pilotes · Ancho × Largo × Alto · parrilla inferior · los pilotes se computan aparte (3.4 / 3.12)' : 'Zapata puntual aislada · Ancho × Largo × Alto'} · Recubrimiento: 2.5cm
       </div>
       ${ig('dim-la','Ancho (m)')}
       ${ig('dim-lb','Largo (m)')}
       ${ig('dim-ml','Alto (m)')}
       ${ig('dim-sep','Sep. hierros (m)','0.20')}
-      ${ig('dim-cant','Cantidad de zapatas','1','1')}
+      ${ig('dim-cant', esCabezal(coef.cod) ? 'Cantidad de cabezales' : 'Cantidad de zapatas','1','1')}
       <div class="ig-item" style="grid-column:1/-1;">
         <div class="ig-label">Resultado calculado</div>
         <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
@@ -3697,7 +3761,7 @@ function onTareaChange() {
   else if (tipo === 'platea' || tipo === 'losa_maciza') {
     wrap.innerHTML = `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Losa / Platea · Long. hierro = luz + luz/6 (Chandías)
+        ${tipo === 'platea' ? 'Platea de fundación' : 'Losa maciza'} · Long. hierro = luz + luz/6 (Chandías)
       </div>
       ${ig('dim-la','Lado X (m)')}
       ${ig('dim-lb','Lado Y (m)')}
@@ -3763,7 +3827,7 @@ function onTareaChange() {
   }
 
   else if ((num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)))) {
-    const esCarp = coef.rubro === 'Carpintería';
+    const esCarp = coef.rubro === 'Carpintería' && String(coef.unidad || '').toLowerCase() === 'u';
     wrap.innerHTML = `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
         Precio de material y MO se ingresan en <b>Precios MO</b> por obra
@@ -3800,7 +3864,7 @@ function onTareaChange() {
   // Si el coeficiente tiene un material de hormigón en mats, mostramos un dropdown
   // para que el usuario elija qué tipo usar (H8/H17/H21/H25/alivianado/pendiente)
   const coefMatsArr = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats || '[]') : []);
-  const matHormigon = coefMatsArr.find(m => (m.matRef || '').toLowerCase().includes('hormigón'));
+  const matHormigon = coefMatsArr.find(m => esHormigonElegible(m.matRef));
   if (matHormigon) {
     // Buscar todos los materiales de hormigón disponibles en la tabla
     const pool = matsEmpresa();
@@ -4451,7 +4515,7 @@ function onEditTareaChange() {
   const tipo = tipoEstructural(coef.cod);
   // Reusar la misma lógica de onTareaChange pero apuntando al wrap de edición
   // y sincronizando el resultado con edit-med-cant
-  if (!tipo) { wrap.innerHTML = ''; return; }
+  if (!tipo) { _buildEditDimsWrap(coef, wrap); return; }
   // Temporalmente swapear el wrap para reusar onTareaChange
   const realWrap = document.getElementById('med-dims-wrap');
   const cantInput = document.getElementById('dim-res');
@@ -4460,11 +4524,13 @@ function onEditTareaChange() {
   if (savedSel) savedSel._savedVal = savedSel.value;
   // Generar el HTML del widget directamente
   _buildEditDimsWrap(coef, wrap);
+  renderEditArmDiagrama();
 }
 
 function _buildEditDimsWrap(coef, wrap) {
   const tipo = tipoEstructural(coef.cod);
-  if (!tipo) { wrap.innerHTML = ''; return; }
+  window._editHormigonOriginalMatRef = null;   // nunca arrastrar el de la medición editada antes
+  if (!tipo) wrap.innerHTML = '';
   // ige: input group para edit modal (prefijo e-, llama calcEditDimEstructural)
   function ige(id, label, placeholder='0.00', step='0.01') {
     return `<div class="ig-item"><div class="ig-label">${label}</div><input class="ig-input" id="e-${id}" type="number" placeholder="${placeholder}" step="${step}" oninput="calcEditDimEstructural()"></div>`;
@@ -4534,13 +4600,13 @@ function _buildEditDimsWrap(coef, wrap) {
     wrap.innerHTML = `
       <div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata puntual aislada · Ancho × Largo × Alto · Recubrimiento: 2.5cm
+        ${esCabezal(coef.cod) ? 'Cabezal de pilotes · Ancho × Largo × Alto · parrilla inferior · los pilotes se computan aparte (3.4 / 3.12)' : 'Zapata puntual aislada · Ancho × Largo × Alto'} · Recubrimiento: 2.5cm
       </div>
       ${ige('dim-la','Ancho (m)')}
       ${ige('dim-lb','Largo (m)')}
       ${ige('dim-ml','Alto (m)')}
       ${ige('dim-sep','Sep. hierros (m)','0.20')}
-      ${ige('dim-cant','Cantidad de zapatas','1','1')}
+      ${ige('dim-cant', esCabezal(coef.cod) ? 'Cantidad de cabezales' : 'Cantidad de zapatas','1','1')}
       ${previewBlock}`;
   }
   else if (tipo === 'tabique_hormigon') {
@@ -4600,7 +4666,7 @@ function _buildEditDimsWrap(coef, wrap) {
     wrap.innerHTML = `
       <div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Losa / Platea · Long. hierro = luz + luz/6 (Chandías)
+        ${tipo === 'platea' ? 'Platea de fundación' : 'Losa maciza'} · Long. hierro = luz + luz/6 (Chandías)
       </div>
       ${ige('dim-la','Lado X (m)')}
       ${ige('dim-lb','Lado Y (m)')}
@@ -4628,6 +4694,7 @@ function _buildEditDimsWrap(coef, wrap) {
   }
   else if (tipo === 'losa_vigueta') {
     wrap.innerHTML = `
+      <div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
         Losa de viguetas pretensadas · Superficie + capa de compresión
       </div>
@@ -4643,7 +4710,7 @@ function _buildEditDimsWrap(coef, wrap) {
       <div class="ig-item"><div class="ig-label">M² de losa (calculado)</div><input class="ig-input" id="e-dim-res" type="number" step="0.01" style="color:var(--gr);font-weight:600;" readonly></div>`;
   }
   else if (tipo === 'losa_nervurada') {
-    wrap.innerHTML = nervModalHTML('e-', ige, 'calcEditDimEstructural()');
+    wrap.innerHTML = '<div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>' + nervModalHTML('e-', ige, 'calcEditDimEstructural()');
   }
   else if (tipo === 'losa') {
     wrap.innerHTML = `
@@ -4664,7 +4731,7 @@ function _buildEditDimsWrap(coef, wrap) {
 
   // ── Selector de hormigón variable en modal de edición ──
   const coefMatsArr2 = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats || '[]') : []);
-  const matHormEdit = coefMatsArr2.find(m => (m.matRef || '').toLowerCase().includes('hormigón'));
+  const matHormEdit = coefMatsArr2.find(m => esHormigonElegible(m.matRef));
   if (matHormEdit) {
     const pool = matsEmpresa();
     const hormigones = pool.filter(m => m.nombre && m.nombre.toLowerCase().includes('hormigón') && (m.nombre.toLowerCase().includes('elaborad') || m.nombre.toLowerCase().includes('alivian') || m.nombre.toLowerCase().includes('pendiente')));
@@ -4722,6 +4789,7 @@ function renderEditArmDiagrama() {
     refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), cod: coef.cod
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
+  if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
