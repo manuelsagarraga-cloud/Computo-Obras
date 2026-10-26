@@ -1318,7 +1318,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-26.6';
+const APP_BUILD = '2026-10-26.7';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -1576,6 +1576,14 @@ async function sbUpsertLote(table, rows) {
 async function sbDelete(table, id) {
   const r = await sbFetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method:'DELETE', headers:getSBHeaders() });
   if (!r.ok) throw new Error(`DELETE ${table}: ${r.status}`);
+}
+// Borra en lote las filas cuyo `col` está en `ids` (tandas de 100 para no pasar el largo de URL)
+async function sbDeleteIn(table, col, ids) {
+  for (let i = 0; i < ids.length; i += 100) {
+    const lista = ids.slice(i, i + 100).map(encodeURIComponent).join(',');
+    const r = await sbFetch(`${SB_URL}/rest/v1/${table}?${col}=in.(${lista})`, { method:'DELETE', headers:getSBHeaders() });
+    if (!r.ok) throw new Error(`DELETE ${table}: ${r.status}`);
+  }
 }
 
 
@@ -9588,6 +9596,37 @@ function impBulkAsignar() {
   _impRefrescar();
 }
 
+// Deshace un import que falló a mitad de camino: no deja obras vacías ni mediciones/certificados sueltos.
+// Obra nueva → se borra la obra (CASCADE se lleva mediciones, certificados, cert_items, cert_config y precios de MO).
+// Import a una obra existente → se borran solo las filas que creó este import; la obra y lo anterior quedan intactos.
+async function _impDeshacer(rb) {
+  if (!rb.obraId && !rb.medIds.length && !rb.certId) return;
+  try {
+    if (rb.obraId) {
+      await sbDelete('obras', rb.obraId);
+    } else {
+      if (rb.medIds.length) {
+        await sbDeleteIn('cert_items', 'med_id', rb.medIds);   // en un certificado ya existente quedarían con med_id NULL
+        await sbDeleteIn('mediciones', 'id', rb.medIds);       // CASCADE: precios de MO
+      }
+      if (rb.certId) await sbDelete('certificados', rb.certId);
+    }
+    const medSet = new Set(rb.medIds);
+    if (rb.obraId) obras = obras.filter(o => o.id !== rb.obraId);
+    meds = meds.filter(m => !medSet.has(m.id) && (!rb.obraId || m.obraId !== rb.obraId));
+    certs = certs.filter(c => c.id !== rb.certId && (!rb.obraId || c.obra_id !== rb.obraId));
+    moPrecios = moPrecios.filter(r => !medSet.has(r.med_id));
+    indexMoPrecios(); invalidateComputeCache();
+    renderObras(); popSelects();
+    notif('El import falló y se deshizo: no quedó nada a medias. Revisá el error y volvé a importar.');
+  } catch (e2) {
+    console.error('No se pudo deshacer el import:', e2, rb);
+    notif(rb.obraId
+      ? 'El import falló y la obra quedó creada a medias: borrala desde Obras antes de reintentar.'
+      : `El import falló y quedaron ${rb.medIds.length} mediciones a medias en la obra: revisalas antes de reintentar.`);
+  }
+}
+
 async function saveImport() {
   const btn = document.getElementById('btn-import-save');
   if (btn.disabled) return;
@@ -9607,6 +9646,8 @@ async function saveImport() {
   btn.disabled = true;
   btn.textContent = 'Importando...';
   showBusy(enObra ? 'Importando ítems a la obra...' : 'Importando obra...');
+  // Lo que este import va creando: si algo falla a mitad de camino se deshace (todo o nada)
+  const _rb = { obraId: null, medIds: [], certId: null, ok: false };
 
   try {
   await withSync(async () => {
@@ -9630,6 +9671,8 @@ async function saveImport() {
     const obraRes = await sbPost('obras', obraData);
     const obra = obraRes[0] || obraData;
     obraId = obra.id;
+    if (!obraId) throw new Error('La obra no se creó (sin id en la respuesta)');
+    _rb.obraId = obraId;
     obras.push(obra);
 
     // 2. Config K
@@ -9690,6 +9733,7 @@ async function saveImport() {
       ...med,
       item: medBatch[i]._item
     }));
+    _rb.medIds = mediciones.map(m => m.id).filter(Boolean);
     mediciones.forEach(med => meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion}));
     invalidateComputeCache();
 
@@ -9707,6 +9751,7 @@ async function saveImport() {
     };
     const certRes = await sbPost('certificados', certData);
     cert = certRes[0] || certData;
+    if (cert.id) _rb.certId = cert.id;
     certs.push(cert);
     }
 
@@ -9771,6 +9816,7 @@ async function saveImport() {
     if (moBatch.length > 0) {
       await upsertMoPreciosLote(moBatch);
     }
+    _rb.ok = true;   // todo lo de la base quedó escrito
 
     _impRegistrarAprendizaje(items, obraId);
     closeModal('m-import');
@@ -9811,6 +9857,7 @@ async function saveImport() {
   } catch(e) {
     // withSync ya notificó el error; acá solo evitamos que quede el spinner colgado
     console.error('saveImport:', e);
+    if (!_rb.ok) await _impDeshacer(_rb);
   } finally {
     hideBusy();
     const btn2 = document.getElementById('btn-import-save');
