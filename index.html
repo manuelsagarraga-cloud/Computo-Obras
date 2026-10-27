@@ -1318,7 +1318,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-26.7';
+const APP_BUILD = '2026-10-27.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -1554,6 +1554,16 @@ async function sbGet(table, params='') {
 async function sbPost(table, data) {
   const r = await sbFetch(`${SB_URL}/rest/v1/${table}`, { method:'POST', headers:getSBHeaders(), body:JSON.stringify(data) });
   if (!r.ok) { const t=await r.text(); throw new Error(`POST ${table}: ${r.status} ${t}`); }
+  return r.json();
+}
+// Llama a una función de Postgres (una sola transacción en la base)
+async function sbRpc(fn, args) {
+  const r = await sbFetch(`${SB_URL}/rest/v1/rpc/${fn}`, { method:'POST', headers:getSBHeaders(), body:JSON.stringify(args) });
+  if (!r.ok) {
+    const t = await r.text(); let msg = t;
+    try { const j = JSON.parse(t); msg = j.message || t; if (j.code === 'PGRST202') msg = `falta crear la función ${fn} en Supabase: correr el SQL del 27-oct`; } catch (_) {}
+    throw new Error(msg);
+  }
   return r.json();
 }
 async function sbPatch(table, id, data) {
@@ -7292,14 +7302,14 @@ async function emitirCert(certId) {
   try {
     await withSync(async () => {
       const filas = items.map(i => ({
-        id: i.id, cert_id: i.cert_id, med_id: i.med_id,
+        id: i.id,
         contratista: i.contratista || ((_moByMed[i.med_id] && _moByMed[i.med_id].contratista) || ''),
         costo_unit: certItemCostoUnit(i),
         pct_actual: i.pct_actual, economia_demasia: i.economia_demasia, pct_ed: i.pct_ed,
         precio_manual: !!i.precio_manual
       }));
-      if (filas.length) await sbUpsertLote('cert_items', filas);
-      await sbPatch('certificados', certId, { estado: 'emitido' });
+      // Una sola transacción: se congelan todos los ítems y se emite, o no cambia nada
+      await sbRpc('cert_cambiar_estado', { p_cert_id: certId, p_estado: 'emitido', p_items: filas });
       filas.forEach(f => { const it = certItems.find(x => x.id === f.id); if (it) Object.assign(it, f); });
       cert.estado = 'emitido';
     });
@@ -7314,14 +7324,13 @@ async function reabrirCert(certId) {
   if (!await appConfirm(`¿Reabrir el certificado n° ${cert.numero} a borrador?\n\nVuelve a usar el precio vigente de cada medición (salvo ajustes manuales).`)) return;
   try {
     await withSync(async () => {
-      await sbPatch('certificados', certId, { estado: 'borrador' });
-      cert.estado = 'borrador';
-      // los ítems congelados pasan a ajuste manual para no perder lo certificado
+      // Los ítems congelados pasan a ajuste manual para no perder lo certificado. Todo en una transacción:
+      // si falla, el certificado sigue emitido con sus precios intactos.
       const items = certItems.filter(i => i.cert_id === certId);
-      const filas = items.map(i => ({ ...i, precio_manual: true }));
-      if (filas.length) await sbUpsertLote('cert_items', filas.map(f => ({
-        id: f.id, cert_id: f.cert_id, med_id: f.med_id, contratista: f.contratista, costo_unit: f.costo_unit,
-        pct_actual: f.pct_actual, economia_demasia: f.economia_demasia, pct_ed: f.pct_ed, precio_manual: true })));
+      const filas = items.map(i => ({ id: i.id, contratista: i.contratista, costo_unit: i.costo_unit,
+        pct_actual: i.pct_actual, economia_demasia: i.economia_demasia, pct_ed: i.pct_ed, precio_manual: true }));
+      await sbRpc('cert_cambiar_estado', { p_cert_id: certId, p_estado: 'borrador', p_items: filas });
+      cert.estado = 'borrador';
       items.forEach(i => { i.precio_manual = true; });
     });
   } catch(e) {}
@@ -7365,9 +7374,7 @@ async function saveNuevoCert() {
 async function delCert(certId) {
   if (!await appConfirm('¿Eliminar este certificado y todos sus ítems?')) return;
   await withSync(async () => {
-    // Borrar items del cert
-    const items = certItems.filter(i => i.cert_id === certId);
-    for (const it of items) await sbDelete('cert_items', it.id).catch(()=>{});
+    // Los ítems se borran solos con el certificado (FK cert_items → certificados ON DELETE CASCADE)
     await sbDelete('certificados', certId);
     certs = certs.filter(c => c.id !== certId);
     certItems = certItems.filter(i => i.cert_id !== certId);
