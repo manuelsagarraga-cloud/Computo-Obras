@@ -706,11 +706,11 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
       <div class="fg"><label>Congelar al mes</label><input id="cong-mes" type="month"></div>
       <div class="fg"><label>Ajuste de precios</label>
         <select id="cong-modo">
-          <option value="propio">Cada uno por su índice (recomendado)</option>
+          <option value="sin">Sin ajuste: precios cargados hoy (recomendado)</option>
+          <option value="propio">Cada uno por su índice CAC desde su mes base</option>
           <option value="general">Todo por índice General</option>
           <option value="materiales">Todo por índice Materiales</option>
           <option value="mano_obra">Todo por índice Mano de obra</option>
-          <option value="sin">Sin ajuste (precios actuales tal cual)</option>
         </select>
       </div>
     </div>
@@ -1318,7 +1318,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-27.1';
+const APP_BUILD = '2026-10-27.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2292,12 +2292,20 @@ function findMat(ref) {
   const encontrado = pool.find(m => m.nombre === ref)
     || pool.find(m => m.nombre.toLowerCase().includes(refL.substring(0,12)) || refL.includes(m.nombre.toLowerCase().substring(0,12)));
   if (!encontrado) return undefined;
-  // Si la obra en cómputo está congelada y este material tiene precio congelado, usarlo
+  return _conCongelado(encontrado);
+}
+// Si la obra en cómputo está congelada y el material tiene precio congelado, devuelve ese precio
+function _conCongelado(m) {
+  if (!m) return m;
   const pc = preciosCongeladosDe(_obraEnComputo);
-  if (pc && pc.materiales[encontrado.cod] != null) {
-    return { ...encontrado, precio: pc.materiales[encontrado.cod], _congelado: true };
-  }
-  return encontrado;
+  if (pc && pc.materiales[m.cod] != null) return { ...m, precio: pc.materiales[m.cod], _congelado: true };
+  return m;
+}
+// Material por código con el precio que corresponde: el de la empresa (base común + precio propio)
+// y, si la obra está congelada, el congelado. Antes la armadura leía la base cruda y se salteaba los dos.
+function matPorCod(cod) {
+  if (!cod) return undefined;
+  return _conCongelado(matsEmpresa().find(m => m.cod === cod) || mats.find(m => m.cod === cod));
 }
 
 function popSelects() {
@@ -2384,7 +2392,7 @@ function computeObra(obraId) {
       // Si hay un override para este material, usar el material alternativo
       if (overrides[cm.matRef]) {
         const pool = matsEmpresa();
-        mat = pool.find(m => m.id === overrides[cm.matRef]);
+        mat = _conCongelado(pool.find(m => m.id === overrides[cm.matRef]));
         if (mat) matNombre = mat.nombre;
       }
       if (!mat) mat = findMat(cm.matRef);
@@ -2414,7 +2422,7 @@ function computeObra(obraId) {
 
     if (armData.armTipo === 'hierros' && armData.hierroDiam) {
       // Hierros sueltos: buscar material por cod (MAT-001 a MAT-004)
-      const hierroMat = mats.find(m => m.cod === armData.hierroDiam);
+      const hierroMat = matPorCod(armData.hierroDiam);
       const mlTotal = num(armData.mlTotal);
       const barras = Math.ceil(mlTotal / 12);
       if (hierroMat && barras > 0) {
@@ -2446,7 +2454,7 @@ function computeObra(obraId) {
 
     if (armData.armTipo === 'malla' && armData.mallaTipo) {
       // Malla SIMA: buscar material por cod
-      const mallaMat = mats.find(m => m.cod === armData.mallaTipo);
+      const mallaMat = matPorCod(armData.mallaTipo);
       const cantHojas = parseInt(armData.cantHojas) || 0;
       if (mallaMat && cantHojas > 0) {
         matItems.push({
@@ -2466,7 +2474,7 @@ function computeObra(obraId) {
     // Hierros de columnas, vigas, zapatas (est/ppal/sup/inf)
     if (armData.est && !armData.armTipo) {
       // Estribos siempre Ø6mm (MAT-001)
-      const estMat = mats.find(m => m.cod === 'MAT-001');
+      const estMat = matPorCod('MAT-001');
       const mlEst = num(armData.est);
       const barrasEst = Math.ceil(mlEst / 12);
       if (estMat && barrasEst > 0) {
@@ -2477,7 +2485,7 @@ function computeObra(obraId) {
     }
     if (armData.ppal && !armData.armTipo) {
       const diamCod = armData.diamPpal || 'MAT-003';
-      const ppalMat = mats.find(m => m.cod === diamCod);
+      const ppalMat = matPorCod(diamCod);
       const mlPpal = num(armData.ppal);
       const barrasPpal = Math.ceil(mlPpal / 12);
       if (ppalMat && barrasPpal > 0) {
@@ -2488,7 +2496,7 @@ function computeObra(obraId) {
     }
     if (armData.sup && !armData.armTipo) {
       const diamCod = armData.diamPpal || 'MAT-003';
-      const supMat = mats.find(m => m.cod === diamCod);
+      const supMat = matPorCod(diamCod);
       const mlSup = num(armData.sup);
       const barrasSup = Math.ceil(mlSup / 12);
       if (supMat && barrasSup > 0) {
@@ -2499,7 +2507,7 @@ function computeObra(obraId) {
     }
     if (armData.inf && !armData.armTipo) {
       const diamCod = armData.diamPpal || 'MAT-003';
-      const infMat = mats.find(m => m.cod === diamCod);
+      const infMat = matPorCod(diamCod);
       const mlInf = num(armData.inf);
       const barrasInf = Math.ceil(mlInf / 12);
       if (infMat && barrasInf > 0) {
@@ -2509,7 +2517,7 @@ function computeObra(obraId) {
       }
     }
     if (armData.ref && !armData.armTipo) {
-      const refMat = mats.find(m => m.cod === (armData.refDiam || 'MAT-003'));
+      const refMat = matPorCod((armData.refDiam || 'MAT-003'));
       const mlRef = num(armData.ref);
       const barrasRef = Math.ceil(mlRef / 12);
       if (refMat && barrasRef > 0) {
@@ -2521,7 +2529,7 @@ function computeObra(obraId) {
     // Parrilla X/Y (bases aisladas, losas, plateas): antes se calculaba pero no sumaba hierro (oct-2026)
     if ((armData.x || armData.y) && !armData.armTipo) {
       const xyCod = armData.diamPpal || (['losa_maciza', 'platea'].includes(tipoEstructural(coef.cod)) ? 'MAT-002' : 'MAT-003');
-      const xyMat = mats.find(m => m.cod === xyCod);
+      const xyMat = matPorCod(xyCod);
       const mlXY = num(armData.x || 0) + num(armData.y || 0);
       const barrasXY = Math.ceil(mlXY / 12);
       if (xyMat && barrasXY > 0) {
@@ -4020,10 +4028,7 @@ function nervPorM2(p) {
            hor: (1 - f) * horAlig + f * (p.h + p.cc), casU: (1 - f) * n * 1.03, casM2: 1 - f };
 }
 function _nervMat(cod) {
-  const m = matsEmpresa().find(x => x.cod === cod) || mats.find(x => x.cod === cod);
-  if (!m) return null;
-  const pc = preciosCongeladosDe(_obraEnComputo);
-  return (pc && pc.materiales[m.cod] != null) ? { ...m, precio: pc.materiales[m.cod] } : m;
+  return matPorCod(cod) || null;
 }
 // Materiales de una medición de losa nervurada (m² = cantidad de la medición). Sin datos guardados: valores típicos.
 function nervMatItems(coef, med, desp) {
@@ -6242,7 +6247,7 @@ function consolidarMateriales(obraId, medsFiltro) {
     descStr.split('|').forEach(p => { const [k,v] = p.split(':'); if (k && v) armData[k.trim()] = v.trim(); });
 
     if (armData.armTipo === 'hierros' && armData.hierroDiam) {
-      const hierroMat = mats.find(m => m.cod === armData.hierroDiam);
+      const hierroMat = matPorCod(armData.hierroDiam);
       const mlTotal = num(armData.mlTotal);
       const barras = Math.ceil(mlTotal / 12);
       if (hierroMat && barras > 0) {
@@ -6267,7 +6272,7 @@ function consolidarMateriales(obraId, medsFiltro) {
       }
     }
     if (armData.armTipo === 'malla' && armData.mallaTipo) {
-      const mallaMat = mats.find(m => m.cod === armData.mallaTipo);
+      const mallaMat = matPorCod(armData.mallaTipo);
       const cantHojas = parseInt(armData.cantHojas) || 0;
       if (mallaMat && cantHojas > 0) {
         const key = mallaMat.nombre;
@@ -6292,27 +6297,27 @@ function consolidarMateriales(obraId, medsFiltro) {
       if (armData.armDef) consolidado[key].mlDef = (consolidado[key].mlDef || 0) + mlVal;   // armadura por defecto del import, sin detallar
     };
     if (armData.est && !armData.armTipo) {
-      const estMat = mats.find(m => m.cod === 'MAT-001');
+      const estMat = matPorCod('MAT-001');
       if (estMat) addConsolidado(estMat, num(armData.est), '(estribos)');
     }
     if (armData.ppal && !armData.armTipo) {
-      const pMat = mats.find(m => m.cod === (armData.diamPpal||'MAT-003'));
+      const pMat = matPorCod((armData.diamPpal||'MAT-003'));
       if (pMat) addConsolidado(pMat, num(armData.ppal), '');
     }
     if (armData.sup && !armData.armTipo) {
-      const sMat = mats.find(m => m.cod === (armData.diamPpal||'MAT-003'));
+      const sMat = matPorCod((armData.diamPpal||'MAT-003'));
       if (sMat) addConsolidado(sMat, num(armData.sup), '(sup)');
     }
     if (armData.inf && !armData.armTipo) {
-      const iMat = mats.find(m => m.cod === (armData.diamPpal||'MAT-003'));
+      const iMat = matPorCod((armData.diamPpal||'MAT-003'));
       if (iMat) addConsolidado(iMat, num(armData.inf), '(inf)');
     }
     if (armData.ref && !armData.armTipo) {
-      const rMat = mats.find(m => m.cod === (armData.refDiam||'MAT-003'));
+      const rMat = matPorCod((armData.refDiam||'MAT-003'));
       if (rMat) addConsolidado(rMat, num(armData.ref), '(refuerzo)');
     }
     if ((armData.x || armData.y) && !armData.armTipo) {
-      const xyMat = mats.find(m => m.cod === (armData.diamPpal || (['losa_maciza', 'platea'].includes(tipoEstructural(coef.cod)) ? 'MAT-002' : 'MAT-003')));
+      const xyMat = matPorCod((armData.diamPpal || (['losa_maciza', 'platea'].includes(tipoEstructural(coef.cod)) ? 'MAT-002' : 'MAT-003')));
       if (xyMat) addConsolidado(xyMat, num(armData.x || 0) + num(armData.y || 0), '(parrilla)');
     }
     if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y) && !armData.armTipo) {
@@ -10285,9 +10290,8 @@ function openModalCongelar(obraId) {
   _congelarObraId = obraId;
   document.getElementById('congelar-obra-nombre').textContent = `${obra.cod} — ${obra.nombre}`;
   // Mes por defecto: el ya congelado, o el último índice disponible, o el actual
-  const ultimoIdx = indicesEmpresa().slice().sort((a,b)=>(b.mes||'').localeCompare(a.mes||''))[0];
-  document.getElementById('cong-mes').value = obra.mes_congelado || (ultimoIdx ? ultimoIdx.mes : new Date().toISOString().slice(0,7));
-  document.getElementById('cong-modo').value = obra.indice_usado || 'propio';
+  document.getElementById('cong-mes').value = obra.mes_congelado || new Date().toISOString().slice(0,7);
+  document.getElementById('cong-modo').value = obra.indice_usado || 'sin';
   document.getElementById('btn-descongelar').style.display = preciosCongeladosDe(obra) ? '' : 'none';
   document.getElementById('cong-preview').innerHTML = '';
   openModal('m-congelar');
@@ -10313,9 +10317,10 @@ function calcularCongelado(obraId, mesDestino, modo) {
       if (mat) usados.add(mat.cod);
     });
   });
-  // Si no hay mediciones aún, congelar toda la base de materiales de la empresa
-  const vista = matsEmpresa(); // base común + overrides + propios
-  const codigos = usados.size ? Array.from(usados) : vista.map(m=>m.cod);
+  // Se congelan TODOS los materiales de la empresa (base común + precios propios), no solo los que usa hoy:
+  // una tarea agregada después, un Hº H21 elegido por medición o el hierro de la armadura también quedan fijos.
+  const vista = matsEmpresa();
+  const codigos = vista.map(m => m.cod);
   codigos.forEach(cod => {
     const mat = vista.find(m => m.cod === cod);
     if (!mat) return;
@@ -10332,7 +10337,8 @@ function calcularCongelado(obraId, mesDestino, modo) {
     }
     materialesFoto[cod] = Math.round(precio * 100) / 100;
   });
-  return { materiales: materialesFoto, avisos, detalle, cantMat: Object.keys(materialesFoto).length };
+  return { materiales: materialesFoto, avisos, detalle, cantMat: Object.keys(materialesFoto).length, cantUsados: usados.size,
+           sinPrecio: codigos.filter(c => usados.has(c) && !(materialesFoto[c] > 0)).map(c => vista.find(m => m.cod === c)?.nombre || c) };
 }
 
 // Versión de findMat que NO aplica congelado (para saber qué materiales usa la obra)
@@ -10351,9 +10357,14 @@ function previewCongelar() {
   if (!mes) { prev.innerHTML = '<div style="font-size:11px;color:var(--re);">Elegí un mes.</div>'; return; }
   const res = calcularCongelado(_congelarObraId, mes, modo);
   let html = `<div style="background:var(--gr-l);border:1px solid var(--gr-m);border-radius:5px;padding:10px 12px;font-size:11px;color:var(--tx);">
-    Se congelarán <b>${res.cantMat}</b> materiales al mes <b>${fmtMesLargo(mes)}</b>.`;
+    Se congelarán <b>${res.cantMat}</b> materiales (${res.cantUsados} los usa hoy la obra) al mes <b>${fmtMesLargo(mes)}</b>.`;
   if (modo === 'sin') html += ` Sin ajuste por índice (precios actuales).`;
   html += `</div>`;
+  const pcAct = preciosCongeladosDe(obras.find(o => o.id === _congelarObraId));
+  if (pcAct) html += `<div style="background:var(--re-l,#fdecea);border:1px solid var(--re);border-radius:5px;padding:10px 12px;font-size:11px;color:var(--re);margin-top:8px;">
+    ⚠ Esta obra ya está congelada al ${fmtMesLargo(pcAct.mes_destino)}. Volver a congelar <b>reemplaza todos sus precios</b> por los que hay hoy en la base.</div>`;
+  if (res.sinPrecio.length) html += `<div style="background:var(--am-l);border:1px solid #E8D5A0;border-radius:5px;padding:10px 12px;font-size:10px;color:var(--am);margin-top:8px;max-height:120px;overflow-y:auto;">
+    <b>${res.sinPrecio.length} materiales que usa la obra están en $0</b> y quedarían congelados así:<br>${res.sinPrecio.slice(0,15).join('<br>')}${res.sinPrecio.length>15?'<br>…':''}</div>`;
   if (res.avisos.length) {
     html += `<div style="background:var(--am-l);border:1px solid #E8D5A0;border-radius:5px;padding:10px 12px;font-size:10px;color:var(--am);margin-top:8px;max-height:120px;overflow-y:auto;">
       <b>⚠ ${res.avisos.length} avisos:</b><br>${res.avisos.slice(0,15).join('<br>')}${res.avisos.length>15?'<br>…':''}</div>`;
@@ -10373,6 +10384,8 @@ async function congelarObra() {
   if (!obra) return;
   const res = calcularCongelado(_congelarObraId, mes, modo);
   if (!res.cantMat) { notif('No hay materiales para congelar'); return; }
+  const pcAct = preciosCongeladosDe(obra);
+  if (pcAct && !await appConfirm(`La obra ya está congelada al ${fmtMesLargo(pcAct.mes_destino)}.\n\nVolver a congelar reemplaza TODOS sus precios por los de hoy en la base. ¿Seguir?`, { okLabel: 'Reemplazar precios', danger: true })) return;
 
   const foto = { materiales: res.materiales, indice: modo, mes_destino: mes, fecha: new Date().toISOString() };
   await withSync(async () => {
