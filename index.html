@@ -459,7 +459,9 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           <div class="fg"><label>% Gastos generales</label><input type="number" id="pct-gg" value="15" min="0" onchange="loadPres()"></div>
           <div class="fg"><label>% Utilidad</label><input type="number" id="pct-util" value="10" min="0" onchange="loadPres()"></div>
         </div>
+        <div id="pres-act" style="margin-top:10px;"></div>
       </div>
+      <div id="pres-comp"></div>
       <div id="pres-body"></div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
         <button class="btn" onclick="exportPres()">↓ Exportar texto</button>
@@ -553,7 +555,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <!-- LISTA DE COMPRAS -->
     <div id="page-compras" class="page">
       <div class="card" style="margin-bottom:12px;">
-        <div class="form-grid" style="grid-template-columns:2fr 1.4fr auto auto auto auto;margin-bottom:0;">
+        <div class="form-grid" style="grid-template-columns:2fr 1.4fr 1.2fr auto auto auto auto;margin-bottom:0;">
           <div class="fg"><label>Obra</label><select id="sel-obra-compras" onchange="loadCompras()"></select></div>
           <div class="fg"><label>Vista</label>
             <select id="compras-vista" onchange="loadCompras()">
@@ -561,6 +563,12 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
               <option value="rubros">Agrupado por rubro</option>
               <option value="saldo">Saldo: computado vs comprado</option>
               <option value="registro">Registro de compras</option>
+            </select>
+          </div>
+          <div class="fg"><label>Precios</label>
+            <select id="compras-precios" onchange="loadCompras()" title="Solo cambia en obras congeladas">
+              <option value="base">Base congelada</option>
+              <option value="act">Actualizados al último CAC</option>
             </select>
           </div>
           <div style="display:flex;align-items:flex-end;"><button class="btn btn-primary" style="white-space:nowrap;" onclick="openModalCompra()">+ Registrar compra</button></div>
@@ -697,28 +705,16 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
 
 <div class="modal-overlay" id="m-congelar">
   <div class="modal">
-    <div class="modal-title">❄ Congelar precios de la obra <button class="modal-close" onclick="closeModal('m-congelar')">✕</button></div>
+    <div class="modal-title">❄ Congelar la base de la obra <button class="modal-close" onclick="closeModal('m-congelar')">✕</button></div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:14px;">
-      Al congelar, se guarda una foto de los precios ajustados al mes elegido. La obra usará esos precios fijos para cómputo, presupuesto y compras, sin importar cambios futuros en la base. Podés volver a congelar a otro mes cuando quieras.
+      Guarda la base de la obra: el precio de cada material (con el mes CAC al que responde) y el precio de MO de cada medición. Los cambios que hagas después en Materiales no la tocan. Se congela una sola vez; para llevar los valores a hoy usá <b>Presupuesto → Actualizados</b>.
     </div>
-    <div id="congelar-obra-nombre" style="font-family:var(--serif);font-size:14px;margin-bottom:14px;"></div>
-    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
-      <div class="fg"><label>Congelar al mes</label><input id="cong-mes" type="month"></div>
-      <div class="fg"><label>Ajuste de precios</label>
-        <select id="cong-modo">
-          <option value="sin">Sin ajuste: precios cargados hoy (recomendado)</option>
-          <option value="propio">Cada uno por su índice CAC desde su mes base</option>
-          <option value="general">Todo por índice General</option>
-          <option value="materiales">Todo por índice Materiales</option>
-          <option value="mano_obra">Todo por índice Mano de obra</option>
-        </select>
-      </div>
-    </div>
-    <div id="cong-preview" style="margin-top:8px;"></div>
+    <div id="congelar-obra-nombre" style="font-family:var(--serif);font-size:14px;margin-bottom:6px;"></div>
+    <div id="cong-preview" style="margin-top:8px;max-height:55vh;overflow-y:auto;"></div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('m-congelar')">Cancelar</button>
+      <button class="btn" onclick="closeModal('m-congelar')">Cerrar</button>
       <button class="btn" onclick="descongelarObra()" id="btn-descongelar" style="display:none;">Quitar congelado</button>
-      <button class="btn btn-primary" onclick="this.disabled=true;congelarObra().finally(()=>this.disabled=false)">Congelar precios</button>
+      <button class="btn btn-primary" id="btn-congelar" onclick="this.disabled=true;congelarObra().finally(()=>this.disabled=false)">Congelar base</button>
     </div>
   </div>
 </div>
@@ -1318,7 +1314,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-27.2';
+const APP_BUILD = '2026-10-27.3';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2294,12 +2290,23 @@ function findMat(ref) {
   if (!encontrado) return undefined;
   return _conCongelado(encontrado);
 }
-// Si la obra en cómputo está congelada y el material tiene precio congelado, devuelve ese precio
+// Precio de un material para la obra en cómputo:
+//  · obra congelada → precio de la foto (cada material con el mes CAC al que responde)
+//  · actualización activa (_act) → ese precio × CAC materiales (mes destino / mes del precio)
+let _act = null;
 function _conCongelado(m) {
   if (!m) return m;
   const pc = preciosCongeladosDe(_obraEnComputo);
-  if (pc && pc.materiales[m.cod] != null) return { ...m, precio: pc.materiales[m.cod], _congelado: true };
-  return m;
+  let precio = num(m.precio), mb = m.mes_base, cong = false;
+  const e = pc ? pc.materiales[m.cod] : null;
+  if (e != null) {
+    cong = true;
+    if (typeof e === 'object') { precio = num(e.p); mb = e.mb; }
+    else { precio = num(e); mb = pc.mes_destino || pc.mes_ref; }   // foto vieja (v1)
+  }
+  if (_act) precio = precio * _act.factorMat(mb, m);
+  if (!cong && !_act) return m;
+  return { ...m, precio, _congelado: cong, _mb: mb };
 }
 // Material por código con el precio que corresponde: el de la empresa (base común + precio propio)
 // y, si la obra está congelada, el congelado. Antes la armadura leía la base cruda y se salteaba los dos.
@@ -2588,7 +2595,7 @@ function computeObra(obraId) {
       }
     }
     const rMO = resolverMO(med, coef, cantidad);
-    const totalMO = rMO.total;
+    const totalMO = _act ? _act.moItem(med, rMO, cantidad) : rMO.total;
     const moDesc = rMO.sinPrecio ? '' : (rMO.tipo === 'global' ? `Global${rMO.contratista ? ' · ' + rMO.contratista : ''}` : `${$p(rMO.precio)}/${rMO.unidad}${rMO.contratista ? ' · ' + rMO.contratista : ''}`);
     // Sin rendimientos, toda medición sin precio de contratista se marca (antes dependía de que la referencia diera > 0)
     const moSinPrecio = MO_POR_RENDIMIENTO ? (rMO.sinPrecio && (moRef > 0 || coefMats.length === 0)) : rMO.sinPrecio;
@@ -2642,22 +2649,28 @@ function nav(page) {
 // DASHBOARD
 // =====================================================================
 // Helper semáforo
+// Semáforo (solo obras con base congelada). Dos desvíos que no se mezclan:
+//  · pct    = cómputo de hoy (cantidades y precios de MO actuales, precios de materiales de la base) vs base congelada
+//             → mediciones agregadas/cambiadas o MO renegociada después de congelar. Es lo que se controla.
+//  · pctCac = base actualizada al último CAC (materiales y MO por CAC) vs base → inflación, se informa aparte.
 function semaforo(obra) {
   const pc = preciosCongeladosDe(obra);
-  if (!pc || !obra.sup) return null;
+  if (!pc || !(num(pc.total_mat_base) + num(pc.total_mo_base) > 0)) return null;
+  const presup = num(pc.total_mat_base) + num(pc.total_mo_base);
   const r = computeObra(obra.id);
-  const costoReal = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.total, 0), 0);
-  const presup = Object.values(pc).reduce((s,v) => s + (num(v.precioCongelado)||0), 0);
-  if (!presup) return null;
+  const costoReal = Object.values(r).reduce((s, rb) => s + rb.items.reduce((ss, i) => ss + num(i.totalMats) + num(i.totalMO), 0), 0);
+  const a = computeObraActualizado(obra.id, ultimoMesCAC('materiales'), 'cac', 0);
+  const actualizado = a ? Object.values(a.r).reduce((s, rb) => s + rb.items.reduce((ss, i) => ss + num(i.totalMats) + num(i.totalMO), 0), 0) : costoReal;
   const pct = (costoReal - presup) / presup * 100;
-  return { pct, costoReal, presup };
+  const pctCac = (actualizado - costoReal) / (costoReal || 1) * 100;
+  return { pct, pctCac, costoReal, presup, actualizado, mesCac: ultimoMesCAC('materiales') };
 }
 function semaforoTag(desv) {
-  if (!desv) return '<span style="font-size:10px;color:var(--tx3);">Sin presup.</span>';
-  const p = desv.pct;
-  if (p <= 5)  return `<span style="font-size:10px;color:#2D8A4E;font-weight:600;">🟢 ${p>=0?'+':''}${p.toFixed(1)}%</span>`;
-  if (p <= 15) return `<span style="font-size:10px;color:#B8860B;font-weight:600;">🟡 +${p.toFixed(1)}%</span>`;
-  return `<span style="font-size:10px;color:#C0392B;font-weight:600;">🔴 +${p.toFixed(1)}%</span>`;
+  if (!desv) return '<span style="font-size:10px;color:var(--tx3);" title="Congelá la base de la obra para controlar desvíos">Sin base</span>';
+  const p = desv.pct, sg = x => (x >= 0 ? '+' : '') + x.toFixed(1) + '%';
+  const tit = `Cómputo hoy ${$p(desv.costoReal)} vs base ${$p(desv.presup)} (cantidades y MO). Por CAC a ${fmtMesLargo(desv.mesCac)}: ${$p(desv.actualizado)}`;
+  const [ic, c] = Math.abs(p) <= 5 ? ['🟢', '#2D8A4E'] : Math.abs(p) <= 15 ? ['🟡', '#B8860B'] : ['🔴', '#C0392B'];
+  return `<span style="font-size:10px;color:${c};font-weight:600;" title="${tit}">${ic} ${sg(p)}</span><span style="font-size:9px;color:var(--tx3);" title="${tit}"> · CAC ${sg(desv.pctCac)}</span>`;
 }
 
 function renderDash() {
@@ -2671,7 +2684,7 @@ function renderDash() {
     const total = tMat + tMO;
     const desv = semaforo(o);
     totalCosto += total;
-    if (desv && desv.pct > 15) desviadas++;
+    if (desv && Math.abs(desv.pct) > 15) desviadas++;
     return { o, tMat, tMO, total, desv };
   });
 
@@ -2715,7 +2728,7 @@ function renderObras() {
     const tot = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.total, 0), 0);
     const pc = preciosCongeladosDe(o);
     const badgeCong = pc
-      ? `<div style="margin-top:3px;"><span class="tag tg" title="Precios congelados — índice: ${pc.indice||'?'}">🔒 Congelada: ${fmtMesLargo(o.mes_congelado)}</span></div>`
+      ? `<div style="margin-top:3px;"><span class="tag tg" title="Base congelada${pc.fecha ? ' el ' + new Date(pc.fecha).toLocaleDateString('es-AR') : ''} · CAC de referencia ${fmtMesLargo(pc.mes_ref || pc.mes_destino || o.mes_congelado)}">🔒 Base CAC ${fmtMesLargo(pc.mes_ref || pc.mes_destino || o.mes_congelado)}</span></div>`
       : `<div style="margin-top:3px;"><span class="tag" style="background:var(--surf2);color:var(--tx3);">Precios vivos</span></div>`;
     return `<tr><td><code style="font-size:10px;">${o.cod}</code></td><td class="hi">${o.nombre}${badgeCong}</td><td>${o.cliente||'—'}</td><td style="font-size:10px;color:var(--tx3);">${o.ubic||''}${o.direccion?' · '+o.direccion:''}</td><td class="num">${o.sup?o.sup+' m²':'—'}</td><td>${stag(o.estado)}</td><td class="num hi">${tot?$p(tot):'—'}</td><td style="white-space:nowrap;"><button class="btn-icon" onclick="openModalCongelar('${o.id}')" title="Congelar precios" style="color:var(--bl);">❄</button><button class="btn-icon" onclick="duplicarObra('${o.id}')" title="Duplicar obra">⧉</button><button class="btn-icon" onclick="openEditObra('${o.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delObra('${o.id}')">✕</button></td></tr>`;
   }).join('');
@@ -5637,7 +5650,8 @@ function loadPres() {
   const body = document.getElementById('pres-body');
   if (!obraId) { body.innerHTML = '<div class="empty">Seleccioná una obra.</div>'; return; }
   const obra = obras.find(o => o.id === obraId);
-  const rubros = computeObra(obraId);
+  presActRender(obra);
+  const rubros = presRubros(obraId);
   if (!Object.keys(rubros).length) { body.innerHTML = '<div class="empty">Sin mediciones para esta obra.</div>'; return; }
   const pctGG = num(document.getElementById('pct-gg').value) / 100;
   const pctUtil = num(document.getElementById('pct-util').value) / 100;
@@ -5693,7 +5707,7 @@ function exportPres() {
   const obraId = document.getElementById('sel-obra-pres').value;
   if (!obraId) { notif('Seleccioná una obra'); return; }
   const obra = obras.find(o => o.id === obraId);
-  const rubros = computeObra(obraId);
+  const rubros = presRubros(obraId);
   const pctGG = num(document.getElementById('pct-gg').value) / 100;
   const pctUtil = num(document.getElementById('pct-util').value) / 100;
   const emp = empresas.find(e => e.id === currentEmpresa);
@@ -5802,7 +5816,7 @@ async function saveMat() {
   const precio = num(document.getElementById('mat-precio').value);
   if (!nombre || !precio) { notif('Completá nombre y precio'); return; }
   await withSync(async () => {
-    const data = { cod: document.getElementById('mat-cod').value.trim()||'MAT-'+(mats.length+1).toString().padStart(3,'0'), nombre, unidad: document.getElementById('mat-unidad').value, cat: document.getElementById('mat-cat').value, precio, prov:'', fecha: new Date().toLocaleDateString('es-AR'), mes_base: '2026-05', empresa: null };
+    const data = { cod: document.getElementById('mat-cod').value.trim()||'MAT-'+(mats.length+1).toString().padStart(3,'0'), nombre, unidad: document.getElementById('mat-unidad').value, cat: document.getElementById('mat-cat').value, precio, prov:'', fecha: new Date().toLocaleDateString('es-AR'), mes_base: ultimoMesCAC(), empresa: null };
     const res = await sbPost('materiales', data);
     mats.push(res[0]||data); closeModal('m-mat'); renderMats(); notif('Material guardado ✓');
     ['mat-cod','mat-nombre','mat-precio'].forEach(id => document.getElementById(id).value='');
@@ -5823,16 +5837,17 @@ async function updateMatPrecio(id, val) {
   const esBaseComun = m && !m.empresa;
   if (currentEmpresa && esBaseComun && !isAdmin) {
     // Usuario de empresa edita base común -> crear/actualizar override propio
-    await guardarOverridePrecio(mv.cod, nuevoPrecio, null);
+    await guardarOverridePrecio(mv.cod, nuevoPrecio, ultimoMesCAC());   // el precio nuevo responde al último CAC cargado
     renderMats();
     return;
   }
   if (currentEmpresa && esBaseComun && isAdmin) {
     // Admin: preguntar implícito -> edita la BASE COMÚN (afecta a todas las que no personalizaron)
     await withSync(async () => {
-      await sbPatch('materiales', id, { precio: nuevoPrecio, fecha: new Date().toLocaleDateString('es-AR') });
-      m.precio = nuevoPrecio; m.fecha = new Date().toLocaleDateString('es-AR');
-      notif('Precio de base común actualizado (afecta a todas las empresas sin precio propio) ✓');
+      const mb = ultimoMesCAC();
+      await sbPatch('materiales', id, { precio: nuevoPrecio, fecha: new Date().toLocaleDateString('es-AR'), mes_base: mb });
+      m.precio = nuevoPrecio; m.fecha = new Date().toLocaleDateString('es-AR'); m.mes_base = mb;
+      notif(`Precio de base común actualizado (CAC ${fmtMesLargo(mb)}; afecta a todas las empresas sin precio propio) ✓`);
     });
     renderMats();
     return;
@@ -5840,9 +5855,10 @@ async function updateMatPrecio(id, val) {
   // CASO 2: material propio (tiene empresa) -> editar directo
   if (m) {
     await withSync(async () => {
-      await sbPatch('materiales', id, { precio: nuevoPrecio, fecha: new Date().toLocaleDateString('es-AR') });
-      m.precio = nuevoPrecio; m.fecha = new Date().toLocaleDateString('es-AR');
-      notif('Precio actualizado ✓');
+      const mb = ultimoMesCAC();
+      await sbPatch('materiales', id, { precio: nuevoPrecio, fecha: new Date().toLocaleDateString('es-AR'), mes_base: mb });
+      m.precio = nuevoPrecio; m.fecha = new Date().toLocaleDateString('es-AR'); m.mes_base = mb;
+      notif(`Precio actualizado ✓ (CAC ${fmtMesLargo(mb)})`);
     });
     renderMats();
   }
@@ -5998,7 +6014,7 @@ function importMaterialesExcel(input) {
       for (const c of cambios) {
         const mBase = mats.find(x => String(x.cod).trim() === c.cod && !x.empresa);
         const mProp = mats.find(x => String(x.cod).trim() === c.cod && x.empresa === currentEmpresa);
-        const mesValido = c.mesBase && /^\d{4}-\d{2}$/.test(c.mesBase) ? c.mesBase : null;
+        const mesValido = c.mesBase && /^\d{4}-\d{2}$/.test(c.mesBase) ? c.mesBase : ultimoMesCAC();   // sin mes en el Excel: último CAC cargado
         try {
           if (currentEmpresa && !modoAdmin && mBase) {
             // Empresa: override sobre base común
@@ -6215,16 +6231,19 @@ function consolidarMateriales(obraId, medsFiltro) {
     const sinDesp = (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
     const cantDesp = sinDesp ? cantidad : cantidad * desp;
     const coefMats = Array.isArray(coef.mats) ? coef.mats : JSON.parse(coef.mats||'[]');
+    // Tipo de Hº elegido por medición (mat_overrides): la compra va separada por ese material (H17 / H21 / …)
+    const overrides = (med.mat_overrides && typeof med.mat_overrides === 'object') ? med.mat_overrides : {};
     coefMats.forEach(cm => {
       const qtyBase = cantDesp * num(cm.coef);
       const { divisor, unComercial } = _divComercial(cm);
       const qtyComercial = divisor > 1 ? qtyBase / divisor : qtyBase;
-      const key = cm.matRef;
+      const matOv = overrides[cm.matRef] ? _conCongelado(matsEmpresa().find(m => m.id === overrides[cm.matRef])) : null;
+      const key = matOv ? matOv.nombre : cm.matRef;
       // Mismo material con otra unidad o divisor en otra tarea: se avisa en la lista (no se pueden sumar sin revisar)
       const _uN = u => String(u || '').toLowerCase().replace('³', '3').replace('²', '2');
       if (consolidado[key] && (consolidado[key].divisor !== divisor || _uN(consolidado[key].unBase) !== _uN(cm.un))) consolidado[key].mezcla = true;
       if (!consolidado[key]) {
-        const mat = findMat(key);
+        const mat = matOv || findMat(key);
         consolidado[key] = {
           nombre: key,
           unBase: cm.un,
@@ -6353,7 +6372,7 @@ function consolidarMateriales(obraId, medsFiltro) {
 }
 
 function exportComprasExcel(obraId) {
-  const consolidado = consolidarMateriales(obraId);
+  const consolidado = consolidarCompras(obraId);
   const obra = obras.find(o => o.id === obraId);
   if (!Object.keys(consolidado).length) { notif('Sin materiales para exportar'); return; }
   const rows = [['Material','Un. Base','Cantidad Base','Un. Comercial','Cantidad Comercial','Precio Unit.','Subtotal','Rubros']];
@@ -6401,7 +6420,7 @@ function loadCompras() {
 
   if (vista === 'saldo' || vista === 'registro') { renderComprasReales(obraId, vista); return; }
 
-  const consolidado = consolidarMateriales(obraId);
+  const consolidado = consolidarCompras(obraId);
   if (!Object.keys(consolidado).length) {
     body.innerHTML = '<div class="empty"><div class="empty-icon">◫</div>Sin mediciones para esta obra.</div>';
     return;
@@ -6492,7 +6511,7 @@ async function loadComprasReales(obraId, force=false) {
 }
 
 function calcSaldoCompras(obraId) {
-  const consolidado = consolidarMateriales(obraId);
+  const consolidado = consolidarCompras(obraId);
   const compras = _comprasCache[obraId] || [];
   const filas = {};
   Object.values(consolidado).forEach(m => {
@@ -6708,7 +6727,7 @@ function exportCompras() {
   const obraId = document.getElementById('sel-obra-compras').value;
   if (!obraId) { notif('Seleccioná una obra'); return; }
   const obra = obras.find(o => o.id === obraId);
-  const consolidado = consolidarMateriales(obraId);
+  const consolidado = consolidarCompras(obraId);
   const items = Object.values(consolidado).sort((a,b) => b.subtotal - a.subtotal);
 
   let txt = `LISTA DE COMPRAS — ${obra.nombre}\n${'='.repeat(60)}\nFecha: ${new Date().toLocaleDateString('es-AR')}\n\n`;
@@ -10197,6 +10216,11 @@ function fmtMesLargo(mes) {
   return `${nombres[parseInt(m)]||m} ${a}`;
 }
 
+// Último mes con índice CAC cargado (por defecto el de materiales). "Hoy" = último CAC conocido.
+function ultimoMesCAC(tipo = 'materiales') {
+  const l = indicesEmpresa().filter(i => num(i[tipo]) > 0).map(i => i.mes).filter(Boolean).sort();
+  return l.length ? l[l.length - 1] : new Date().toISOString().slice(0, 7);
+}
 function indicesEmpresa() {
   if (!currentEmpresa) return indicesCac;
   const emp = currentEmpresa === 'manuel' ? 'bauvek' : currentEmpresa;
@@ -10280,144 +10304,287 @@ function factorAjuste(mesBase, mesDestino, tipo) {
 }
 
 // =====================================================================
-// CONGELAR PRECIOS POR OBRA
+// CONGELAR PRECIOS POR OBRA (v2, oct-2026)
 // =====================================================================
+// Base de la obra = foto INMUTABLE: cada material con su precio y el mes CAC al que responde ese precio,
+// el precio de MO de cada medición y los totales base. Se congela UNA vez: para volver a congelar hay que
+// quitar el congelado y la foto anterior queda en el historial.
+// La actualización (a hoy = último CAC cargado, o a un mes elegido) se calcula sobre la base y no la cambia.
 let _congelarObraId = null;
+
+function _fotoCruda(obra) {
+  const raw = obra && obra.precios_congelados;
+  if (!raw) return null;
+  try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return null; }
+}
+function _totalesObra(obraId) {
+  const r = computeObra(obraId), rubros = {};
+  let mat = 0, mo = 0;
+  Object.values(r).forEach(rb => {
+    let a = 0, b = 0;
+    rb.items.forEach(i => { a += num(i.totalMats); b += num(i.totalMO); });
+    rubros[rb.rubro] = { mat: Math.round(a), mo: Math.round(b) }; mat += a; mo += b;
+  });
+  return { mat: Math.round(mat), mo: Math.round(mo), rubros, r };
+}
+
+// Arma la foto (sin guardarla). Devuelve también los avisos para el modal.
+function armarFotoCongelado(obraId) {
+  const obra = obras.find(o => o.id === obraId);
+  const mesRef = ultimoMesCAC('materiales'), mesRefMO = ultimoMesCAC('mano_obra');
+  const materiales = {}, sinMes = [];
+  matsEmpresa().forEach(m => {
+    const mb = /^\d{4}-\d{2}$/.test(m.mes_base || '') ? m.mes_base : null;
+    if (!mb && num(m.precio) > 0) sinMes.push(m.nombre);
+    materiales[m.cod] = { p: Math.round(num(m.precio) * 100) / 100, mb: mb || mesRef };
+  });
+  const mo = {};
+  meds.filter(x => (x.obraId || x.obra_id) === obraId).forEach(med => {
+    const r = _moByMed[med.id];
+    if (r && num(r.precio) > 0) mo[med.id] = { tipo: r.tipo, precio: num(r.precio) };
+  });
+  const prev = _fotoCruda(obra);
+  const foto = { v: 2, mes_ref: mesRef, mes_ref_mo: mesRefMO, fecha: new Date().toISOString(),
+                 usuario: (authUser && authUser.email) || '', empresa: obra.empresa || currentEmpresa || null,
+                 materiales, mo, actualizaciones: [], historial: (prev && Array.isArray(prev.historial)) ? prev.historial : [] };
+  // Totales base con la foto puesta (lo que va a mostrar el presupuesto)
+  const orig = obra.precios_congelados;
+  obra.precios_congelados = foto; invalidateComputeCache();
+  const t = _totalesObra(obraId);
+  obra.precios_congelados = orig; invalidateComputeCache();
+  foto.total_mat_base = t.mat; foto.total_mo_base = t.mo; foto.rubros_base = t.rubros;
+  const usadosEn0 = new Set(); let medsSinMO = 0;
+  Object.values(t.r).forEach(rb => rb.items.forEach(i => {
+    if (i.moSinPrecio) medsSinMO++;
+    (i.matItems || []).forEach(mi => { if (!(num(mi.precio) > 0)) usadosEn0.add(mi.nombre); });
+  }));
+  return { foto, sinMes, usadosEn0: [...usadosEn0].sort(), medsSinMO };
+}
 
 function openModalCongelar(obraId) {
   const obra = obras.find(o => o.id === obraId);
   if (!obra) return;
   _congelarObraId = obraId;
   document.getElementById('congelar-obra-nombre').textContent = `${obra.cod} — ${obra.nombre}`;
-  // Mes por defecto: el ya congelado, o el último índice disponible, o el actual
-  document.getElementById('cong-mes').value = obra.mes_congelado || new Date().toISOString().slice(0,7);
-  document.getElementById('cong-modo').value = obra.indice_usado || 'sin';
-  document.getElementById('btn-descongelar').style.display = preciosCongeladosDe(obra) ? '' : 'none';
+  const pc = preciosCongeladosDe(obra);
+  document.getElementById('btn-descongelar').style.display = pc ? '' : 'none';
+  document.getElementById('btn-congelar').style.display = pc ? 'none' : '';
   document.getElementById('cong-preview').innerHTML = '';
   openModal('m-congelar');
   previewCongelar();
-  document.getElementById('cong-mes').onchange = previewCongelar;
-  document.getElementById('cong-modo').onchange = previewCongelar;
 }
 
-// Calcula la foto de precios para una obra. Devuelve {materiales:{cod:precio}, manoObra:{...}, avisos:[], detalle:[]}
-function calcularCongelado(obraId, mesDestino, modo) {
-  const obra = obras.find(o => o.id === obraId);
-  const avisos = [];
-  const detalle = [];
-  const materialesFoto = {};
-  // Qué materiales usa la obra (vía consolidación de mediciones)
-  const usados = new Set();
-  meds.filter(m => (m.obraId||m.obra_id) === obraId).forEach(med => {
-    const coef = coefs.find(c => c.id === (med.coefId||med.coef_id));
-    if (!coef) return;
-    const cMats = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats==='string'?JSON.parse(coef.mats||'[]'):[]);
-    cMats.forEach(cm => {
-      const mat = _findMatRaw(cm.matRef);
-      if (mat) usados.add(mat.cod);
-    });
-  });
-  // Se congelan TODOS los materiales de la empresa (base común + precios propios), no solo los que usa hoy:
-  // una tarea agregada después, un Hº H21 elegido por medición o el hierro de la armadura también quedan fijos.
-  const vista = matsEmpresa();
-  const codigos = vista.map(m => m.cod);
-  codigos.forEach(cod => {
-    const mat = vista.find(m => m.cod === cod);
-    if (!mat) return;
-    let precio = num(mat.precio);
-    if (modo !== 'sin') {
-      const tipo = modo === 'propio' ? 'materiales' : modo;
-      const fa = factorAjuste(mat.mes_base, mesDestino, tipo);
-      if (!fa.ok) {
-        avisos.push(`${mat.cod} ${mat.nombre}: ${fa.motivo} → se usa precio actual`);
-      } else {
-        precio = precio * fa.factor;
-        if (fa.factor !== 1) detalle.push(`${mat.nombre}: ${$p(num(mat.precio))} → ${$p(precio)} (×${fa.factor.toFixed(4)})`);
-      }
-    }
-    materialesFoto[cod] = Math.round(precio * 100) / 100;
-  });
-  return { materiales: materialesFoto, avisos, detalle, cantMat: Object.keys(materialesFoto).length, cantUsados: usados.size,
-           sinPrecio: codigos.filter(c => usados.has(c) && !(materialesFoto[c] > 0)).map(c => vista.find(m => m.cod === c)?.nombre || c) };
-}
-
-// Versión de findMat que NO aplica congelado (para saber qué materiales usa la obra)
-function _findMatRaw(ref) {
-  const refL = ref.toLowerCase();
-  const pool = matsEmpresa();
-  return pool.find(m => m.nombre === ref)
-    || pool.find(m => m.nombre.toLowerCase().includes(refL.substring(0,12)) || refL.includes(m.nombre.toLowerCase().substring(0,12)));
+function _histCongeladoHTML(hist) {
+  if (!hist || !hist.length) return '';
+  return `<div style="font-size:10px;color:var(--tx3);margin-top:10px;"><b>Historial</b><br>${hist.slice().reverse().map(h =>
+    `Congelada ${new Date(h.fecha).toLocaleDateString('es-AR')} (CAC ${fmtMesLargo(h.mes_ref)}) · materiales ${$p(h.total_mat_base || 0)} · MO ${$p(h.total_mo_base || 0)} · quitada ${h.quitada ? new Date(h.quitada).toLocaleDateString('es-AR') : '—'}${h.quitada_por ? ' por ' + h.quitada_por : ''}`).join('<br>')}</div>`;
 }
 
 function previewCongelar() {
   if (!_congelarObraId) return;
-  const mes = document.getElementById('cong-mes').value;
-  const modo = document.getElementById('cong-modo').value;
+  const obra = obras.find(o => o.id === _congelarObraId);
   const prev = document.getElementById('cong-preview');
-  if (!mes) { prev.innerHTML = '<div style="font-size:11px;color:var(--re);">Elegí un mes.</div>'; return; }
-  const res = calcularCongelado(_congelarObraId, mes, modo);
-  let html = `<div style="background:var(--gr-l);border:1px solid var(--gr-m);border-radius:5px;padding:10px 12px;font-size:11px;color:var(--tx);">
-    Se congelarán <b>${res.cantMat}</b> materiales (${res.cantUsados} los usa hoy la obra) al mes <b>${fmtMesLargo(mes)}</b>.`;
-  if (modo === 'sin') html += ` Sin ajuste por índice (precios actuales).`;
-  html += `</div>`;
-  const pcAct = preciosCongeladosDe(obras.find(o => o.id === _congelarObraId));
-  if (pcAct) html += `<div style="background:var(--re-l,#fdecea);border:1px solid var(--re);border-radius:5px;padding:10px 12px;font-size:11px;color:var(--re);margin-top:8px;">
-    ⚠ Esta obra ya está congelada al ${fmtMesLargo(pcAct.mes_destino)}. Volver a congelar <b>reemplaza todos sus precios</b> por los que hay hoy en la base.</div>`;
-  if (res.sinPrecio.length) html += `<div style="background:var(--am-l);border:1px solid #E8D5A0;border-radius:5px;padding:10px 12px;font-size:10px;color:var(--am);margin-top:8px;max-height:120px;overflow-y:auto;">
-    <b>${res.sinPrecio.length} materiales que usa la obra están en $0</b> y quedarían congelados así:<br>${res.sinPrecio.slice(0,15).join('<br>')}${res.sinPrecio.length>15?'<br>…':''}</div>`;
-  if (res.avisos.length) {
-    html += `<div style="background:var(--am-l);border:1px solid #E8D5A0;border-radius:5px;padding:10px 12px;font-size:10px;color:var(--am);margin-top:8px;max-height:120px;overflow-y:auto;">
-      <b>⚠ ${res.avisos.length} avisos:</b><br>${res.avisos.slice(0,15).join('<br>')}${res.avisos.length>15?'<br>…':''}</div>`;
+  const pc = preciosCongeladosDe(obra), cruda = _fotoCruda(obra);
+  const caja = (c, t) => `<div style="background:var(--${c}-l);border:1px solid var(--${c === 'gr' ? 'gr-m' : c});border-radius:5px;padding:10px 12px;font-size:11px;margin-top:8px;">${t}</div>`;
+  if (pc) {
+    const v1 = pc.v !== 2;
+    prev.innerHTML = caja('gr', `🔒 Congelada el <b>${new Date(pc.fecha || Date.now()).toLocaleDateString('es-AR')}</b>${pc.usuario ? ' por ' + pc.usuario : ''} · CAC de referencia <b>${fmtMesLargo(pc.mes_ref || pc.mes_destino)}</b><br>
+      ${v1 ? 'Foto en formato anterior (sin totales base).' : `Base: materiales <b>${$p(pc.total_mat_base)}</b> · MO <b>${$p(pc.total_mo_base)}</b>`}<br>
+      <span style="color:var(--tx3);">Se congela una sola vez. Para llevar los valores a hoy usá <b>Presupuesto → Valores: Actualizados</b>; la base no cambia. Si de verdad hay que rehacer la base, quitá el congelado (queda en el historial) y congelá de nuevo.</span>`)
+      + _histCongeladoHTML(cruda && cruda.historial);
+    return;
   }
-  if (res.detalle.length) {
-    html += `<div style="font-size:10px;color:var(--tx3);margin-top:8px;max-height:120px;overflow-y:auto;"><b>Ejemplos de ajuste:</b><br>${res.detalle.slice(0,10).join('<br>')}</div>`;
-  }
-  prev.innerHTML = html;
+  const { foto, sinMes, usadosEn0, medsSinMO } = armarFotoCongelado(_congelarObraId);
+  let html = caja('gr', `Se congela la base de hoy con el <b>CAC de ${fmtMesLargo(foto.mes_ref)}</b> (último cargado) como referencia.<br>
+    Materiales ${$p(foto.total_mat_base)} · MO ${$p(foto.total_mo_base)} · ${Object.keys(foto.materiales).length} precios de materiales y ${Object.keys(foto.mo).length} de MO.<br>
+    <span style="color:var(--tx3);">Cada material queda con el mes de su precio: los de mayo se actualizan desde mayo, los cargados hoy desde ${fmtMesLargo(foto.mes_ref)}.</span>`);
+  if (usadosEn0.length) html += caja('am', `<b>⚠ ${usadosEn0.length} materiales que usa la obra están en $0</b> y quedarían congelados así:<br><span style="font-size:10px;">${usadosEn0.slice(0, 20).join('<br>')}${usadosEn0.length > 20 ? '<br>…' : ''}</span>`);
+  if (medsSinMO) html += caja('am', `⚠ ${medsSinMO} mediciones sin precio de MO: quedan en $0 en la base.`);
+  if (sinMes.length) html += caja('am', `⚠ ${sinMes.length} materiales con precio pero sin mes base: se toman como de ${fmtMesLargo(foto.mes_ref)}.<br><span style="font-size:10px;">${sinMes.slice(0, 10).join(', ')}${sinMes.length > 10 ? '…' : ''}</span>`);
+  prev.innerHTML = html + _histCongeladoHTML(cruda && cruda.historial);
 }
 
 async function congelarObra() {
   if (!_congelarObraId) return;
-  const mes = document.getElementById('cong-mes').value;
-  const modo = document.getElementById('cong-modo').value;
-  if (!mes) { notif('Elegí un mes para congelar'); return; }
   const obra = obras.find(o => o.id === _congelarObraId);
   if (!obra) return;
-  const res = calcularCongelado(_congelarObraId, mes, modo);
-  if (!res.cantMat) { notif('No hay materiales para congelar'); return; }
-  const pcAct = preciosCongeladosDe(obra);
-  if (pcAct && !await appConfirm(`La obra ya está congelada al ${fmtMesLargo(pcAct.mes_destino)}.\n\nVolver a congelar reemplaza TODOS sus precios por los de hoy en la base. ¿Seguir?`, { okLabel: 'Reemplazar precios', danger: true })) return;
-
-  const foto = { materiales: res.materiales, indice: modo, mes_destino: mes, fecha: new Date().toISOString() };
+  if (preciosCongeladosDe(obra)) { notif('La obra ya está congelada: quitá el congelado primero'); return; }
+  const { foto } = armarFotoCongelado(_congelarObraId);
+  if (!Object.keys(foto.materiales).length) { notif('No hay materiales para congelar'); return; }
   await withSync(async () => {
-    await sbPatch('obras', obra.id, {
-      precios_congelados: foto,
-      mes_congelado: mes,
-      indice_usado: modo
-    });
-    obra.precios_congelados = foto;
-    obra.mes_congelado = mes;
-    obra.indice_usado = modo;
+    await sbPatch('obras', obra.id, { precios_congelados: foto, mes_congelado: foto.mes_ref, indice_usado: 'base' });
+    obra.precios_congelados = foto; obra.mes_congelado = foto.mes_ref; obra.indice_usado = 'base';
     invalidateComputeCache();
     closeModal('m-congelar');
     renderObras();
-    notif(`Precios congelados al ${fmtMesLargo(mes)} ✓ (${res.cantMat} materiales)`);
+    notif(`Base congelada (CAC ${fmtMesLargo(foto.mes_ref)}) ✓ · materiales ${$p(foto.total_mat_base)} · MO ${$p(foto.total_mo_base)}`);
   });
 }
 
 async function descongelarObra() {
   if (!_congelarObraId) return;
-  if (!await appConfirm('¿Quitar el congelado? La obra volverá a usar los precios vivos de la base.')) return;
   const obra = obras.find(o => o.id === _congelarObraId);
-  if (!obra) return;
+  const pc = preciosCongeladosDe(obra);
+  if (!obra || !pc) return;
+  if (!await appConfirm('¿Quitar el congelado?\n\nLa obra vuelve a usar los precios vivos de Materiales. La base actual queda guardada en el historial de la obra.', { okLabel: 'Quitar congelado' })) return;
+  const { historial = [], ...base } = pc;
+  const guardar = { v: 2, historial: [...historial, { ...base, quitada: new Date().toISOString(), quitada_por: (authUser && authUser.email) || '' }] };
   await withSync(async () => {
-    await sbPatch('obras', obra.id, { precios_congelados: null, mes_congelado: null, indice_usado: null });
-    obra.precios_congelados = null;
-    obra.mes_congelado = null;
-    obra.indice_usado = null;
+    await sbPatch('obras', obra.id, { precios_congelados: guardar, mes_congelado: null, indice_usado: null });
+    obra.precios_congelados = guardar; obra.mes_congelado = null; obra.indice_usado = null;
     invalidateComputeCache();
     closeModal('m-congelar');
     renderObras();
-    notif('Congelado quitado — la obra usa precios vivos');
+    notif('Congelado quitado — la base anterior quedó en el historial');
+  });
+}
+
+// ─── ACTUALIZACIÓN POR CAC ─────────────────────────────────────────────
+// Materiales: precio × CAC materiales(destino) / CAC materiales(mes del precio). Si falta un índice → sin ajuste y aviso.
+// MO: 'cac' = CAC mano de obra (destino / referencia del congelado) · 'pct' = % de la nueva negociación · 'sin'.
+function crearActualizacion(pc, mesDest, moModo, moPct) {
+  const avisos = new Set(), memo = {};
+  const factorMat = (mb, m) => {
+    if (!mb) { avisos.add(`${m.nombre}: sin mes base → sin ajuste`); return 1; }
+    if (mb >= mesDest) return 1;
+    if (memo[mb] == null) {
+      const fa = factorAjuste(mb, mesDest, 'materiales');
+      if (!fa.ok) avisos.add(`CAC materiales: ${fa.motivo} → los precios de ${fmtMesLargo(mb)} quedan sin ajuste`);
+      memo[mb] = fa.ok ? fa.factor : 1;
+    }
+    return memo[mb];
+  };
+  let fMO = 1, moDesc = 'MO sin ajuste';
+  if (moModo === 'cac') {
+    const ref = pc.mes_ref_mo || pc.mes_ref || pc.mes_destino;
+    const dest = indicesEmpresa().filter(i => num(i.mano_obra) > 0 && i.mes <= mesDest).map(i => i.mes).sort().pop();
+    const fa = factorAjuste(ref, dest, 'mano_obra');
+    if (fa.ok) { fMO = fa.factor; moDesc = `MO por CAC mano de obra ${fmtMesLargo(ref)} → ${fmtMesLargo(dest)}`; }
+    else { avisos.add(`CAC mano de obra: ${fa.motivo} → MO sin ajuste`); }
+  } else if (moModo === 'pct') {
+    fMO = 1 + num(moPct) / 100; moDesc = `MO por negociación ${num(moPct).toLocaleString('es-AR')} %`;
+  }
+  const moItem = (med, rMO, cantidad) => {
+    const fm = pc.mo && pc.mo[med.id];
+    const base = fm ? (fm.tipo === 'global' ? num(fm.precio) : num(fm.precio) * num(cantidad)) : rMO.total;
+    return base * fMO;
+  };
+  return { mesDest, moModo, moPct: num(moPct), fMO, moDesc, factorMat, moItem, avisos, pc };
+}
+// Corre fn con la actualización activa, sin tocar la caché de la obra
+function conActualizacion(obraId, act, fn) {
+  const saved = _computeCache[obraId];
+  delete _computeCache[obraId];
+  _act = act;
+  try { return fn(); }
+  finally {
+    _act = null;
+    if (saved) _computeCache[obraId] = saved; else delete _computeCache[obraId];
+  }
+}
+function computeObraActualizado(obraId, mesDest, moModo, moPct) {
+  const obra = obras.find(o => o.id === obraId), pc = preciosCongeladosDe(obra);
+  if (!pc) return null;
+  const act = crearActualizacion(pc, mesDest, moModo, moPct);
+  const r = conActualizacion(obraId, act, () => computeObra(obraId));
+  return { r, act };
+}
+
+// Compras: base congelada o actualizada al último CAC (solo obras congeladas)
+function consolidarCompras(obraId) {
+  const obra = obras.find(o => o.id === obraId), pc = preciosCongeladosDe(obra);
+  if (pc && document.getElementById('compras-precios')?.value === 'act') {
+    const act = crearActualizacion(pc, ultimoMesCAC('materiales'), 'sin', 0);
+    return conActualizacion(obraId, act, () => consolidarMateriales(obraId));
+  }
+  return consolidarMateriales(obraId);
+}
+
+// Presupuesto: rubros base o actualizados según la selección de la pantalla
+function presRubros(obraId) {
+  const sel = document.getElementById('pres-valores');
+  if (sel && sel.value === 'act') {
+    const a = computeObraActualizado(obraId, document.getElementById('pres-mes').value,
+      document.getElementById('pres-mo-modo').value, document.getElementById('pres-mo-pct').value);
+    if (a) { _presUltimaAct = a; presCompararRender(obraId, a); return a.r; }
+  }
+  _presUltimaAct = null;
+  const comp = document.getElementById('pres-comp'); if (comp) comp.innerHTML = '';
+  return computeObra(obraId);
+}
+let _presUltimaAct = null;
+
+function presActRender(obra) {
+  const wrap = document.getElementById('pres-act');
+  if (!wrap) return;
+  const pc = preciosCongeladosDe(obra);
+  if (!pc) {
+    wrap.innerHTML = `<div style="font-size:11px;color:var(--tx3);">Valores vivos de Materiales. Para fijar la base y poder actualizarla por CAC, congelá la obra en <b>Obras → ❄</b>.</div>`;
+    return;
+  }
+  const g = id => document.getElementById(id);
+  const prevVal = g('pres-valores')?.value || 'base', prevMes = g('pres-mes')?.value, prevMO = g('pres-mo-modo')?.value || 'cac', prevPct = g('pres-mo-pct')?.value || '0';
+  const ref = pc.mes_ref || pc.mes_destino;
+  const minMb = Object.values(pc.materiales).map(e => typeof e === 'object' ? e.mb : ref).filter(Boolean).sort()[0] || ref;
+  const meses = indicesEmpresa().filter(i => num(i.materiales) > 0 && i.mes >= minMb).map(i => i.mes).sort().reverse();
+  const ult = meses[0] || ref;
+  const mesSel = prevMes && meses.includes(prevMes) ? prevMes : ult;
+  const ultAct = (pc.actualizaciones || []).slice(-1)[0];
+  wrap.innerHTML = `<div class="form-grid" style="grid-template-columns:1.3fr 1.2fr 1.4fr .8fr auto;margin-bottom:0;align-items:end;">
+      <div class="fg"><label>Valores</label><select id="pres-valores" onchange="loadPres()">
+        <option value="base"${prevVal === 'base' ? ' selected' : ''}>Base congelada (CAC ${fmtMesLargo(ref)})</option>
+        <option value="act"${prevVal === 'act' ? ' selected' : ''}>Actualizados</option></select></div>
+      <div class="fg"><label>Actualizar a</label><select id="pres-mes" onchange="loadPres()">${meses.map(m => `<option value="${m}"${m === mesSel ? ' selected' : ''}>${fmtMesLargo(m)}${m === ult ? ' (hoy · último CAC)' : ''}</option>`).join('')}</select></div>
+      <div class="fg"><label>Mano de obra</label><select id="pres-mo-modo" onchange="loadPres()">
+        <option value="cac"${prevMO === 'cac' ? ' selected' : ''}>Por CAC mano de obra</option>
+        <option value="pct"${prevMO === 'pct' ? ' selected' : ''}>Por negociación (%)</option>
+        <option value="sin"${prevMO === 'sin' ? ' selected' : ''}>Sin ajuste</option></select></div>
+      <div class="fg"><label>% negociado</label><input id="pres-mo-pct" type="number" step="0.1" value="${prevPct}" onchange="loadPres()" ${prevMO === 'pct' ? '' : 'disabled'}></div>
+      <div><button class="btn" onclick="guardarActualizacion()" ${prevVal === 'act' ? '' : 'disabled'} title="Deja registrada esta actualización en la obra (la base no cambia)">Guardar actualización</button></div>
+    </div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:6px;">🔒 Base congelada el ${new Date(pc.fecha || Date.now()).toLocaleDateString('es-AR')}${ultAct ? ` · última actualización guardada: ${fmtMesLargo(ultAct.mes_destino)} (${new Date(ultAct.fecha).toLocaleDateString('es-AR')}) → ${$p(ultAct.total)}` : ''}</div>`;
+}
+
+function presCompararRender(obraId, a) {
+  const comp = document.getElementById('pres-comp');
+  if (!comp) return;
+  const pc = a.act.pc, base = computeObra(obraId), rubros = ordenRubros([...new Set([...Object.keys(base), ...Object.keys(a.r)])]);
+  const tot = r => r ? r.items.reduce((s, i) => [s[0] + num(i.totalMats), s[1] + num(i.totalMO)], [0, 0]) : [0, 0];
+  let tb = [0, 0], ta = [0, 0];
+  const pct = (x, y) => y ? ((x - y) / y * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + ' %' : '—';
+  const filas = rubros.map(rb => {
+    const b = tot(base[rb]), c = tot(a.r[rb]);
+    tb = [tb[0] + b[0], tb[1] + b[1]]; ta = [ta[0] + c[0], ta[1] + c[1]];
+    return `<tr><td>${rb}</td><td class="num">${$p(b[0] + b[1])}</td><td class="num">${$p(c[0] + c[1])}</td><td class="num">${$p(c[0] + c[1] - b[0] - b[1])}</td><td class="num">${pct(c[0] + c[1], b[0] + b[1])}</td></tr>`;
+  }).join('');
+  const avisos = [...a.act.avisos];
+  comp.innerHTML = `<div class="card" style="margin-bottom:12px;">
+    <div style="font-size:12px;margin-bottom:6px;"><b>Base (CAC ${fmtMesLargo(pc.mes_ref || pc.mes_destino)}) vs actualizado a ${fmtMesLargo(a.act.mesDest)}</b> · ${a.act.moDesc}</div>
+    <table><thead><tr><th>Rubro</th><th class="num">Base</th><th class="num">Actualizado</th><th class="num">Δ $</th><th class="num">Δ %</th></tr></thead>
+    <tbody>${filas}
+      <tr style="border-top:2px solid var(--border);"><td>Materiales</td><td class="num">${$p(tb[0])}</td><td class="num">${$p(ta[0])}</td><td class="num">${$p(ta[0] - tb[0])}</td><td class="num">${pct(ta[0], tb[0])}</td></tr>
+      <tr><td>Mano de obra</td><td class="num">${$p(tb[1])}</td><td class="num">${$p(ta[1])}</td><td class="num">${$p(ta[1] - tb[1])}</td><td class="num">${pct(ta[1], tb[1])}</td></tr>
+      <tr><td><b>Costo directo</b></td><td class="num hi">${$p(tb[0] + tb[1])}</td><td class="num hi">${$p(ta[0] + ta[1])}</td><td class="num hi">${$p(ta[0] + ta[1] - tb[0] - tb[1])}</td><td class="num hi">${pct(ta[0] + ta[1], tb[0] + tb[1])}</td></tr>
+    </tbody></table>
+    ${avisos.length ? `<div style="font-size:10px;color:var(--am);margin-top:6px;">⚠ ${avisos.slice(0, 6).join('<br>⚠ ')}</div>` : ''}
+  </div>`;
+  a.totales = { mat: Math.round(ta[0]), mo: Math.round(ta[1]), matBase: Math.round(tb[0]), moBase: Math.round(tb[1]) };
+}
+
+async function guardarActualizacion() {
+  const obraId = document.getElementById('sel-obra-pres')?.value;
+  const obra = obras.find(o => o.id === obraId), pc = preciosCongeladosDe(obra);
+  const a = _presUltimaAct;
+  if (!pc || !a || !a.totales) { notif('Elegí "Actualizados" para ver y guardar una actualización'); return; }
+  const reg = { fecha: new Date().toISOString(), usuario: (authUser && authUser.email) || '', mes_destino: a.act.mesDest,
+                mo_modo: a.act.moModo, mo_pct: a.act.moPct, factor_mo: +a.act.fMO.toFixed(6),
+                mat: a.totales.mat, mo: a.totales.mo, total: a.totales.mat + a.totales.mo };
+  const nuevo = { ...pc, actualizaciones: [...(pc.actualizaciones || []), reg] };
+  await withSync(async () => {
+    await sbPatch('obras', obra.id, { precios_congelados: nuevo });
+    obra.precios_congelados = nuevo;
+    notif(`Actualización a ${fmtMesLargo(reg.mes_destino)} guardada ✓ (${$p(reg.total)}) — la base no cambió`);
+    loadPres();
   });
 }
 
@@ -10547,7 +10714,7 @@ function exportPresPDF() {
   const obraId = document.getElementById('sel-obra-pres')?.value;
   if (!obraId) { notif('Seleccioná una obra'); return; }
   const obra = obras.find(o => o.id === obraId);
-  const rubros = computeObra(obraId);
+  const rubros = presRubros(obraId);
   const pctGG = num(document.getElementById('pct-gg').value) / 100;
   const pctUtil = num(document.getElementById('pct-util').value) / 100;
   if (!Object.keys(rubros).length) { notif('Sin mediciones para exportar'); return; }
@@ -10600,7 +10767,7 @@ function exportComprasPDF() {
   const obraId = document.getElementById('sel-obra-compras')?.value;
   if (!obraId) { notif('Seleccioná una obra'); return; }
   const obra = obras.find(o => o.id === obraId);
-  const consolidado = consolidarMateriales(obraId);
+  const consolidado = consolidarCompras(obraId);
   if (!Object.keys(consolidado).length) { notif('Sin materiales para exportar'); return; }
 
   const items = Object.values(consolidado).sort((a,b) => b.subtotal - a.subtotal);
