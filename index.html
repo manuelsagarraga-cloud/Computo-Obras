@@ -355,19 +355,19 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
   <div class="nav-item" onclick="nav('mediciones')" style="display:flex;justify-content:space-between;align-items:center;"><span><span>≡</span> Mediciones</span><span id="badge-revisar" style="display:none;background:#d94f4f;color:#fff;border-radius:10px;font-size:9px;font-weight:700;padding:1px 6px;min-width:16px;text-align:center;line-height:16px;"></span></div>
   <div class="nav-item" onclick="nav('computo')"><span>▦</span> Cómputo automático</div>
   <div class="nav-item" onclick="nav('presupuesto')"><span>◻</span> Presupuesto</div>
-  <div class="nav-sec">Bases</div>
-  <div class="nav-item" onclick="nav('materiales')"><span>◉</span> Materiales</div>
-  <div class="nav-item mo-ref" onclick="nav('manoobra')"><span>▤</span> Mano de obra</div>
-  <div class="nav-item" onclick="nav('coeficientes')"><span>∑</span> Consumos</div>
-  <div class="nav-item" onclick="nav('indices')"><span>📈</span> Índices CAC</div>
   <div class="nav-sec">Obra</div>
   <div class="nav-item" onclick="nav('archivos')"><span>⬚</span> Archivos</div>
-  <div class="nav-item" onclick="nav('compras')"><span>◫</span> Lista de compras</div>
+  <div class="nav-item" onclick="nav('compras')"><span>◫</span> Materiales por obra</div>
   <div class="nav-item" onclick="nav('cronograma')"><span>▭</span> Cronograma</div>
   <div class="nav-item" onclick="nav('mo-precios')"><span>▣</span> Precios MO</div>
   <div class="nav-item mo-ref" onclick="nav('sustento')"><span>ⓘ</span> Información de sustento</div>
   <div class="nav-item" onclick="nav('certificados')"><span>◐</span> Certificados</div>
   <div class="nav-item" onclick="nav('historial')"><span>⊙</span> Historial</div>
+  <div class="nav-sec">Bases</div>
+  <div class="nav-item" onclick="nav('materiales')"><span>◉</span> Materiales</div>
+  <div class="nav-item mo-ref" onclick="nav('manoobra')"><span>▤</span> Mano de obra</div>
+  <div class="nav-item" onclick="nav('coeficientes')"><span>∑</span> Consumos</div>
+  <div class="nav-item" onclick="nav('indices')"><span>📈</span> Índices CAC</div>
   <div class="nav-sec">Ayuda</div>
   <div class="nav-item" onclick="nav('cartera')"><span>◈</span> Cartera</div>
   <div class="nav-item" onclick="nav('manual')"><span>?</span> Manual de uso</div>
@@ -471,6 +471,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
 
     <!-- MATERIALES -->
     <div id="page-materiales" class="page">
+      <div id="mats-obras-vivas"></div>
       <div class="card">
         <div class="card-header"><div class="card-title">Base de materiales</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -577,6 +578,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           <div style="display:flex;align-items:flex-end;"><button class="btn" id="btn-export-compras" style="white-space:nowrap;" onclick="exportComprasPDF()">⎙ PDF</button></div>
         </div>
       </div>
+      <div id="compras-estado"></div>
       <div id="compras-body"></div>
     </div>
 
@@ -1022,7 +1024,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">6</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Lista de compras</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Lista de compras</b>. Seleccionar la obra. Ver todos los materiales consolidados con cantidad comercial y subtotal. Exportar a Excel para enviar al proveedor o a PDF para el registro.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Materiales por obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Materiales por obra</b>. Seleccionar la obra. Ver todos los materiales consolidados con cantidad comercial y subtotal. Exportar a Excel para enviar al proveedor o a PDF para el registro.</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--am);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">7</div></div>
@@ -1054,7 +1056,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           </div>
           <div style="background:var(--gr-l);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--gr);margin-bottom:4px;">A PARTIR DE ACA TODO ES AUTOMATICO</div>
-            <div style="font-size:11px;color:var(--tx2);">Con las mediciones cargadas, ir a <b>Computo automatico</b> para ver los materiales calculados, a <b>Presupuesto</b> para ver costos, y a <b>Lista de compras</b> para ver que comprar. Todo se actualiza solo.</div>
+            <div style="font-size:11px;color:var(--tx2);">Con las mediciones cargadas, ir a <b>Computo automatico</b> para ver los materiales calculados, a <b>Presupuesto</b> para ver costos, y a <b>Materiales por obra</b> para ver que comprar. Todo se actualiza solo.</div>
           </div>
         </div>
       </div>
@@ -1201,7 +1203,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Consumos</td><td style="padding:7px 8px;color:var(--tx2);">Consumos de materiales de cada tarea (recetas), agrupados por rubro</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Indices CAC</td><td style="padding:7px 8px;color:var(--tx2);">Indice mensual para congelado de precios</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Archivos</td><td style="padding:7px 8px;color:var(--tx2);">Fotos y planos por obra</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Lista de compras</td><td style="padding:7px 8px;color:var(--tx2);">Materiales consolidados para comprar</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales por obra</td><td style="padding:7px 8px;color:var(--tx2);">Materiales consolidados para comprar</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Precios MO</td><td style="padding:7px 8px;color:var(--tx2);">Precio real del contratista por tarea</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Certificados</td><td style="padding:7px 8px;color:var(--tx2);">Avance de obra con coeficiente K</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones y precios MO</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Historial</td><td style="padding:7px 8px;color:var(--tx2);">Registro de cambios en mediciones</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
@@ -1314,7 +1316,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-29.1';
+const APP_BUILD = '2026-10-29.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2652,7 +2654,7 @@ function nav(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Consumos de materiales', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Lista de compras', cronograma:'Cronograma ↔ Cómputo', 'mo-precios':'Precios mano de obra', sustento:'Información de sustento', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
+  const titles = { dashboard:'Dashboard', obras:'Obras', mediciones:'Mediciones', computo:'Cómputo automático', presupuesto:'Presupuesto', materiales:'Base de materiales', manoobra:'Mano de obra', coeficientes:'Consumos de materiales', indices:'Índices CAC', archivos:'Archivos de obra', compras:'Materiales por obra', cronograma:'Cronograma ↔ Cómputo', 'mo-precios':'Precios mano de obra', sustento:'Información de sustento', certificados:'Certificados de obra', manual:'Manual de uso', historial:'Historial de cambios', cartera:'Comparativa de cartera' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
   document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active'); });
   const renders = {
@@ -5966,6 +5968,12 @@ function usoMateriales() {
 
 function renderMats() {
   const tb = document.getElementById('tb-mats');
+  const av = document.getElementById('mats-obras-vivas');
+  if (av) {
+    const vivas = obrasEmpresa().filter(o => !preciosCongeladosDe(o));
+    av.innerHTML = vivas.length ? `<div style="background:var(--am-l);border:1px solid var(--am);border-radius:5px;padding:9px 12px;font-size:11px;margin-bottom:12px;">
+      ⚠ Estos son los precios genéricos (para presupuestar obras nuevas). Un cambio acá <b>mueve el presupuesto de ${vivas.length} obra${vivas.length !== 1 ? 's' : ''} sin precios fijados</b>: ${vivas.map(o => o.cod).join(', ')}. Para que no se muevan: Materiales por obra → "Fijar precios de la obra".</div>` : '';
+  }
   const me = matsEmpresa();
   const uso = usoMateriales();
   const grupos = {};
@@ -6513,10 +6521,25 @@ function exportComprasExcel(obraId) {
   notif('Excel exportado ✓');
 }
 
+// Estado de los precios de la obra: fijados (foto congelada, solo se mueven por CAC) o vivos (siguen a Bases → Materiales).
+function estadoPreciosObraHTML(obraId) {
+  const obra = obras.find(o => o.id === obraId);
+  if (!obra) return '';
+  const pc = preciosCongeladosDe(obra);
+  if (pc) return `<div style="background:var(--gr-l);border:1px solid var(--gr-m);border-radius:5px;padding:9px 12px;font-size:11px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <span>🔒 <b>Precios fijados</b> el ${new Date(pc.fecha || Date.now()).toLocaleDateString('es-AR')} · CAC de referencia <b>${fmtMesLargo(pc.mes_ref || pc.mes_destino)}</b>. Cambiar Bases → Materiales no los mueve; solo se actualizan por CAC (selector "Precios").</span>
+    <button class="btn" style="white-space:nowrap;" onclick="openModalCongelar('${obra.id}')">Ver foto</button></div>`;
+  return `<div style="background:var(--am-l);border:1px solid var(--am);border-radius:5px;padding:9px 12px;font-size:11px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <span>⚠ <b>Precios vivos:</b> esta obra todavía usa Bases → Materiales. Cualquier cambio en la base mueve su presupuesto. Fijá los precios para que queden de la obra y se sigan solo por CAC.</span>
+    <button class="btn btn-primary" style="white-space:nowrap;" onclick="openModalCongelar('${obra.id}')">❄ Fijar precios de la obra</button></div>`;
+}
+
 function loadCompras() {
   const obraId = document.getElementById('sel-obra-compras')?.value;
   const vista = document.getElementById('compras-vista')?.value || 'consolidado';
   const body = document.getElementById('compras-body');
+  const est = document.getElementById('compras-estado');
+  if (est) est.innerHTML = obraId ? estadoPreciosObraHTML(obraId) : '';
   if (!obraId) { body.innerHTML = '<div class="empty">Seleccioná una obra.</div>'; return; }
 
   if (vista === 'saldo' || vista === 'registro') { renderComprasReales(obraId, vista); return; }
@@ -10505,6 +10528,11 @@ function previewCongelar() {
   prev.innerHTML = html + _histCongeladoHTML(cruda && cruda.historial);
 }
 
+function _refrescarTrasCongelar() {
+  if (document.getElementById('page-compras')?.classList.contains('active')) loadCompras();
+  if (document.getElementById('page-materiales')?.classList.contains('active')) renderMats();
+}
+
 async function congelarObra() {
   if (!_congelarObraId) return;
   const obra = obras.find(o => o.id === _congelarObraId);
@@ -10517,7 +10545,7 @@ async function congelarObra() {
     obra.precios_congelados = foto; obra.mes_congelado = foto.mes_ref; obra.indice_usado = 'base';
     invalidateComputeCache();
     closeModal('m-congelar');
-    renderObras();
+    renderObras(); _refrescarTrasCongelar();
     notif(`Base congelada (CAC ${fmtMesLargo(foto.mes_ref)}) ✓ · materiales ${$p(foto.total_mat_base)} · MO ${$p(foto.total_mo_base)}`);
   });
 }
@@ -10535,7 +10563,7 @@ async function descongelarObra() {
     obra.precios_congelados = guardar; obra.mes_congelado = null; obra.indice_usado = null;
     invalidateComputeCache();
     closeModal('m-congelar');
-    renderObras();
+    renderObras(); _refrescarTrasCongelar();
     notif('Congelado quitado — la base anterior quedó en el historial');
   });
 }
