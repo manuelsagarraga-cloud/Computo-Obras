@@ -400,7 +400,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div id="page-obras" class="page">
       <div class="card">
         <div class="card-header"><div class="card-title">Obras</div><div style="display:flex;gap:8px;"><button class="btn" onclick="openImportNuevaObra()" title="Certificado o cómputo en Excel">↑ Importar desde Excel</button><button class="btn btn-primary" onclick="editingObraId=null;document.getElementById('modal-obra-title').textContent='Nueva obra';['o-cod','o-nombre','o-cliente','o-ubic','o-sup','o-notas'].forEach(id=>document.getElementById(id).value='');document.getElementById('o-subsuelos').value='0';document.getElementById('o-plantas').value='1';openModal('m-obra')">+ Nueva obra</button></div></div>
-        <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Obra</th><th>Cliente</th><th>Ubicación</th><th>Sup.</th><th>Estado</th><th>Total</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-obras"></tbody></table></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Obra</th><th>Cliente</th><th>Ubicación</th><th>Sup.</th><th>Estado</th><th>Total</th><th>Modificado</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-obras"></tbody></table></div>
       </div>
     </div>
 
@@ -1334,6 +1334,36 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 let authToken = localStorage.getItem('sb_access_token') || '';
 let authUser = null;
 
+// --- Tracking: cache de usuarios y helpers ---
+const _userEmailCache = {};
+async function loadUserEmails(ids) {
+  const missing = [...new Set(ids.filter(id => id && !_userEmailCache[id]))];
+  if (!missing.length) return;
+  try {
+    const res = await sbRpc('get_user_emails', { user_ids: missing });
+    (res || []).forEach(u => { _userEmailCache[u.id] = u.email; });
+  } catch(e) { console.warn('loadUserEmails:', e); }
+}
+function getUserName(uid) {
+  if (!uid) return '—';
+  if (authUser?.id === uid) return authUser.email?.split('@')[0] || 'yo';
+  const email = _userEmailCache[uid];
+  if (email) return email.split('@')[0];
+  return uid.slice(0,6) + '…';
+}
+function timeAgo(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '—';
+  const diff = (Date.now() - dt.getTime()) / 1000;
+  if (diff < 60) return 'recién';
+  if (diff < 3600) return Math.floor(diff/60) + ' min';
+  if (diff < 86400) return Math.floor(diff/3600) + ' h';
+  if (diff < 2592000) return Math.floor(diff/86400) + ' d';
+  return dt.toLocaleDateString('es-AR');
+}
+// --- fin tracking helpers ---
+
 function getSBHeaders() {
   const token = authToken || SB_KEY;
   return { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
@@ -1548,6 +1578,12 @@ async function sbGet(table, params='') {
   return all;
 }
 async function sbPost(table, data) {
+  const _trackTables = ['obras','mediciones'];
+  if (_trackTables.includes(table) && authUser?.id) {
+    const uid = authUser.id;
+    if (Array.isArray(data)) data = data.map(r => ({ created_by: uid, updated_by: uid, ...r }));
+    else data = { created_by: uid, updated_by: uid, ...data };
+  }
   const r = await sbFetch(`${SB_URL}/rest/v1/${table}`, { method:'POST', headers:getSBHeaders(), body:JSON.stringify(data) });
   if (!r.ok) { const t=await r.text(); throw new Error(`POST ${table}: ${r.status} ${t}`); }
   return r.json();
@@ -1563,6 +1599,8 @@ async function sbRpc(fn, args) {
   return r.json();
 }
 async function sbPatch(table, id, data) {
+  const _trackTables = ['obras','mediciones'];
+  if (_trackTables.includes(table) && authUser?.id) data = { ...data, updated_by: authUser.id };
   const r = await sbFetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method:'PATCH', headers:getSBHeaders(), body:JSON.stringify(data) });
   if (!r.ok) throw new Error(`PATCH ${table}: ${r.status}`);
   return r.json();
@@ -2719,10 +2757,13 @@ function renderDash() {
     ? sorted.map(([k,v]) => { const p = Math.round(v/tot*100); return `<div class="prog-row"><div class="prog-label">${k}</div><div class="prog-wrap"><div class="prog-bar" style="width:${p}%"></div></div><div class="prog-pct">${p}%</div></div>`; }).join('')
     : '<div class="empty">Sin datos aún.</div>';
 }
-function renderObras() {
+async function renderObras() {
   const tb = document.getElementById('tb-obras');
   const oe = obrasEmpresa();
-  if (!oe.length) { tb.innerHTML = `<tr><td colspan="8"><div class="empty">Sin obras.</div></td></tr>`; return; }
+  if (!oe.length) { tb.innerHTML = `<tr><td colspan="9"><div class="empty">Sin obras.</div></td></tr>`; return; }
+  // Precargar emails de usuarios involucrados
+  const uids = oe.flatMap(o => [o.created_by, o.updated_by]).filter(Boolean);
+  if (uids.length) loadUserEmails(uids).then(() => { /* re-render silencioso si cambió algo */ });
   tb.innerHTML = oe.map(o => {
     const r = computeObra(o.id);
     const tot = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.total, 0), 0);
@@ -2730,7 +2771,10 @@ function renderObras() {
     const badgeCong = pc
       ? `<div style="margin-top:3px;"><span class="tag tg" title="Base congelada${pc.fecha ? ' el ' + new Date(pc.fecha).toLocaleDateString('es-AR') : ''} · CAC de referencia ${fmtMesLargo(pc.mes_ref || pc.mes_destino || o.mes_congelado)}">🔒 Base CAC ${fmtMesLargo(pc.mes_ref || pc.mes_destino || o.mes_congelado)}</span></div>`
       : `<div style="margin-top:3px;"><span class="tag" style="background:var(--surf2);color:var(--tx3);">Precios vivos</span></div>`;
-    return `<tr><td><code style="font-size:10px;">${o.cod}</code></td><td class="hi">${o.nombre}${badgeCong}</td><td>${o.cliente||'—'}</td><td style="font-size:10px;color:var(--tx3);">${o.ubic||''}${o.direccion?' · '+o.direccion:''}</td><td class="num">${o.sup?o.sup+' m²':'—'}</td><td>${stag(o.estado)}</td><td class="num hi">${tot?$p(tot):'—'}</td><td style="white-space:nowrap;"><button class="btn-icon" onclick="openModalCongelar('${o.id}')" title="Congelar precios" style="color:var(--bl);">❄</button><button class="btn-icon" onclick="duplicarObra('${o.id}')" title="Duplicar obra">⧉</button><button class="btn-icon" onclick="openEditObra('${o.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delObra('${o.id}')">✕</button></td></tr>`;
+    const modDate = o.updated_at || o.created_at;
+    const modUser = o.updated_by || o.created_by;
+    const modInfo = modDate ? `<span title="${new Date(modDate).toLocaleString('es-AR')}${modUser ? ' · ' + getUserName(modUser) : ''}">${timeAgo(modDate)}${modUser ? '<br><span style="font-size:9px;color:var(--tx3);">' + getUserName(modUser) + '</span>' : ''}</span>` : '—';
+    return `<tr><td><code style="font-size:10px;">${o.cod}</code></td><td class="hi">${o.nombre}${badgeCong}</td><td>${o.cliente||'—'}</td><td style="font-size:10px;color:var(--tx3);">${o.ubic||''}${o.direccion?' · '+o.direccion:''}</td><td class="num">${o.sup?o.sup+' m²':'—'}</td><td>${stag(o.estado)}</td><td class="num hi">${tot?$p(tot):'—'}</td><td style="font-size:10px;white-space:nowrap;">${modInfo}</td><td style="white-space:nowrap;"><button class="btn-icon" onclick="openModalCongelar('${o.id}')" title="Congelar precios" style="color:var(--bl);">❄</button><button class="btn-icon" onclick="duplicarObra('${o.id}')" title="Duplicar obra">⧉</button><button class="btn-icon" onclick="openEditObra('${o.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delObra('${o.id}')">✕</button></td></tr>`;
   }).join('');
 }
 
@@ -4497,7 +4541,7 @@ function loadMediciones() {
     <div class="rubro-block">
       <div class="rubro-hdr"><span>${rubro}</span><span style="font-size:10px;color:var(--tx3);">${items.length} ítem${items.length!==1?'s':''}</span></div>
       <div class="rubro-body">
-        <table><thead><tr><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Descripción</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Rev / Acciones</th></tr></thead>
+        <table><thead><tr><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Descripción</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
         <tbody>${items.map(({med,coef}) => {
           const sinDesp = coef && (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
           const cantDesp = sinDesp ? num(med.cantidad) : num(med.cantidad)*desp;
@@ -4510,6 +4554,7 @@ function loadMediciones() {
           <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}${med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad) ? `<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:1})} ${med.unidad_origen||''}</span>` : ''}</td>
           <td class="num" style="color:var(--am);">${cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
           <td>${coef?coef.unidad:'—'}${med.unidad_origen && med.unidad_origen !== (coef?.unidad||'') ? `<br><span style="font-size:9px;color:var(--bl);">${med.unidad_origen}</span>` : ''}</td>
+          <td style="font-size:10px;white-space:nowrap;" title="${(med.updated_at||med.created_at) ? new Date(med.updated_at||med.created_at).toLocaleString('es-AR') : ''}">${timeAgo(med.updated_at||med.created_at)}${(med.updated_by||med.created_by) ? '<br><span style="font-size:9px;color:var(--tx3);">'+getUserName(med.updated_by||med.created_by)+'</span>' : ''}</td>
           <td style="white-space:nowrap;"><span style="font-size:9px;color:var(--tx3);">${med.revision||'Rev00'}</span> <button class="btn-icon" onclick="dupMed('${med.id}')" title="Duplicar">⧉</button><button class="btn-icon" onclick="openEditMed('${med.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delMed('${med.id}')">✕</button></td>
         </tr>`;}).join('')}</tbody></table>
       </div>
