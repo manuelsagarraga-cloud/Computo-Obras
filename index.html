@@ -482,7 +482,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
             <button class="btn btn-primary" onclick="openModal('m-mat')">+ Material</button>
           </div>
         </div>
-        <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Material</th><th>Unidad</th><th>Categoría</th><th>Precio ($)</th><th>Mes base</th><th>Fecha</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-mats"></tbody></table></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Material</th><th>Unidad</th><th>Categoría</th><th title="Rubros de las tareas que usan este material (pasá el mouse para ver los códigos)">Se usa en</th><th>Precio ($)</th><th>Fecha</th><th>Mes base</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-mats"></tbody></table></div>
       </div>
     </div>
 
@@ -787,7 +787,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div class="modal-title">Material <button class="modal-close" onclick="closeModal('m-mat')">✕</button></div>
     <div class="form-grid">
       <div class="fg"><label>Código</label><input id="mat-cod"></div>
-      <div class="fg"><label>Categoría</label><select id="mat-cat"><option>Estructural</option><option>Mampostería</option><option>Terminaciones</option><option>Cubiertas</option><option>Carpintería</option><option>Herrería</option><option>Instalaciones</option><option>Varios</option></select></div>
+      <div class="fg"><label>Categoría</label><select id="mat-cat"><option>Estructural</option><option>Fundaciones</option><option>Mampostería</option><option>Aislaciones</option><option>Cubiertas</option><option>Terminaciones</option><option>Revestimientos</option><option>Pisos</option><option>Pintura</option><option>Carpintería</option><option>Herrería</option><option>Instalaciones</option><option>Varios</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:10px;"><label>Nombre</label><input id="mat-nombre"></div>
     <div class="form-grid">
@@ -1314,7 +1314,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-27.3';
+const APP_BUILD = '2026-10-29.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -5849,11 +5849,13 @@ function exportPres() {
 // =====================================================================
 function filterMats() {
   const q = (document.getElementById('mat-search')?.value||'').toLowerCase();
-  const rows = document.querySelectorAll('#tb-mats tr');
-  rows.forEach(r => {
-    const text = r.textContent.toLowerCase();
-    r.style.display = q && !text.includes(q) ? 'none' : '';
+  const visibles = {};
+  document.querySelectorAll('#tb-mats tr.mat-row').forEach(r => {
+    const ok = !q || r.textContent.toLowerCase().includes(q);
+    r.style.display = ok ? '' : 'none';
+    if (ok) visibles[r.dataset.cat] = true;
   });
+  document.querySelectorAll('#tb-mats tr.mat-grp').forEach(r => { r.style.display = visibles[r.dataset.cat] ? '' : 'none'; });
 }
 
 async function saveMat() {
@@ -5930,17 +5932,69 @@ async function guardarOverridePrecio(cod, precio, mesBase) {
   });
 }
 
+// Orden de las categorías de material en la pestaña Materiales (sigue el orden de obra).
+const CAT_MAT_ORDEN = ['Estructural','Fundaciones','Mampostería','Aislaciones','Cubiertas','Terminaciones',
+  'Revestimientos','Pisos','Pintura','Carpintería','Herrería','Instalaciones','Varios'];
+// Dónde se usa cada material: recorre las tareas (coeficientes) y resuelve cada matRef igual que el
+// cómputo (findMat: nombre exacto y, si no, coincidencia por los primeros 12 caracteres).
+// Devuelve { [mat.id]: { rubros:Set, tareas:[cod], fuzzy:[matRef que lo tomaron sin nombre exacto] } }
+function usoMateriales() {
+  const pool = matsEmpresa();
+  const porRef = {}, uso = {};
+  const resolver = ref => {
+    if (ref in porRef) return porRef[ref];
+    const refL = ref.toLowerCase();
+    const exacto = pool.find(m => m.nombre === ref);
+    const m = exacto || pool.find(m => m.nombre.toLowerCase().includes(refL.substring(0,12)) || refL.includes(m.nombre.toLowerCase().substring(0,12)));
+    return (porRef[ref] = m ? { m, exacto: !!exacto } : null);
+  };
+  coefsElegibles().forEach(c => {
+    let cm = [];
+    try { cm = Array.isArray(c.mats) ? c.mats : JSON.parse(c.mats || '[]'); } catch (e) { cm = []; }
+    cm.forEach(x => {
+      if (!x || !x.matRef) return;
+      const r = resolver(x.matRef);
+      if (!r) return;
+      const u = uso[r.m.id] || (uso[r.m.id] = { rubros: new Set(), tareas: [], fuzzy: new Set() });
+      u.rubros.add(c.rubro || 'Sin rubro');
+      if (!u.tareas.includes(c.cod)) u.tareas.push(c.cod);
+      if (!r.exacto) u.fuzzy.add(x.matRef);
+    });
+  });
+  return uso;
+}
+
 function renderMats() {
   const tb = document.getElementById('tb-mats');
   const me = matsEmpresa();
-  tb.innerHTML = me.map(m => `<tr>
+  const uso = usoMateriales();
+  const grupos = {};
+  me.forEach(m => { const k = m.cat || 'Sin categoría'; (grupos[k] = grupos[k] || []).push(m); });
+  const cats = Object.keys(grupos).sort((a, b) => {
+    const ia = CAT_MAT_ORDEN.indexOf(a), ib = CAT_MAT_ORDEN.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, 'es');
+  });
+  const usoCelda = m => {
+    const u = uso[m.id];
+    const auto = /barra acero|malla/i.test(m.nombre) ? 'armadura automática' : (esHormigonElegible(m.nombre) ? 'Hº elegible por medición' : '');
+    if (!u) return auto ? `<span style="color:var(--tx3);">${auto}</span>` : '<span style="color:var(--tx3);">— sin uso en tareas</span>';
+    const rs = ordenRubros([...u.rubros]);
+    const fz = u.fuzzy.size ? ` <span class="tag" style="font-size:8px;background:var(--surf2);color:var(--re);" title="Tareas que lo toman sin nombre exacto: ${[...u.fuzzy].join(' / ').replace(/"/g,'&quot;')}">≈ nombre</span>` : '';
+    return `<span title="Tareas: ${u.tareas.sort().join(', ')}">${rs.join(', ')} <span style="color:var(--tx3);">(${u.tareas.length})</span></span>${fz}${auto ? ` <span style="color:var(--tx3);">· ${auto}</span>` : ''}`;
+  };
+  tb.innerHTML = cats.map(cat => {
+    const filas = grupos[cat].slice().sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { numeric: true }));
+    return `<tr class="mat-grp" data-cat="${cat}"><td colspan="9" style="background:var(--surf2);font-family:var(--serif);font-size:13px;font-weight:500;padding:7px 10px;">${cat} <span style="font-family:var(--sans,inherit);font-size:10px;color:var(--tx3);font-weight:400;">· ${filas.length}</span></td></tr>`
+      + filas.map(m => `<tr class="mat-row" data-cat="${cat}">
     <td><code style="font-size:10px;">${m.cod}</code></td><td class="hi">${m.nombre}${m._override?' <span class="tag tb" style="font-size:8px;">propio</span>':''}${m.empresa?' <span class="tag tg" style="font-size:8px;">empresa</span>':''}</td><td>${m.unidad}</td>
-    <td><span class="tag ta">${m.cat}</span></td>
+    <td><span class="tag ta">${m.cat || '—'}</span></td>
+    <td style="font-size:10px;max-width:220px;">${usoCelda(m)}</td>
     <td class="num"><input class="inline-num" type="number" value="${m.precio}" onchange="updateMatPrecio('${m.id}',this.value)"></td>
     <td style="color:var(--tx3);font-size:10px;">${m.fecha||''}</td>
     <td><input type="month" value="${m.mes_base||''}" onchange="updateMatMesBase('${m.id}',this.value)" style="font-size:10px;padding:3px 5px;width:120px;"></td>
     <td>${m._override ? `<button class="btn-icon" onclick="quitarOverride('${m.cod}')" title="Volver al precio de la base común">↺</button>` : `<button class="btn-icon" onclick="delMat('${m.id}')">✕</button>`}</td>
   </tr>`).join('');
+  }).join('');
   filterMats();   // mantener el filtro del buscador al redibujar
 }
 
@@ -6105,6 +6159,8 @@ function importMaterialesExcel(input) {
 }
 
 async function delMat(id) {
+  const u = usoMateriales()[id];
+  if (u && !await appConfirm(`Este material lo usan ${u.tareas.length} tarea(s) (${u.tareas.sort().join(', ')}). Si lo borrás, esas tareas pierden el material o toman otro por nombre parecido. ¿Borrar igual?`)) return;
   await withSync(async () => { await sbDelete('materiales', id); mats=mats.filter(m=>m.id!==id); invalidateComputeCache(); renderMats(); notif('Eliminado'); });
 }
 
