@@ -1316,7 +1316,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-03.2';
+const APP_BUILD = '2026-11-03.3';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -3338,6 +3338,43 @@ const _S = {
   dot:  (cx,cy,r,fill) => `<circle cx="${cx}" cy="${cy}" r="${r}" style="fill:${fill};stroke:none"/>`,
   text: (x,y,s,o={}) => `<text x="${x}" y="${y}" style="font-family:var(--mono);font-size:${o.size||10}px;fill:${o.c||'var(--tx2)'};text-anchor:${o.a||'start'};paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round;${o.b?'font-weight:700;':''}">${s}</text>`
 };
+// Medidas del esquema: un campo vacío se dibuja con el valor típico en ámbar con "≈", para no confundirlo con lo cargado.
+// _vacios = ids de inputs vacíos (lo arma renderArmDiagrama / renderEditArmDiagrama); _hayTipicos avisa en las notas.
+let _vacios = null, _hayTipicos = false;
+function _E(id, s) {
+  if (!_vacios || !_vacios.has(id)) return s;
+  _hayTipicos = true;
+  return `<tspan style="fill:var(--am);font-style:italic">≈ ${s}</tspan>`;
+}
+function _vaciosForm(pre) {
+  const ids = ['dim-la','dim-lb','dim-ml','dim-sep','dim-sep2','dim-np','dim-ns','dim-ni','dim-e','dim-bw','dim-d','dim-n8','dim-nd','dim-cant-elem','dim-cant','dim-ref-ml','dim-ref-largo','dim-ref-sep','dim-ala','dim-nala'];
+  return new Set(ids.filter(id => { const el = document.getElementById(pre + id); return el && el.value === ''; }));
+}
+// Campos del formulario con el mismo color que su elemento en el esquema
+// (rojo = hierros principales / barras X, verde = superiores / barras Y / refuerzos, azul = estribos, zunchos y secundarios).
+// Las medidas del hormigón (lados, largos, alturas) quedan neutras, igual que las cotas del dibujo.
+const _COLOR_CAMPOS = {
+  columna:           { 'dim-np':_cMain, 'dim-diam-ppal':_cMain, 'dim-sep':_cEst, 'dim-diam-est':_cEst },
+  viga:              { 'dim-ni':_cMain, 'dim-diam-ppal':_cMain, 'dim-ns':_cRef, 'dim-sep':_cEst, 'dim-diam-est':_cEst },
+  zapata:            { 'dim-np':_cMain, 'dim-diam-ppal':_cMain, 'dim-sep':_cEst, 'dim-diam-sec':_cEst, 'dim-ala':_cEst, 'dim-nala':_cEst },
+  zapata_excentrica: { 'dim-np':_cMain, 'dim-nd':_cMain, 'dim-n8':_cRef, 'dim-sep':_cEst, 'dim-diam-sec':_cEst, 'dim-ala':_cEst, 'dim-nala':_cEst },
+  zapata_puntual:    { 'dim-sep':_cMain, 'dim-diam-ppal':_cMain, 'dim-hierro-diam':_cMain },
+  tabique_hormigon:  { 'dim-sep':_cMain, 'dim-sep2':_cRef, 'dim-hierro-diam':_cMain },
+  pozo:              { 'dim-np':_cMain, 'dim-diam-ppal':_cMain, 'dim-hierro-diam':_cMain, 'dim-sep':_cEst, 'dim-diam-est':_cEst },
+  platea:            { 'dim-sep':_cMain, 'dim-sep2':_cRef, 'dim-diam-ppal':_cMain, 'dim-hierro-diam':_cMain, 'dim-ref-ml':_cRef, 'dim-ref-largo':_cRef, 'dim-ref-sep':_cRef, 'dim-ref-diam':_cRef },
+  losa_vigueta:      { 'dim-sep':_cMain },
+  losa_nervurada:    { 'nv-b':_cMain }
+};
+_COLOR_CAMPOS.losa_maciza = _COLOR_CAMPOS.platea;
+function _colorearCampos(pre, tipo) {
+  const m = _COLOR_CAMPOS[tipo]; if (!m) return;
+  for (const [id, c] of Object.entries(m)) {
+    const el = document.getElementById(pre + id); if (!el) continue;
+    el.style.borderLeft = `3px solid ${c}`;
+    const lab = el.closest('.ig-item')?.querySelector('.ig-label') || el.previousElementSibling;
+    if (lab) { lab.style.color = c; lab.style.fontWeight = '600'; }
+  }
+}
 function _dimH(x1,x2,y,label) { return _S.line(x1,y,x2,y,'var(--tx3)',1) + _S.line(x1,y-4,x1,y+4,'var(--tx3)',1) + _S.line(x2,y-4,x2,y+4,'var(--tx3)',1) + _S.text((x1+x2)/2,y-5,label,{a:'middle',size:10}); }
 function _dimV(x,y1,y2,label,left) { return _S.line(x,y1,x,y2,'var(--tx3)',1) + _S.line(x-4,y1,x+4,y1,'var(--tx3)',1) + _S.line(x-4,y2,x+4,y2,'var(--tx3)',1) + _S.text(left?x-6:x+6,(y1+y2)/2+3,label,{a:left?'end':'start',size:10}); }
 function _leyenda(x, y, items) {
@@ -3393,6 +3430,8 @@ function zapataSecHtml(pre) {
 function armDiagramaSVG(tipo, v) {
   const W = 560, Hh = 262;
   let b = '';
+  _vacios = v.vacios || null; _hayTipicos = false;
+  const ne = v.ne || 1;
   const dl = DIAM_LABEL[v.diam] || 'Ø10';
   const gancho = CHANDIAS_GANCHO_MM[v.diam] || 208;
   let notas = [];
@@ -3409,14 +3448,15 @@ function armDiagramaSVG(tipo, v) {
     b += _S.path(`M${xr} ${ytop} L${xr} ${ybot} L${xr+24} ${ybot}`, _cMain, 2.4);
     b += _S.text(ex-2, ytop-3, 'espera / empalme', {a:'start',c:'var(--tx3)',size:9});
     b += _S.text(ex-30, ybot+13, 'pata 25 cm', {a:'start',c:_cMain,size:9});
-    b += _dimV(ex+ew+44, ey, base, `H = ${_fm(H)} m`, false);
+    b += _dimV(ex+ew+44, ey, base, _E('dim-ml', `H = ${_fm(H)} m`), false);
     // sección
     const sc = Math.min(110/A, 110/B), w = A*sc, h = B*sc, cx = 370, cy = 100;
     b += _S.rect(cx-w/2-5, cy-h/2-5, w+10, h+10, _cHor, 'var(--bg)');
     b += _S.rect(cx-w/2, cy-h/2, w, h, _cEst, 'none', 2);
     _puntosSeccion(cx, cy, w, h, np).forEach(p => { b += _S.dot(p[0], p[1], 4.5, _cMain); });
-    b += _S.text(cx, cy+h/2+26, `${_fm(A*100,0)} × ${_fm(B*100,0)} cm`, {a:'middle',size:11,b:true});
-    b += _leyenda(290, 205, [{c:_cMain,t:`${np} ${dl} long. con pata de anclaje`},{c:_cEst,t:`Estribos ${DIAM_LABEL[v.diamEst]||'Ø6'} c/${_fm(sep*100,0)} cm`}]);
+    b += _S.text(cx, cy+h/2+26, `${_E('dim-la', _fm(A*100,0))} × ${_E('dim-lb', _fm(B*100,0))} cm`, {a:'middle',size:11,b:true});
+    b += _S.text(cx, cy+h/2+40, _E('dim-cant-elem', `${ne} ${ne === 1 ? 'columna' : 'columnas'} iguales`), {a:'middle',size:10});
+    b += _leyenda(290, 205, [{c:_cMain,t:_E('dim-np', `${np} ${dl}`) + ' long. con pata de anclaje'},{c:_cEst,t:`Estribos ${DIAM_LABEL[v.diamEst]||'Ø6'} ` + _E('dim-sep', `c/${_fm(sep*100,0)} cm`)}]);
     notas = [`Pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra) · empalme 0,60 m si H > 12 m · estribo = perímetro + 12,5 cm de gancho`,
              `Chandías (Tabla 7.6, ADN-420): gancho ${dl} = ${gancho} mm por dos ganchos`];
   }
@@ -3450,18 +3490,20 @@ function armDiagramaSVG(tipo, v) {
     // dobladura 45° (hierro doblado) — solo en vigas entre apoyos; los encadenados van con barras rectas
     if (sub === 'viga') {
       b += _S.path(`M${bx+95} ${by+bh-10} L${bx+150} ${by+10}`, _cMain, 1.6, 'none', '5 3');
-      b += _S.text(bx+60, by+bh+20, 'dobladura 45° (Δ₂)', {c:_cMain,size:9});
+      b += _S.text(bx+60, by+bh+34, 'dobladura 45° (Δ₂)', {c:_cMain,size:9});
     }
-    b += _S.text((x1+x2)/2, sub === 'inf' || sub === 'fund' ? by-8 : by-20, `${sub === 'viga' ? 'Perchas / hierros superiores' : 'Hierros superiores'}: ${ns} ${dl}`, {a:'middle',c:_cRef,size:10,b:true});
-    b += _S.text(x2, by+bh+20, `Hierros inferiores: ${ni} ${dl}`, {a:'end',c:_cMain,size:10,b:true});
-    b += _dimH(bx, bx+bw, by+bh+52, `L = ${_fm(L)} m   →   hierro = luz + luz/6 = ${_fm(L+L/6)} m`);
+    b += _S.text((x1+x2)/2, sub === 'inf' || sub === 'fund' ? by-8 : by-20, `${sub === 'viga' ? 'Perchas / hierros superiores' : 'Hierros superiores'}: ` + _E('dim-ns', `${ns} ${dl}`), {a:'middle',c:_cRef,size:10,b:true});
+    b += _S.text(x2, by+bh+20, 'Hierros inferiores: ' + _E('dim-ni', `${ni} ${dl}`), {a:'end',c:_cMain,size:10,b:true});
+    b += _S.text(x1, by+bh+20, `Estribos ${DIAM_LABEL[v.diamEst]||'Ø6'} ` + _E('dim-sep', `c/${_fm(sep*100,0)} cm`), {c:_cEst,size:10,b:true});
+    b += _dimH(bx, bx+bw, by+bh+52, _E('dim-ml', `L = ${_fm(L)} m`) + `   →   hierro = luz + luz/6 = ${_fm(L+L/6)} m`);
     // sección
     const sc = Math.min(70/A, 95/B), w = A*sc, h = B*sc, cx = 490, cy = 110;
     b += _S.rect(cx-w/2, cy-h/2, w, h, _cHor, 'var(--bg)');
     b += _S.rect(cx-w/2+5, cy-h/2+5, w-10, h-10, _cEst, 'none', 2);
     for (let i = 0; i < Math.min(ns,4); i++) b += _S.dot(cx-w/2+8+i*((w-16)/Math.max(1,Math.min(ns,4)-1||1)), cy-h/2+8, 3.8, _cRef);
     for (let i = 0; i < Math.min(ni,4); i++) b += _S.dot(cx-w/2+8+i*((w-16)/Math.max(1,Math.min(ni,4)-1||1)), cy+h/2-8, 3.8, _cMain);
-    b += _S.text(cx, cy+h/2+18, `${_fm(A*100,0)} × ${_fm(B*100,0)} cm`, {a:'middle',size:11,b:true});
+    b += _S.text(cx, cy+h/2+18, `${_E('dim-la', _fm(A*100,0))} × ${_E('dim-lb', _fm(B*100,0))} cm`, {a:'middle',size:11,b:true});
+    b += _S.text(cx, cy+h/2+32, _E('dim-cant-elem', `${ne} ${ne === 1 ? 'tramo' : 'tramos'} iguales`), {a:'middle',size:10});
     const H = Math.round(B*100);
     notas = [`Longitud de cada hierro = <b>luz + luz/6</b> (Chandías: incluye ganchos, dobladuras y empalmes) · empalme 0,60 m si pasa de 12 m`];
     if (sub === 'viga') notas.push(`Chandías: gancho ${dl} (ADN-420) = ${gancho} mm por dos ganchos · cada dobladura a 45° en viga de ${H} cm suma Δ₂ = ${chandiasDobladura45(H)} cm (Tabla 7.9) — ya contemplado en el 1/6`,
@@ -3482,7 +3524,7 @@ function armDiagramaSVG(tipo, v) {
     b += _S.path(`M${x0+rr} ${ybs-(nA>=1?aL:0)} L${x0+rr} ${ybs} L${x0+w-rr} ${ybs} L${x0+w-rr} ${ybs-(nA>=2?aL:0)}`, _cEst, 2);
     const nn = Math.min(np, 6);
     for (let i = 0; i < nn; i++) b += _S.dot(x0+rr+4+i*((w-2*rr-8)/Math.max(1,nn-1)), ybs-5, 3.6, _cMain);
-    b += _S.text(x0+w/2, y0+h+18, `corte: B = ${_fm(Bw*100,0)} cm · A = ${_fm(Ah*100,0)} cm`, {a:'middle',size:10,b:true});
+    b += _S.text(x0, y0+h+18, 'corte: ' + _E('dim-la', `B = ${_fm(Bw*100,0)} cm`) + ' · ' + _E('dim-lb', `A = ${_fm(Ah*100,0)} cm`), {a:'start',size:10,b:true});
     // elevación longitudinal
     const lx = 250, lw = 290, lh = Math.max(46, Math.min(Ah*sc, 80)), ly = 70;
     b += _S.rect(lx, ly, lw, lh, _cHor, 'var(--bg)');
@@ -3494,9 +3536,9 @@ function armDiagramaSVG(tipo, v) {
       b += _S.path(`M${lx+8} ${up?y-16:y+16} L${lx+8} ${y} L${lx+lw-8} ${y} L${lx+lw-8} ${up?y-16:y+16}`, _cMain, 2.2);
     }
     b += _S.text(lx+lw/2, ly-8, 'elevación longitudinal', {a:'middle',c:'var(--tx3)',size:9});
-    b += _dimH(lx, lx+lw, ly+lh+26, `L = ${_fm(L)} m`);
+    b += _dimH(lx, lx+lw, ly+lh+26, _E('dim-ml', `L = ${_fm(L)} m`));
     b += _S.text(lx+10, ly+lh+44, 'pata de anclaje 25 cm c/extremo', {c:_cMain,size:9});
-    b += _leyenda(30, 200, [{c:_cMain,t:`${np} ${dl} principales (longitudinales)`},{c:_cEst,t:`Secundarios ${dls} c/${_fm(sep*100,0)} cm · ${nA} ala${nA===1?'':'s'}`}]);
+    b += _leyenda(30, Math.max(200, y0+h+36), [{c:_cMain,t:_E('dim-np', `${np} ${dl}`) + ' principales (longitudinales)'},{c:_cEst,t:`Secundarios ${dls} ` + _E('dim-sep', `c/${_fm(sep*100,0)} cm`) + ' · ' + _E('dim-nala', `${nA} ala${nA===1?'':'s'}`) + ' de ' + _E('dim-ala', `${_fm(alaU*100,0)} cm`)}]);
     notas = [`Sin estribos · principales con pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra)`,
              `Secundario = ancho útil (B − 2×2,5 cm) + ${nA} ala${nA===1?'':'s'} de ${_fm(alaU*100,0)} cm · cantidad = L/sep + 1`,
              `Chandías (Tabla 7.6, ADN-420): gancho ${dl} = ${gancho} mm por dos ganchos`];
@@ -3528,13 +3570,13 @@ function armDiagramaSVG(tipo, v) {
       const t = (i+1)/(nd+1), px = (B-bw+r) + (r-(B-bw+r))*t, py = (H-r) + ((e-r)-(H-r))*t;
       b += _S.dot(X(px)+2, Y(py)+5, 3.2, _cMain);
     }
-    b += _dimH(X(0), X(B), yb+42, `B = ${_fm(B*100,0)} cm`);
-    b += _dimV(X(0)-16, Y(H), yb, `H = ${_fm(H*100,0)}`, true);
+    b += _dimH(X(0), X(B), yb+42, _E('dim-la', `B = ${_fm(B*100,0)} cm`));
+    b += _dimV(X(0)-16, Y(H), yb, _E('dim-lb', `H = ${_fm(H*100,0)}`), true);
     const area = B*e + bw*Math.max(0, H-e) + Math.max(0, B-bw)*Math.max(0, H-e)/2 + bw*d;
-    b += _leyenda(372, 52, [{c:_cMain,t:`${n10}Ø10 inferiores`,dot:true},{c:_cRef,t:`${n8}Ø8 inferiores`,dot:true},{c:_cMain,t:`${nd}Ø10 en la pendiente`,dot:true},{c:_cEst,t:`Secund. ${dls} c/${_fm(sep*100,0)} · ${nA} ala${nA===1?'':'s'}`}]);
-    b += _S.text(372, 136, `e = ${_fm(e*100,0)} cm · dado ${_fm(bw*100,0)}×${_fm(d*100,0)} cm`, {size:10});
+    b += _leyenda(372, 52, [{c:_cMain,t:_E('dim-np', `${n10}Ø10`) + ' inferiores',dot:true},{c:_cRef,t:_E('dim-n8', `${n8}Ø8`) + ' inferiores',dot:true},{c:_cMain,t:_E('dim-nd', `${nd}Ø10`) + ' en la pendiente',dot:true},{c:_cEst,t:`Secund. ${dls} ` + _E('dim-sep', `c/${_fm(sep*100,0)}`) + ' · ' + _E('dim-nala', `${nA} ala${nA===1?'':'s'}`)}]);
+    b += _S.text(372, 136, _E('dim-e', `e = ${_fm(e*100,0)} cm`) + ' · dado ' + _E('dim-bw', _fm(bw*100,0)) + '×' + _E('dim-d', _fm(d*100,0)) + ' cm', {size:10});
     b += _S.text(372, 152, `Sección: ${_fm(area,3)} m² por ml`, {size:10,b:true});
-    b += _S.text(372, 168, `L = ${_fm(L)} m → ${_fm(area*L,2)} m³`, {size:10,b:true});
+    b += _S.text(372, 168, _E('dim-ml', `L = ${_fm(L)} m`) + ` → ${_fm(area*L,2)} m³`, {size:10,b:true});
     notas = [`Media zapata de medianera: el muro queda en el borde del terreno, la base solo se abre hacia el lado propio · volumen = base B×e + dado + cuña de la pendiente + arranque`,
              `Barras con <b>25 cm de pata por extremo</b> (+0,50 m) · sin estribos: secundario transversal = ancho útil + ${nA} ala${nA===1?'':'s'} de ${_fm(alaU*100,0)} cm · los 4Ø10 y Ø6 c/20 de la columna se computan en la columna`];
   }
@@ -3548,7 +3590,8 @@ function armDiagramaSVG(tipo, v) {
     for (let i = 0; i < ny; i++) { const x = px+6+i*((w-12)/Math.max(1,ny-1)); b += _S.line(x, py+6, x, py+h-6, _cRef, 1.4); }
     b += _S.rect(px+w/2-10, py+h/2-10, 20, 20, _cHor, 'var(--bg)', 1.2, '3 2');
     b += _S.text(px+w/2, py-10, 'planta — parrilla', {a:'middle',c:'var(--tx3)',size:9});
-    b += _S.text(px+w/2, py+h+16, `${_fm(Aw)} × ${_fm(Lg)} m`, {a:'middle',size:10,b:true});
+    b += _S.text(px+w/2, py+h+16, `${_E('dim-la', _fm(Aw))} × ${_E('dim-lb', _fm(Lg))} m`, {a:'middle',size:10,b:true});
+    b += _S.text(px+w/2, py+h+30, _E('dim-cant', `${v.nz || 1} ${esCabezal(v.cod) ? 'cabezal(es)' : 'base(s)'} iguales`), {a:'middle',size:10});
     // corte
     const cx0 = 270, cw = 220, ch = Math.max(40, Math.min(Al*cw/Aw*1.2, 90)), cy0 = 130;
     b += _S.rect(cx0+cw/2-12, cy0-60, 24, 60, _cHor, 'var(--bg)');
@@ -3563,9 +3606,9 @@ function armDiagramaSVG(tipo, v) {
       [cx0+cw*0.22, cx0+cw*0.78].forEach(x => { b += _S.rect(x-11, cy0+ch, 22, 40, _cHor, 'var(--bg)', 1.2, '4 3'); });
       b += _S.text(cx0+cw+6, cy0+ch+28, 'pilotes (aparte)', {c:'var(--tx3)',size:9});
     }
-    b += _S.text(cx0+cw/2, cab ? cy0+ch+54 : cy0+ch+18, `${cab ? 'cabezal' : 'corte'} — alto ${_fm(Al)} m`, {a:'middle',size:10,b:true});
+    b += _S.text(cx0+cw/2, cab ? cy0+ch+54 : cy0+ch+18, `${cab ? 'cabezal' : 'corte'} — ` + _E('dim-ml', `alto ${_fm(Al)} m`), {a:'middle',size:10,b:true});
     b += _S.text(cx0+8, yb-ph-5, 'pata 25 cm', {c:_cMain,size:9});
-    b += _leyenda(30, 222, [{c:_cMain,t:`barras en X (${dl}) c/${_fm(sep*100,0)} cm, con patas`},{c:_cRef,t:'barras en Y'}]);
+    b += _leyenda(30, Math.max(222, py+h+46), [{c:_cMain,t:`barras en X (${dl}) ` + _E('dim-sep', `c/${_fm(sep*100,0)} cm`) + ', con patas'},{c:_cRef,t:'barras en Y'}]);
     notas = [`Parrilla en dos direcciones · barra = lado + <b>25 cm por extremo</b> de pata de anclaje · recubrimiento 2,5 cm`];
     if (esCabezal(v.cod)) notas.push('Cabezal: une las cabezas de los pilotes con la columna. El hormigón y hierro de los pilotes van en su propio ítem (3.4 / 3.12)');
   }
@@ -3584,14 +3627,14 @@ function armDiagramaSVG(tipo, v) {
       for (let i = 0; i < ny; i++) { const x = px+8+i*((w-16)/Math.max(1,ny-1)); b += _S.path(`M${x-7} ${py+h+8} L${x} ${py+h+8} L${x} ${py+6} L${x+0.01} ${py+6}`, _cRef, 1.4); }
       b += _S.text(px, py-8, 'elevación — barras horizontales (rojo) y verticales (verde)', {a:'start',c:'var(--tx3)',size:9});
     }
-    b += _dimH(px, px+w, py+h+24, `L = ${_fm(Lt)} m`) + _dimV(px+w+16, py, py+h, `${_fm(Ht)} m`, false);
+    b += _dimH(px, px+w, py+h+24, _E('dim-ml', `L = ${_fm(Lt)} m`)) + _dimV(px+w+16, py, py+h, _E('dim-lb', `${_fm(Ht)} m`), false);
     // corte horizontal
     const tx = 440, tw = Math.max(18, Math.min(e*160, 60)), ty = 60, th = 110;
     b += _S.rect(tx, ty, tw, th, _cHor, 'var(--bg)');
     for (let i = 0; i < 8; i++) b += _S.dot(tx+tw/2, ty+10+i*((th-20)/7), 2.8, _cMain);
-    b += _S.text(tx+tw/2, ty+th+16, `e = ${_fm(e*100,0)} cm`, {a:'middle',size:10,b:true});
+    b += _S.text(tx+tw/2, ty+th+16, _E('dim-la', `e = ${_fm(e*100,0)} cm`), {a:'middle',size:10,b:true});
     b += _S.text(tx+tw/2, ty-10, 'corte', {a:'middle',c:'var(--tx3)',size:9});
-    b += _S.text(30, 244, v.armTipo === 'malla' ? 'Malla SIMA con 10% de solape · hojas 3 × 2,4 m' : `Barras ${dl} c/${_fm(sep*100,0)} cm (horiz.) y c/${_fm(sep2*100,0)} cm (vert.) · pata de anclaje 25 cm c/extremo`, {size:10});
+    b += _S.text(30, 244, v.armTipo === 'malla' ? 'Malla SIMA con 10% de solape · hojas 3 × 2,4 m' : `Barras ${dl} ` + _E('dim-sep', `c/${_fm(sep*100,0)} cm`) + ' (horiz.) y ' + _E('dim-sep2', `c/${_fm(sep2*100,0)} cm`) + ` (vert.) · pata de anclaje 25 cm c/extremo`, {size:10});
     notas = [v.armTipo === 'malla' ? `Malla SIMA: m² = alto × largo × 1,10 · hojas = m² / 7,2` : `Barras = largo/alto + <b>25 cm por extremo</b> de anclaje en columnas/encadenados`];
   }
 
@@ -3608,13 +3651,13 @@ function armDiagramaSVG(tipo, v) {
       b += _S.path(`M${x} ${py-14} L${x} ${py+h+12} L${x+dir*14} ${py+h+12}`, _cMain, 2);
     }
     b += _S.text(px-4, py-18, 'espera', {a:'end',c:'var(--tx3)',size:9});
-    b += _dimV(px+w+22, py, py+h, `${_fm(P)} m`, false);
+    b += _dimV(px+w+22, py, py+h, _E('dim-ml', `${_fm(P)} m`), false);
     const cx = 350, cy = 105, r = 60;
     b += _S.dot(cx, cy, r, 'var(--bg)') + `<circle cx="${cx}" cy="${cy}" r="${r}" style="fill:none;stroke:${_cHor};stroke-width:1.2"/>`;
     b += `<circle cx="${cx}" cy="${cy}" r="${r-8}" style="fill:none;stroke:${_cEst};stroke-width:2"/>`;
     for (let i = 0; i < Math.min(np, 12); i++) { const a = i*2*Math.PI/Math.min(np,12); b += _S.dot(cx+(r-8)*Math.cos(a), cy+(r-8)*Math.sin(a), 4, _cMain); }
-    b += _S.text(cx, cy+r+20, `Ø ${_fm(D*100,0)} cm`, {a:'middle',size:11,b:true});
-    b += _leyenda(260, 208, [{c:_cMain,t:`${np} ${dl} longitudinales (pata 25 cm)`},{c:_cEst,t:`Zuncho Ø6 c/${_fm(sep*100,0)} cm`}]);
+    b += _S.text(cx, cy+r+20, _E('dim-la', `Ø ${_fm(D*100,0)} cm`), {a:'middle',size:11,b:true});
+    b += _leyenda(260, 208, [{c:_cMain,t:_E('dim-np', `${np} ${dl}`) + ' longitudinales (pata 25 cm)'},{c:_cEst,t:`Zuncho ${DIAM_LABEL[v.diamEst]||'Ø6'} ` + _E('dim-sep', `c/${_fm(sep*100,0)} cm`)}]);
     notas = [`Pata de anclaje <b>25 cm por extremo</b> · zuncho circular = π × (Ø − 2 × 2,5 cm) + 12,5 cm`];
   }
 
@@ -3626,7 +3669,7 @@ function armDiagramaSVG(tipo, v) {
     for (let i = 0; i < nx; i++) { const y = py+5+i*((h-10)/Math.max(1,nx-1)); b += _S.line(px+4, y, px+w-4, y, _cMain, 1.2); }
     for (let i = 0; i < ny; i++) { const x = px+5+i*((w-10)/Math.max(1,ny-1)); b += _S.line(x, py+4, x, py+h-4, _cRef, 1.2, '4 2'); }
     b += _S.text(px+w/2, py-10, 'planta', {a:'middle',c:'var(--tx3)',size:9});
-    b += _dimH(px, px+w, py+h+26, `X = ${_fm(X)} m`) + _dimV(px+w+14, py, py+h, `Y = ${_fm(Y)} m`, false);
+    b += _dimH(px, px+w, py+h+26, _E('dim-la', `X = ${_fm(X)} m`)) + _dimV(px+w+14, py, py+h, _E('dim-lb', `Y = ${_fm(Y)} m`), false);
     const hayRef = (v.refMl || 0) > 0;
     const luz = Math.min(X, Y);
     const refL = v.refLargo || luz/2;
@@ -3649,14 +3692,14 @@ function armDiagramaSVG(tipo, v) {
     b += _S.path(`M${cx0+6} ${yb-14} L${cx0+6} ${yb} L${cx0+cw-6} ${yb} L${cx0+cw-6} ${yb-14}`, _cMain, 2.4);
     b += _S.text(cx0+cw/2, cy0+th+26, `hierro inf. = luz + luz/6 = ${_fm(luz+luz/6)} m`, {a:'middle',c:_cMain,size:9,b:true});
     b += _S.text(cx0+cw/2, cy0-24, 'corte', {a:'middle',c:'var(--tx3)',size:9});
-    b += _S.text(cx0+cw/2, cy0+th+42, `espesor ${_fm(e*100,0)} cm`, {a:'middle',size:10,b:true});
+    b += _S.text(cx0+cw/2, cy0+th+42, _E('dim-ml', `espesor ${_fm(e*100,0)} cm`), {a:'middle',size:10,b:true});
     if (hayRef) {
       const rl = Math.min((refL/luz)*cw/2, cw/2-12);
       const ys = cy0+5;
       b += _S.path(`M${cx0+cw-rl} ${ys+12} L${cx0+cw-rl} ${ys} L${cx0+cw+12} ${ys} L${cx0+cw+12} ${ys+th+10}`, _cRef, 2.4);
-      b += _S.text(cx0+cw+12, ys-8, `bastón ${_fm(refL)} m`, {a:'end',c:_cRef,size:9,b:true});
+      b += _S.text(cx0+cw+12, ys-8, 'bastón ' + _E('dim-ref-largo', `${_fm(refL)} m`) + ' ' + _E('dim-ref-sep', `c/${_fm((v.refSep || 0.2)*100,0)} cm`) + ` · ${_fm(v.refMl)} ml de apoyo`, {a:'end',c:_cRef,size:9,b:true});
     }
-    b += _leyenda(24, 238, [{c:_cMain,t:'barras X (inferiores)'},{c:_cRef,t:'barras Y (dash)',dash:'4 2'}]);
+    b += _leyenda(24, 238, [{c:_cMain,t:`barras X (inferiores) ${dl} ` + _E('dim-sep', `c/${_fm(sx*100,0)} cm`)},{c:_cRef,t:`barras Y ${dl} ` + _E('dim-sep2', `c/${_fm(sy*100,0)} cm`),dash:'4 2'}]);
     notas = [`Chandías: cada hierro de losa/platea = <b>luz + luz/6</b> (incluye ganchos, dobladuras y empalmes); Chandías no da una regla propia para refuerzos sobre apoyos`,
              hayRef ? `Refuerzo cargado: lo que figure en la planilla de armadura. Si dejás el largo vacío se asume luz/2 (≈ luz/4 a cada lado del apoyo, criterio usual)` : (tipo === 'platea' ? `Si la platea lleva refuerzos (bajo columnas o muros), cargalos abajo: ml, largo de cada bastón y separación` : `Si la losa lleva refuerzos (bastones sobre apoyos), cargalos abajo: ml de apoyos, largo de cada bastón y separación`)];
   }
@@ -3682,6 +3725,7 @@ function armDiagramaSVG(tipo, v) {
     b += _leyenda(30, 212, [{c:_cMain,t:'barras de nervio',dot:true},{c:_cRef,t:'malla en capa de compresión',dash:'3 2'}]);
     b += _S.text(300, 212, `Hº ${_fm(k.hor,3)} m³/m² (macizado ${_fm(p.mac,0)} %)`, {size:10,b:true});
     b += _S.text(300, 227, `${_fm(k.nCas)} casetones ${p.cas}×${p.cas}/m²`, {size:10});
+    b += _S.text(300, 242, (v.la > 0 && v.lb > 0) ? `Paño ${_fm(v.la)} × ${_fm(v.lb)} m · ${ne} ${ne === 1 ? 'paño' : 'paños'}` : '<tspan style="fill:var(--am);font-style:italic">Paño sin medidas: cargá ancho y alto</tspan>', {size:10,b:true});
     notas = [`Hº por m² = (alto casetón + capa) − casetones/m² × volumen del casetón · casetones/m² = 1 / intereje²`,
              k.vEstimado ? 'Volumen del casetón estimado (tronco de pirámide). Si tenés la ficha del proveedor, cargalo: es lo que más mueve el hormigón' : 'Volumen del casetón tomado de la ficha'];
   }
@@ -3697,13 +3741,20 @@ function armDiagramaSVG(tipo, v) {
       b += _S.path(`M${xv-4} ${yTop+hcc} L${xv-4} ${yTop+hcc+hb-6} L${xv-12} ${yTop+hcc+hb-6} L${xv-12} ${yTop+hcc+hb} L${xv+12} ${yTop+hcc+hb} L${xv+12} ${yTop+hcc+hb-6} L${xv+4} ${yTop+hcc+hb-6} L${xv+4} ${yTop+hcc}`, _cMain, 1.6);
       if (i < n) b += _S.rect(xv+14, yTop+hcc+3, sep*sc-28, hb-6, 'var(--tx3)', 'none', 1, '3 2') + _S.text(xv+sep*sc/2, yTop+hcc+hb/2+4, 'bovedilla', {a:'middle',c:'var(--tx3)',size:9});
     }
-    b += _dimH(x0, x0+sep*sc, yTop+hcc+hb+22, `sep. viguetas ${_fm(sep)} m`);
-    b += _dimV(x0+ancho+14, yTop, yTop+hcc, `capa ${_fm(cc*100,0)} cm`, false);
+    b += _dimH(x0, x0+sep*sc, yTop+hcc+hb+22, _E('dim-sep', `sep. viguetas ${_fm(sep)} m`));
+    b += _dimV(x0+ancho+14, yTop, yTop+hcc, _E('dim-ml', `capa ${_fm(cc*100,0)} cm`), false);
+    b += _S.text(300, 212, 'Paño ' + _E('dim-la', `${_fm(v.la || 4)}`) + ' × ' + _E('dim-lb', `${_fm(v.lb || 3)} m`) + ' · ' + _E('dim-cant-elem', `${ne} ${ne === 1 ? 'paño' : 'paños'}`), {size:10,b:true});
     b += _leyenda(30, 212, [{c:_cMain,t:'vigueta pretensada'},{c:_cRef,t:'malla en capa de compresión',dash:'3 2'}]);
     notas = [`Viguetas = ancho del paño / separación · bovedillas ≈ 5,6 u/m² · Hº = superficie × capa de compresión`];
   }
 
   if (!b) return '';
+  if (v.armDef) {
+    b += _S.text(W-8, 14, 'ARMADURA ESTIMADA (import)', {a:'end',size:10,b:true,c:'var(--am)'});
+    notas.unshift('<b style="color:var(--am)">Armadura por defecto del import</b>, no la del cálculo estructural: ajustá diámetros, cantidades y separaciones según la planilla y guardá para quitar la marca');
+  }
+  if (_hayTipicos) notas.unshift('<b style="color:var(--am)">≈ en ámbar = campo vacío</b>: se dibuja un valor típico. Lados, largos y alturas vacíos no computan; separaciones y cantidades vacías usan ese valor por defecto en el cálculo');
+  _vacios = null;
   return `<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;" role="img" aria-label="Esquema de armadura">${b}</svg>` +
     `<div style="font-size:10px;color:var(--tx3);line-height:1.6;margin-top:6px;">${notas.map(n => '• ' + n).join('<br>')}</div>`;
 }
@@ -3723,13 +3774,15 @@ function renderArmDiagrama() {
     np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0,
     diam: document.getElementById('dim-diam-ppal')?.value || document.getElementById('dim-hierro-diam')?.value || 'MAT-003',
     armTipo: document.getElementById('dim-arm-tipo')?.value || 'hierros',
-    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), cod: coef.cod
+    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), refSep: g('dim-ref-sep'), cod: coef.cod,
+    ne: g('dim-cant-elem') || 1, nz: g('dim-cant') || 1, vacios: _vaciosForm('')
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   if (tipo === 'zapata_excentrica') v.exc = dimsZapataExcentrica('');
   Object.assign(v, armExtrasUI(''));
   cont.innerHTML = armDiagramaSVG(tipo, v);
+  _colorearCampos('', tipo);
 }
 
 // IG helper
@@ -5104,13 +5157,17 @@ function renderEditArmDiagrama() {
     np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0,
     diam: document.getElementById('e-dim-diam-ppal')?.value || document.getElementById('e-dim-hierro-diam')?.value || 'MAT-003',
     armTipo: document.getElementById('e-dim-arm-tipo')?.value || 'hierros',
-    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), cod: coef.cod
+    refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), refSep: g('dim-ref-sep'), cod: coef.cod,
+    ne: g('dim-cant-elem') || 1, nz: g('dim-cant') || 1, vacios: _vaciosForm('e-')
   };
+  const medEd = (typeof editingMedId !== 'undefined' && editingMedId) ? meds.find(m => m.id === editingMedId) : null;
+  v.armDef = !!medEd && /armDef\s*:\s*import/.test(medEd.desc || medEd.descripcion || '');
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   if (tipo === 'zapata_excentrica') v.exc = dimsZapataExcentrica('e-');
   Object.assign(v, armExtrasUI('e-'));
   cont.innerHTML = armDiagramaSVG(tipo, v);
+  _colorearCampos('e-', tipo);
 }
 
 function calcEditDimEstructural() {
