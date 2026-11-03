@@ -1316,7 +1316,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-10-29.2';
+const APP_BUILD = '2026-11-03.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -3083,6 +3083,8 @@ function tipoEstructural(cod) {
   if (['4.11','4.13','4.28','4.29'].includes(c)) return 'tabique_hormigon';
   // Zapata corrida: solo zapatas corridas. El Hº ciclópeo (3.7) no lleva armadura → usa DIMS_CIMIENTO.
   if (['3.2','3.8'].includes(c)) return 'zapata';
+  // Media zapata de medianera (excéntrica): sección con pendiente, muro al borde del terreno
+  if (['3.21'].includes(c)) return 'zapata_excentrica';
   // Bases puntuales y cabezales (3.5 / 3.19): bloque con parrilla en dos direcciones
   if (['3.5','3.14','3.18','3.19'].includes(c)) return 'zapata_puntual';
   if (['3.4','3.12'].includes(c)) return 'pozo';
@@ -3096,7 +3098,7 @@ function tipoEstructural(cod) {
 
 // Calcula ML de estribos y hierros principales dados los datos de dimensiones
 function calcArmadura(tipo, dims) {
-  const { ladoA=0, ladoB=0, ml=0, sepEst=0.25, cantPpal=4, cantSup=2, cantInf=2, diam=0.006, sepX=0.20, sepY=0.20, ancho=0, largo=0, alto=0, sep=0.20, cant=1, armTipo='hierros', mallaTipo='MAT-008', hierroDiam='MAT-002', diamPpal='MAT-003', cantElem=1, refMl=0, refLargo=0, refSep=0.20, refDiam='MAT-003' } = dims;
+  const { ladoA=0, ladoB=0, ml=0, sepEst=0.25, cantPpal=4, cantSup=2, cantInf=2, diam=0.006, sepX=0.20, sepY=0.20, ancho=0, largo=0, alto=0, sep=0.20, cant=1, armTipo='hierros', mallaTipo='MAT-008', hierroDiam='MAT-002', diamPpal='MAT-003', cantElem=1, refMl=0, refLargo=0, refSep=0.20, refDiam='MAT-003', esp=0.20, bwDado=0.20, dado=0.15, cant8=3, cantDiag=2 } = dims;
   const rec2 = 2 * RECUB;
   let resultado = {};
 
@@ -3156,6 +3158,31 @@ function calcArmadura(tipo, dims) {
       cantEstribos: cantEst,
       diamPpal,
       resumen: `B=${ladoA*100}cm A=${ladoB*100}cm, L=${ml}m | est. c/${sepEst*100}cm`
+    };
+  }
+
+  else if (tipo === 'zapata_excentrica') {
+    // Media zapata de medianera. Sección por ml = base B×e + dado bw×(H−e) + cuña (B−bw)×(H−e)/2 + arranque bw×d
+    // Armadura (plano "Zapata excéntrica"): estribo Ø6 de perfil + Ø10 inferiores + 2Ø10 en la pendiente (→ ppal)
+    // y Ø8 inferiores (→ ref, para no tocar el costeo). Patas de 25 cm por extremo, igual que la zapata corrida.
+    const B = ladoA, H = ladoB, e = Math.min(esp, H), bw = Math.min(bwDado, B);
+    const hp = Math.max(0, H - e), run = Math.max(0, B - bw);
+    const area = B*e + bw*hp + run*hp/2 + bw*dado;
+    const m3 = area * ml;
+    const perimEst = Math.max(0, B - rec2) + Math.max(0, H - rec2) + Math.max(0, bw - rec2) + Math.hypot(run, hp) + Math.max(0, e - rec2) + 0.125;
+    const cantEst = ml > 0 ? Math.ceil(ml / sepEst) + 1 : 0;
+    const barraL = ml + ANCLAJE*2;
+    const mlPpal = (cantPpal + cantDiag) * barraL;
+    const mlRef8 = cant8 * barraL;
+    resultado = {
+      m3: +m3.toFixed(4),
+      mlEstribos: +(cantEst * perimEst).toFixed(3),
+      mlPpal: +mlPpal.toFixed(3),
+      mlRef: +mlRef8.toFixed(3), refDiam: 'MAT-002', cantRef: cant8, refLargo: +barraL.toFixed(2), refLabel: 'Ø8 inferiores',
+      cantEstribos: cantEst,
+      diamPpal: 'MAT-003',
+      areaSec: +area.toFixed(4),
+      resumen: `B=${+(B*100).toFixed(1)} H=${+(H*100).toFixed(1)} e=${+(e*100).toFixed(1)} dado ${+(bw*100).toFixed(1)}×${+(dado*100).toFixed(1)}cm, L=${ml}m | ${cantPpal}Ø10 inf + ${cantDiag}Ø10 pend. + ${cant8}Ø8 inf | est. Ø6 c/${+(sepEst*100).toFixed(1)}cm`
     };
   }
 
@@ -3312,6 +3339,14 @@ function _puntosSeccion(cx, cy, w, h, n) {
   return pts.slice(0, Math.max(4, Math.min(n, 8)));
 }
 
+// Media zapata de medianera: lee los campos propios del formulario (pre = '' en Nueva medición, 'e-' en Editar).
+// Un campo vacío toma el valor del plano "Zapata excéntrica"; devuelve las dims para calcArmadura.
+function dimsZapataExcentrica(pre) {
+  const gd = (id, def) => { const el = document.getElementById(pre + id); return (!el || el.value === '') ? def : num(el.value); };
+  return { exc: true, ladoA: gd('dim-la', 0), ladoB: gd('dim-lb', 0), ml: gd('dim-ml', 0), esp: gd('dim-e', 0.20), bwDado: gd('dim-bw', 0.20), dado: gd('dim-d', 0.15),
+           sepEst: gd('dim-sep', 0.20) || 0.20, cantPpal: gd('dim-np', 4), cant8: gd('dim-n8', 3), cantDiag: gd('dim-nd', 2) };
+}
+
 function armDiagramaSVG(tipo, v) {
   const W = 560, Hh = 262;
   let b = '';
@@ -3417,6 +3452,41 @@ function armDiagramaSVG(tipo, v) {
     b += _leyenda(30, 200, [{c:_cMain,t:`${np} ${dl} longitudinales`},{c:_cEst,t:`Estribos Ø6 c/${_fm(sep*100,0)} cm`}]);
     notas = [`Pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra) · estribo = perímetro + 12,5 cm`,
              `Chandías (Tabla 7.6, ADN-420): gancho ${dl} = ${gancho} mm por dos ganchos`];
+  }
+
+  else if (tipo === 'zapata_excentrica') {
+    const x = v.exc || {};
+    const B = x.ladoA || 0.70, H = x.ladoB || 0.50, e = Math.min(x.esp || 0.20, H), bw = Math.min(x.bwDado || 0.20, B), d = (x.dado == null ? 0.15 : x.dado);
+    const n10 = x.cantPpal == null ? 4 : x.cantPpal, n8 = x.cant8 == null ? 3 : x.cant8, nd = x.cantDiag == null ? 2 : x.cantDiag;
+    const sep = x.sepEst || 0.20, L = x.ml || 5, r = RECUB;
+    const sc = Math.min(270/B, 140/(H+d)), x0 = 70, yb = 188;
+    const X = m => +(x0 + m*sc).toFixed(1), Y = m => +(yb - m*sc).toFixed(1);
+    // columna sobre el arranque y hormigón de limpieza (aparte)
+    b += _S.rect(X(B-bw), Y(H+d)-30, bw*sc, 30, _cHor, 'var(--bg)', 1.2, '4 3') + _S.text(X(B)+6, Y(H+d)-12, 'columna', {c:'var(--tx3)',size:9});
+    b += _S.rect(X(-0.05), yb, (B+0.05)*sc, Math.max(4, 0.05*sc), _cHor, 'none', 1, '4 3') + _S.text(X(0), yb+22, 'Hº limpieza 5 cm (ítem aparte)', {c:'var(--tx3)',size:9});
+    // sección: base + pendiente + dado/arranque (el muro queda al borde del terreno)
+    b += _S.path(`M${X(0)} ${Y(0)} L${X(B)} ${Y(0)} L${X(B)} ${Y(H+d)} L${X(B-bw)} ${Y(H+d)} L${X(B-bw)} ${Y(H)} L${X(0)} ${Y(e)} Z`, _cHor, 1.4, 'var(--bg)');
+    b += _S.line(X(B), Y(H+d)-34, X(B), yb+14, 'var(--tx3)', 1, '6 3 1 3') + _S.text(X(B)+6, Y(H)+4, 'límite medianera', {c:'var(--tx3)',size:9});
+    // estribo de perfil Ø6
+    b += _S.path(`M${X(r)} ${Y(r)} L${X(B-r)} ${Y(r)} L${X(B-r)} ${Y(H-r)} L${X(B-bw+r)} ${Y(H-r)} L${X(r)} ${Y(e-r)} Z`, _cEst, 1.6);
+    // barras inferiores: Ø10 y Ø8 alternadas, repartidas en el ancho
+    const tipos = []; let a10 = n10, a8 = n8;
+    while (a10 > 0 || a8 > 0) { if (a10 > 0) { tipos.push(10); a10--; } if (a8 > 0) { tipos.push(8); a8--; } }
+    tipos.forEach((t, i) => { const px = tipos.length > 1 ? r + i*(B-2*r)/(tipos.length-1) : B/2; b += _S.dot(X(px), Y(r)-3.5, 3.2, t === 10 ? _cMain : _cRef); });
+    // barras sobre la pendiente
+    for (let i = 0; i < nd; i++) {
+      const t = (i+1)/(nd+1), px = (B-bw+r) + (r-(B-bw+r))*t, py = (H-r) + ((e-r)-(H-r))*t;
+      b += _S.dot(X(px)+2, Y(py)+5, 3.2, _cMain);
+    }
+    b += _dimH(X(0), X(B), yb+42, `B = ${_fm(B*100,0)} cm`);
+    b += _dimV(X(0)-16, Y(H), yb, `H = ${_fm(H*100,0)}`, true);
+    const area = B*e + bw*Math.max(0, H-e) + Math.max(0, B-bw)*Math.max(0, H-e)/2 + bw*d;
+    b += _leyenda(372, 52, [{c:_cMain,t:`${n10}Ø10 inferiores`,dot:true},{c:_cRef,t:`${n8}Ø8 inferiores`,dot:true},{c:_cMain,t:`${nd}Ø10 en la pendiente`,dot:true},{c:_cEst,t:`Estribo Ø6 c/${_fm(sep*100,0)}`}]);
+    b += _S.text(372, 136, `e = ${_fm(e*100,0)} cm · dado ${_fm(bw*100,0)}×${_fm(d*100,0)} cm`, {size:10});
+    b += _S.text(372, 152, `Sección: ${_fm(area,3)} m² por ml`, {size:10,b:true});
+    b += _S.text(372, 168, `L = ${_fm(L)} m → ${_fm(area*L,2)} m³`, {size:10,b:true});
+    notas = [`Media zapata de medianera: el muro queda en el borde del terreno, la base solo se abre hacia el lado propio · volumen = base B×e + dado + cuña de la pendiente + arranque`,
+             `Barras con <b>25 cm de pata por extremo</b> (+0,50 m) · estribo de perfil = contorno + 12,5 cm · los 4Ø10 y Ø6 c/20 de la columna se computan en la columna`];
   }
 
   else if (tipo === 'zapata_puntual') {
@@ -3607,6 +3677,7 @@ function renderArmDiagrama() {
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
+  if (tipo === 'zapata_excentrica') v.exc = dimsZapataExcentrica('');
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
@@ -3781,6 +3852,28 @@ function onTareaChange() {
             <option value="MAT-006">Ø20mm</option>
           </select>
         </div>
+      <div class="ig-item" style="grid-column:1/-1;">
+        <div class="ig-label">Resultado calculado</div>
+        <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
+      </div>
+      <div class="ig-item"><div class="ig-label">M³ (calculado)</div><input class="ig-input" id="dim-res" type="number" step="0.001" style="color:var(--gr);font-weight:600;" readonly></div>`;
+  }
+
+  else if (tipo === 'zapata_excentrica') {
+    wrap.innerHTML = `
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Media zapata de medianera · Recubrimiento: 2.5cm · Anclaje: 25cm · Los campos vacíos toman los valores del plano
+      </div>
+      ${ig('dim-la','Ancho base B (m)','0.70')}
+      ${ig('dim-lb','Altura H a tope de pendiente (m)','0.50')}
+      ${ig('dim-e','Espesor de punta e (m)','0.20')}
+      ${ig('dim-bw','Ancho del dado (m)','0.20')}
+      ${ig('dim-d','Arranque sobre pendiente (m)','0.15')}
+      ${ig('dim-ml','Metros lineales (m)')}
+      ${ig('dim-sep','Sep. estribos Ø6 (m)','0.20')}
+      ${ig('dim-np','Ø10 inferiores (cant)','4','1')}
+      ${ig('dim-n8','Ø8 inferiores (cant)','3','1')}
+      ${ig('dim-nd','Ø10 en pendiente (cant)','2','1')}
       <div class="ig-item" style="grid-column:1/-1;">
         <div class="ig-label">Resultado calculado</div>
         <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
@@ -4357,6 +4450,7 @@ function calcDimEstructural() {
   else if (tipo === 'viga') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
   else if (tipo === 'zapata') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003' };
   else if (tipo === 'zapata_puntual') dims = { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1 };
+  else if (tipo === 'zapata_excentrica') dims = dimsZapataExcentrica('');
   else if (tipo === 'tabique_hormigon') {
     const armTipo = document.getElementById('dim-arm-tipo')?.value || 'hierros';
     const mallaTipo = document.getElementById('dim-malla-tipo')?.value || 'MAT-008';
@@ -4383,7 +4477,7 @@ function calcDimEstructural() {
   if (r.mlInf) html += `<b>ML hierros inf:</b> ${r.mlInf} ml → ${Math.ceil(r.mlInf/12)} barras 12m<br>`;
   if (r.mlX) html += `<b>ML hierros X:</b> ${r.mlX} ml (${r.cantX} barras) → ${Math.ceil(r.mlX/12)} paquetes<br>`;
   if (r.mlY) html += `<b>ML hierros Y:</b> ${r.mlY} ml (${r.cantY} barras) → ${Math.ceil(r.mlY/12)} paquetes<br>`;
-  if (r.mlRef) html += `<b>Refuerzos s/apoyos (${DIAM_LABEL[r.refDiam]||'Ø10'}):</b> ${r.cantRef} bastones × ${r.refLargo} m = ${r.mlRef} ml → ${Math.ceil(r.mlRef/12)} barras 12m<br>`;
+  if (r.mlRef) html += `<b>${r.refLabel || 'Refuerzos s/apoyos'} (${DIAM_LABEL[r.refDiam]||'Ø10'}):</b> ${r.cantRef} bastones × ${r.refLargo} m = ${r.mlRef} ml → ${Math.ceil(r.mlRef/12)} barras 12m<br>`;
   if (r.mlTotal) html += `<b>ML total:</b> ${r.mlTotal} ml → <b>${r.barras12m} barras 12m</b><br>`;
   if (r.m2Malla) html += `<b>Malla SIMA:</b> ${r.m2Malla} m² → <b>${r.cantHojas} hojas</b> (3×2.4m)<br>`;
   if (r.resumen) html += `<span style="color:var(--tx3);font-size:10px;">${r.resumen}</span>`;
@@ -4447,6 +4541,7 @@ async function saveMedicion(keepOpen) {
       if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
       if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
       if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+      if (d.exc) extras.push(`iLa:${d.ladoA}`, `iLb:${d.ladoB}`, `iMl:${d.ml}`, `iE:${d.esp}`, `iBw:${d.bwDado}`, `iD:${d.dado}`, `iN8:${d.cant8}`, `iNd:${d.cantDiag}`);
     }
     if (extras.length) descFinal = (desc ? desc + ' | ' : '') + extras.join('|');
     window._armResult = null;
@@ -4728,6 +4823,24 @@ function _buildEditDimsWrap(coef, wrap) {
       ${diamSelect('dim-diam-ppal')}
       ${previewBlock}`;
   }
+  else if (tipo === 'zapata_excentrica') {
+    wrap.innerHTML = `
+      <div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>
+      <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
+        Media zapata de medianera · Recubrimiento: 2.5cm · Anclaje: 25cm · Los campos vacíos toman los valores del plano
+      </div>
+      ${ige('dim-la','Ancho base B (m)','0.70')}
+      ${ige('dim-lb','Altura H a tope de pendiente (m)','0.50')}
+      ${ige('dim-e','Espesor de punta e (m)','0.20')}
+      ${ige('dim-bw','Ancho del dado (m)','0.20')}
+      ${ige('dim-d','Arranque sobre pendiente (m)','0.15')}
+      ${ige('dim-ml','Metros lineales (m)')}
+      ${ige('dim-sep','Sep. estribos Ø6 (m)','0.20')}
+      ${ige('dim-np','Ø10 inferiores (cant)','4','1')}
+      ${ige('dim-n8','Ø8 inferiores (cant)','3','1')}
+      ${ige('dim-nd','Ø10 en pendiente (cant)','2','1')}
+      ${previewBlock}`;
+  }
   else if (tipo === 'zapata_puntual') {
     wrap.innerHTML = `
       <div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>
@@ -4925,6 +5038,7 @@ function renderEditArmDiagrama() {
   };
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
+  if (tipo === 'zapata_excentrica') v.exc = dimsZapataExcentrica('e-');
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
@@ -4943,6 +5057,7 @@ function calcEditDimEstructural() {
   else if (tipo === 'viga') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
   else if (tipo === 'zapata') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003' };
   else if (tipo === 'zapata_puntual') dims = { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1 };
+  else if (tipo === 'zapata_excentrica') dims = dimsZapataExcentrica('e-');
   else if (tipo === 'tabique_hormigon') {
     const armTipo = document.getElementById('e-dim-arm-tipo')?.value || 'hierros';
     const mallaTipo = document.getElementById('e-dim-malla-tipo')?.value || 'MAT-008';
@@ -5008,7 +5123,7 @@ function calcEditDimEstructural() {
   if (r.mlInf) html += `<b>ML hierros inf:</b> ${r.mlInf} ml → ${Math.ceil(r.mlInf/12)} barras 12m<br>`;
   if (r.mlX) html += `<b>ML hierros X:</b> ${r.mlX} ml (${r.cantX} barras) → ${Math.ceil(r.mlX/12)} paquetes<br>`;
   if (r.mlY) html += `<b>ML hierros Y:</b> ${r.mlY} ml (${r.cantY} barras) → ${Math.ceil(r.mlY/12)} paquetes<br>`;
-  if (r.mlRef) html += `<b>Refuerzos s/apoyos (${DIAM_LABEL[r.refDiam]||'Ø10'}):</b> ${r.cantRef} bastones × ${r.refLargo} m = ${r.mlRef} ml → ${Math.ceil(r.mlRef/12)} barras 12m<br>`;
+  if (r.mlRef) html += `<b>${r.refLabel || 'Refuerzos s/apoyos'} (${DIAM_LABEL[r.refDiam]||'Ø10'}):</b> ${r.cantRef} bastones × ${r.refLargo} m = ${r.mlRef} ml → ${Math.ceil(r.mlRef/12)} barras 12m<br>`;
   if (r.mlTotal) html += `<b>ML total:</b> ${r.mlTotal} ml → <b>${r.barras12m} barras 12m</b><br>`;
   if (r.m2Malla) html += `<b>Malla SIMA:</b> ${r.m2Malla} m² → <b>${r.cantHojas} hojas</b> (3×2.4m)<br>`;
   if (r.resumen) html += `<span style="color:var(--tx3);font-size:10px;">${r.resumen}</span>`;
@@ -5201,7 +5316,17 @@ function openEditMed(medId) {
     if (desc.includes('|')) {
       desc.split('|').forEach(p => { const [k,...v] = p.split(':'); if (k && v.length) armData[k.trim()] = v.join(':').trim(); });
     }
-    if (dims) {
+    // Media zapata de medianera: sus inputs viajan guardados en la descripción (iLa, iLb, iMl, iE…); el texto solo es respaldo.
+    // Va aparte del bloque de dims: la heurística de abajo asume m³ = la×lb×ml y acá la sección no es un rectángulo.
+    if (tipo === 'zapata_excentrica') {
+      setTimeout(() => {
+        const val = { 'dim-la': armData.iLa ?? (dims && dims.la), 'dim-lb': armData.iLb ?? (dims && dims.lb), 'dim-ml': armData.iMl ?? (dims && dims.ml),
+                      'dim-e': armData.iE, 'dim-bw': armData.iBw, 'dim-d': armData.iD, 'dim-np': armData.iNp, 'dim-n8': armData.iN8, 'dim-nd': armData.iNd, 'dim-sep': armData.iSep };
+        Object.entries(val).forEach(([id, v]) => { const el = document.getElementById('e-' + id); if (el && v !== undefined && v !== null && v !== '') el.value = v; });
+        calcEditDimEstructural();
+      }, 30);
+    }
+    if (dims && tipo !== 'zapata_excentrica') {
       const cantMed = num(med.cantidad);
       let skipCalcPrefill = false;
       // Si hay sección (la×lb) pero falta el largo, despejarlo de la cantidad existente:
@@ -5486,7 +5611,7 @@ async function saveEditMed() {
 
   // Reconstruir descripción con datos de armadura (como saveMedicion)
   // 1) Quitar pipe-data anterior de la descripción
-  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:','esc:'];
+  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:','esc:','iLa:','iLb:','iMl:','iE:','iBw:','iD:','iN8:','iNd:'];
   const pipeIdx = newDesc.lastIndexOf(' | ');
   if (pipeIdx >= 0) {
     const tail = newDesc.slice(pipeIdx + 3);
@@ -5527,6 +5652,7 @@ async function saveEditMed() {
       if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
       if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
       if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+      if (d.exc) extras.push(`iLa:${d.ladoA}`, `iLb:${d.ladoB}`, `iMl:${d.ml}`, `iE:${d.esp}`, `iBw:${d.bwDado}`, `iD:${d.dado}`, `iN8:${d.cant8}`, `iNd:${d.cantDiag}`);
     }
     if (extras.length) newDesc = (newDesc ? newDesc + ' | ' : '') + extras.join('|');
     window._editArmResult = null;
@@ -8686,7 +8812,7 @@ function validarImport() {
     }
     item._arm = (item.incluir && coef && item._calc) ? impArmaduraDefecto(item, coef, item._calc) : null;
     if (item._arm) w.push({ lvl: 'info', msg: `Armadura por defecto: ${item._arm.resumen} → ~${item._arm.barras} barras de 12 m (se edita después en la medición)` });
-    else if (coef && item.incluir && ['columna', 'viga', 'zapata', 'zapata_puntual'].includes(tipoEstructural(coef.cod))) w.push({ lvl: 'warn', msg: 'Sin armadura: faltan dimensiones claras (usá 📐) — el hierro de este ítem no se va a computar' });
+    else if (coef && item.incluir && ['columna', 'viga', 'zapata', 'zapata_excentrica', 'zapata_puntual'].includes(tipoEstructural(coef.cod))) w.push({ lvl: 'warn', msg: 'Sin armadura: faltan dimensiones claras (usá 📐) — el hierro de este ítem no se va a computar' });
     if (item.m3Computo && item._calc && item._calc.coefU === 'm3') {
       const f = v => (+v).toLocaleString('es-AR', { maximumFractionDigits: 3 });
       const dif = Math.abs(item._calc.cantidad - item.m3Computo);
