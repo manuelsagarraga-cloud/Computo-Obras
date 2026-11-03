@@ -709,9 +709,10 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
   <div class="modal">
     <div class="modal-title">❄ Congelar la base de la obra <button class="modal-close" onclick="closeModal('m-congelar')">✕</button></div>
     <div style="font-size:11px;color:var(--tx2);line-height:1.6;margin-bottom:14px;">
-      Guarda la base de la obra: el precio de cada material (con el mes CAC al que responde) y el precio de MO de cada medición. Los cambios que hagas después en Materiales no la tocan. Se congela una sola vez; para llevar los valores a hoy usá <b>Presupuesto → Actualizados</b>.
+      Guarda la base de la obra: el precio de cada material llevado por CAC de materiales al <b>mes base</b> que elijas, y el precio de MO de cada medición. Los cambios que hagas después en Materiales no la tocan. Se congela una sola vez; para llevar los valores a hoy usá <b>Presupuesto → Actualizados</b>.
     </div>
     <div id="congelar-obra-nombre" style="font-family:var(--serif);font-size:14px;margin-bottom:6px;"></div>
+    <div class="fg" id="cong-mes-wrap" style="max-width:260px;"><label>Mes base de los materiales</label><select id="cong-mes" onchange="previewCongelar()"></select></div>
     <div id="cong-preview" style="margin-top:8px;max-height:55vh;overflow-y:auto;"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('m-congelar')">Cerrar</button>
@@ -1201,7 +1202,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">QUÉ GUARDA EL CONGELADO</div>
-            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Obras &rarr; ❄ &rarr; Congelar base</b> guarda una foto fija de la obra: el precio de cada material con el <b>mes CAC</b> al que corresponde ese precio, y el precio de MO de cada medición. Lo que cambies después en Materiales no la toca. La armadura y el Hº elegido en cada medición (por ejemplo H21) también quedan en la foto.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Obras &rarr; ❄</b>, elegir el <b>Mes base de los materiales</b> (por defecto el último CAC cargado) y <b>Congelar base</b>. Guarda una foto fija de la obra: todos los materiales llevados a ese mes con el CAC de materiales (los de mayo se suben, los posteriores se bajan) y el precio de MO de cada medición, sin ajuste. Un precio de un mes sin CAC cargado queda como está, con aviso. Lo que cambies después en Materiales no la toca. La armadura y el Hº elegido en cada medición (por ejemplo H21) también quedan en la foto.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">SE CONGELA UNA SOLA VEZ</div>
@@ -1468,7 +1469,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-03.4';
+const APP_BUILD = '2026-11-03.5';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -10877,14 +10878,26 @@ function _totalesObra(obraId) {
 }
 
 // Arma la foto (sin guardarla). Devuelve también los avisos para el modal.
-function armarFotoCongelado(obraId) {
+// Meses elegibles como mes base: los que tienen CAC de materiales cargado (sin índice no se puede llevar el precio a ese mes).
+function mesesCacMateriales() {
+  return [...new Set(indicesEmpresa().filter(i => num(i.materiales) > 0 && /^\d{4}-\d{2}$/.test(i.mes || '')).map(i => i.mes))].sort().reverse();
+}
+// mesBase: mes al que se llevan todos los materiales (por defecto el último CAC). Cada precio se ajusta
+// precio × CAC mat(mes base) / CAC mat(mes del precio), hacia arriba o hacia abajo. Si falta el índice del mes
+// del precio (p. ej. un precio cargado en oct sin CAC publicado) queda como está, con su mes, y se avisa.
+function armarFotoCongelado(obraId, mesBase) {
   const obra = obras.find(o => o.id === obraId);
-  const mesRef = ultimoMesCAC('materiales'), mesRefMO = ultimoMesCAC('mano_obra');
-  const materiales = {}, sinMes = [];
+  const mesRef = mesBase || ultimoMesCAC('materiales'), mesRefMO = ultimoMesCAC('mano_obra');
+  const materiales = {}, sinMes = [], sinIndice = [], ajuste = { subidos: 0, bajados: 0 };
   matsEmpresa().forEach(m => {
-    const mb = /^\d{4}-\d{2}$/.test(m.mes_base || '') ? m.mes_base : null;
-    if (!mb && num(m.precio) > 0) sinMes.push(m.nombre);
-    materiales[m.cod] = { p: Math.round(num(m.precio) * 100) / 100, mb: mb || mesRef };
+    const p0 = Math.round(num(m.precio) * 100) / 100;
+    const mb0 = /^\d{4}-\d{2}$/.test(m.mes_base || '') ? m.mes_base : null;
+    if (!mb0) { if (p0 > 0) sinMes.push(m.nombre); materiales[m.cod] = { p: p0, mb: mesRef }; return; }
+    if (mb0 === mesRef || !(p0 > 0)) { materiales[m.cod] = { p: p0, mb: mb0 === mesRef ? mesRef : mb0 }; return; }
+    const fa = factorAjuste(mb0, mesRef, 'materiales');
+    if (!fa.ok) { sinIndice.push(`${m.nombre} (${fmtMesLargo(mb0)})`); materiales[m.cod] = { p: p0, mb: mb0 }; return; }
+    if (fa.factor > 1) ajuste.subidos++; else if (fa.factor < 1) ajuste.bajados++;
+    materiales[m.cod] = { p: Math.round(p0 * fa.factor * 100) / 100, mb: mesRef, p0, mb0 };
   });
   const mo = {};
   meds.filter(x => (x.obraId || x.obra_id) === obraId).forEach(med => {
@@ -10906,7 +10919,7 @@ function armarFotoCongelado(obraId) {
     if (i.moSinPrecio) medsSinMO++;
     (i.matItems || []).forEach(mi => { if (!(num(mi.precio) > 0)) usadosEn0.add(mi.nombre); });
   }));
-  return { foto, sinMes, usadosEn0: [...usadosEn0].sort(), medsSinMO };
+  return { foto, sinMes, sinIndice, ajuste, usadosEn0: [...usadosEn0].sort(), medsSinMO };
 }
 
 function openModalCongelar(obraId) {
@@ -10918,6 +10931,10 @@ function openModalCongelar(obraId) {
   document.getElementById('btn-descongelar').style.display = pc ? '' : 'none';
   document.getElementById('btn-congelar').style.display = pc ? 'none' : '';
   document.getElementById('cong-preview').innerHTML = '';
+  const selMes = document.getElementById('cong-mes'), meses = mesesCacMateriales();
+  selMes.innerHTML = meses.map(m => `<option value="${m}">${fmtMesLargo(m)}${m === meses[0] ? ' (último CAC)' : ''}</option>`).join('')
+    || `<option value="${ultimoMesCAC('materiales')}">${fmtMesLargo(ultimoMesCAC('materiales'))}</option>`;
+  document.getElementById('cong-mes-wrap').style.display = pc ? 'none' : '';
   openModal('m-congelar');
   previewCongelar();
 }
@@ -10942,10 +10959,15 @@ function previewCongelar() {
       + _histCongeladoHTML(cruda && cruda.historial);
     return;
   }
-  const { foto, sinMes, usadosEn0, medsSinMO } = armarFotoCongelado(_congelarObraId);
-  let html = caja('gr', `Se congela la base de hoy con el <b>CAC de ${fmtMesLargo(foto.mes_ref)}</b> (último cargado) como referencia.<br>
+  const mesSel = document.getElementById('cong-mes')?.value || ultimoMesCAC('materiales');
+  const { foto, sinMes, sinIndice, ajuste, usadosEn0, medsSinMO } = armarFotoCongelado(_congelarObraId, mesSel);
+  const ult = ultimoMesCAC('materiales');
+  const aj = [ajuste.subidos ? `${ajuste.subidos} subidos` : '', ajuste.bajados ? `${ajuste.bajados} bajados` : ''].filter(Boolean).join(' y ');
+  let html = caja('gr', `Mes base de los materiales: <b>${fmtMesLargo(foto.mes_ref)}</b>${foto.mes_ref === ult ? ' (último CAC cargado)' : ''}.<br>
     Materiales ${$p(foto.total_mat_base)} · MO ${$p(foto.total_mo_base)} · ${Object.keys(foto.materiales).length} precios de materiales y ${Object.keys(foto.mo).length} de MO.<br>
-    <span style="color:var(--tx3);">Cada material queda con el mes de su precio: los de mayo se actualizan desde mayo, los cargados hoy desde ${fmtMesLargo(foto.mes_ref)}.</span>`);
+    <span style="color:var(--tx3);">${aj ? `Precios llevados a ${fmtMesLargo(foto.mes_ref)} con CAC materiales: ${aj}. ` : 'Todos los precios ya eran de ese mes. '}La MO queda con el precio de cada medición, sin ajuste.</span>`);
+  if (ajuste.bajados) html += caja('am', `⚠ ${ajuste.bajados} materiales tienen precio posterior a ${fmtMesLargo(foto.mes_ref)} y se <b>bajan</b> a ese mes con el CAC. Si no es lo que querés, elegí un mes más reciente.`);
+  if (sinIndice.length) html += caja('am', `⚠ ${sinIndice.length} materiales tienen precio de un mes sin CAC cargado: quedan con su precio y su mes, sin llevarlos a ${fmtMesLargo(foto.mes_ref)}.<br><span style="font-size:10px;">${sinIndice.slice(0, 10).join(', ')}${sinIndice.length > 10 ? '…' : ''}</span>`);
   if (usadosEn0.length) html += caja('am', `<b>⚠ ${usadosEn0.length} materiales que usa la obra están en $0</b> y quedarían congelados así:<br><span style="font-size:10px;">${usadosEn0.slice(0, 20).join('<br>')}${usadosEn0.length > 20 ? '<br>…' : ''}</span>`);
   if (medsSinMO) html += caja('am', `⚠ ${medsSinMO} mediciones sin precio de MO: quedan en $0 en la base.`);
   if (sinMes.length) html += caja('am', `⚠ ${sinMes.length} materiales con precio pero sin mes base: se toman como de ${fmtMesLargo(foto.mes_ref)}.<br><span style="font-size:10px;">${sinMes.slice(0, 10).join(', ')}${sinMes.length > 10 ? '…' : ''}</span>`);
@@ -10962,7 +10984,8 @@ async function congelarObra() {
   const obra = obras.find(o => o.id === _congelarObraId);
   if (!obra) return;
   if (preciosCongeladosDe(obra)) { notif('La obra ya está congelada: quitá el congelado primero'); return; }
-  const { foto } = armarFotoCongelado(_congelarObraId);
+  const mesSel = document.getElementById('cong-mes')?.value || ultimoMesCAC('materiales');
+  const { foto } = armarFotoCongelado(_congelarObraId, mesSel);
   if (!Object.keys(foto.materiales).length) { notif('No hay materiales para congelar'); return; }
   await withSync(async () => {
     await sbPatch('obras', obra.id, { precios_congelados: foto, mes_congelado: foto.mes_ref, indice_usado: 'base' });
@@ -10970,7 +10993,7 @@ async function congelarObra() {
     invalidateComputeCache();
     closeModal('m-congelar');
     renderObras(); _refrescarTrasCongelar();
-    notif(`Base congelada (CAC ${fmtMesLargo(foto.mes_ref)}) ✓ · materiales ${$p(foto.total_mat_base)} · MO ${$p(foto.total_mo_base)}`);
+    notif(`Base congelada a ${fmtMesLargo(foto.mes_ref)} ✓ · materiales ${$p(foto.total_mat_base)} · MO ${$p(foto.total_mo_base)}`);
   });
 }
 
