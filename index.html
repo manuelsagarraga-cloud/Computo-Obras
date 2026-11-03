@@ -960,23 +960,27 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           <div style="font-family:var(--serif);font-size:22px;font-weight:300;margin-bottom:6px;">Manual de uso</div>
           <div style="font-size:11px;opacity:.5;">Cómputo y Certificación de Obras &mdash; Manuel Sagarraga</div>
         </div>
-        <div style="text-align:right;font-size:10px;opacity:.5;line-height:1.8;">Metro Obra Mayo 2026<span class="mo-ref"><br>UOCRA Zona A Mayo 2026</span></div>
+        <div style="text-align:right;font-size:10px;opacity:.5;line-height:1.8;">Actualizado: noviembre 2026<br>Precios base: Metro Obra Mayo 2026<span class="mo-ref"><br>UOCRA Zona A Mayo 2026</span></div>
       </div>
 
       <!-- NOVEDADES -->
       <div class="card" style="margin-bottom:14px;border-left:3px solid var(--gr);">
-        <div class="card-title" style="margin-bottom:10px;">Novedades — Julio 2026</div>
+        <div class="card-title" style="margin-bottom:10px;">Novedades — octubre y noviembre 2026</div>
         <div style="font-size:11px;color:var(--tx2);line-height:1.9;">
-          <b>Importar desde un cómputo (oct-2026):</b> el import acepta también un cómputo hecho a mano. En <b>Tipo de archivo</b> elegí <i>Cómputo</i> (se detecta solo si la hoja no trae "Contratista"): carga las mediciones con su N° de ítem y el precio de MO, <b>sin crear certificado base</b>. Une los renglones "elemento en m³ + largo en ml" y "Zócalos + IDEM PISO" en un solo ítem, y ubica la planta aunque el rótulo esté antes o después. Elegí el Project de BkTableros para ver, antes de importar, qué N° no están en el cronograma, cuáles se repiten y cuáles apuntan a una tarea con otro nombre; el N° se puede corregir ahí mismo.<br>
-          <b>Import de Excel más inteligente:</b> convierte m² a m³ usando el espesor de la descripción (ej. "e=10cm"), pasa ml de capa aisladora a m² (ancho de muro 0,20 m, anotado en la descripción), calcula m³ de estructuras desde las dimensiones del texto respetando "N unid", y cuando un ítem lista varias secciones distintas (ej. vigas "(30x35),(35x40)…") conserva la cantidad del Excel y lo marca para validación manual. Todo cálculo queda anotado en la descripción del ítem.<br>
-          <b>Mano de obra = precio del contratista (nuevo):</b> cada medición tiene su precio (por unidad o global) y su contratista; esa es la MO de presupuesto, dashboard, cartera y certificados.<span class="mo-ref"> Los jornales y la referencia UOCRA pasaron a <b>Información de sustento</b> (solo lectura) y ya no suman en ningún total.</span> Una medición sin precio figura en $0 y se marca en rojo. El import de Excel guarda el precio ya convertido a nuestra unidad (y conserva el precio y la unidad del Excel).<br>
-          <b>Certificados:</b> un borrador usa siempre el precio vigente de cada medición; al <b>Emitir certificado</b> los precios y contratistas se congelan (si después cambia el precio, el emitido no se mueve). Un emitido se puede reabrir a borrador.<br>
-          <b>Hormigón elaborado H21 por defecto:</b> salvo que el ítem diga "in situ", las tareas de hormigón se asignan a su versión con Hº elaborado H21. Todas las tareas tienen ahora sus tres variantes (in situ / H17 / H21).<br>
-          <b>Botón "✓ Revisar" en Mediciones:</b> audita todos los ítems estructurales de la obra y lista los que tienen incoherencia entre las dimensiones del texto y la cantidad cargada — sin revisar uno por uno.<br>
-          <b>Export a Excel mejorado:</b> respeta los filtros activos, agrupa por rubro en orden de obra y agrega cabecera con los datos de la obra.<br>
-          <b>Datos por empresa:</b> cada usuario ve las obras, precios y certificados de su empresa. La base de consumos y materiales es compartida (solo lectura); solo el administrador la edita. Los archivos de obra son privados por empresa.<br>
-          <b>"Coeficientes" ahora se llama "Consumos"</b> — misma pestaña, mismo contenido.<br>
-          <b>Versión visible:</b> la barra superior muestra el build (ej. "build 2026-07-10.1"). Si tras una actualización no coincide, recargá con Ctrl+Shift+R.
+          <b>Esquemas de armadura (nov-2026):</b> cada medida que cargás en una columna, viga, zapata, base, pozo, tabique o losa aparece rotulada en el esquema, incluida la cantidad de elementos. Si un campo está vacío, el esquema dibuja un valor típico en <span style="color:var(--am);font-style:italic;">ocre con &asymp;</span> para que no se confunda con lo cargado. Los campos del formulario tienen el mismo color que su elemento en el dibujo: <span style="color:#c0392b;font-weight:600;">rojo</span> hierros principales o barras en X, <span style="color:var(--gr);font-weight:600;">verde</span> hierros superiores, barras en Y y refuerzos, <span style="color:var(--bl);font-weight:600;">azul</span> estribos, zunchos y secundarios.<br>
+          <b>Zapatas sin estribos (nov-2026):</b> la zapata corrida y la media zapata de medianera (3.21) llevan hierros principales longitudinales y secundarios transversales con alas (Ø, separación, largo y cantidad de alas editables). Columnas, vigas y pozos tienen selector de Ø de estribo (Ø6 a Ø12).<br>
+          <b>Media zapata de medianera (3.21):</b> tarea nueva con la sección del plano (base, pendiente, dado y arranque), su esquema y su armadura.<br>
+          <b>Hormigón H17 por defecto:</b> las tareas de hormigón usan H17 salvo que el texto diga H21. El tipo de Hº se elige en cada medición con el selector <b>Tipo de hormigón</b> (solo en tareas de Hº elaborado) y la lista de compras lo respeta.<br>
+          <b>Base congelada y actualización CAC (oct-2026):</b> congelar guarda una foto fija de la obra: cada material con su precio y el mes CAC de ese precio, y la MO de cada medición. Después, en <b>Presupuesto</b> elegís ver la base o los valores actualizados al mes CAC que quieras, sin tocar la base. Ver sección 7.<br>
+          <b>Import con IA y memoria:</b> lo que el lector no reconoce se clasifica con IA (🤖) y lo que ya confirmaste antes con la misma tarea se asigna solo (🧠 memoria). El import es <b>todo o nada</b>: si falla a mitad de camino, se deshace.<br>
+          <b>Armadura por defecto al importar:</b> columnas, vigas, zapatas, bases y losas importadas con medidas reciben una armadura estimada (Ø10 principal, estribos Ø6 c/25, parrillas c/20) marcada con <b>⚙ armadura por defecto</b> hasta que la detalles en Editar medición.<br>
+          <b>Mano de obra = precio del contratista:</b> cada medición tiene su precio, por unidad o global, y su contratista. No hay cálculo por jornales.<br>
+          <b>Certificados:</b> emitir y reabrir se hacen en una sola operación: o se aplica completo o no se aplica. Exportación a PDF y a Excel, de cliente y de contratista.<br>
+          <b>Cronograma:</b> vincula las mediciones con las tareas del Project de BkTableros por N° de ítem y lista los materiales a comprar por período (sección 10).<br>
+          <b>Asistente de obra:</b> el botón flotante abre un chat que consulta obras, materiales y mediciones de la app.<br>
+          <b>Quién y cuándo:</b> Obras y Mediciones muestran la columna <b>Modificado</b> con la fecha y el usuario del último cambio.<br>
+          <b>Menú reorganizado:</b> Obras · Cómputo (Mediciones, Cómputo automático, Presupuesto) · Obra (Archivos, Materiales por obra, Cronograma, Precios MO, Certificados, Historial) · Bases (Materiales, Consumos, Índices CAC) · Ayuda.<br>
+          <b>Versión visible:</b> la barra superior muestra el build. Si después de una actualización no coincide con el que te avisaron, recargá con Ctrl+Shift+R.
         </div>
       </div>
 
@@ -986,301 +990,449 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
           <a href="#man-flujo" onclick="document.getElementById('man-flujo').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">1. Flujo de trabajo general</a>
           <a href="#man-nueva" onclick="document.getElementById('man-nueva').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">2. Crear una obra de cero</a>
-          <a href="#man-editar" onclick="document.getElementById('man-editar').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">3. Modificar una obra existente</a>
-          <a href="#man-copiar" onclick="document.getElementById('man-copiar').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">4. Copiar una obra</a>
-          <a href="#man-congelar" onclick="document.getElementById('man-congelar').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">5. Congelar y actualizar a 3 meses</a>
-          <a href="#man-mo" onclick="document.getElementById('man-mo').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">6. Mano de obra y precios reales</a>
-          <a href="#man-cert" onclick="document.getElementById('man-cert').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">7. Certificar avance de obra</a>
-          <a href="#man-secciones" onclick="document.getElementById('man-secciones').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">8. Referencia de secciones</a>
-          <a href="#man-trabas" onclick="document.getElementById('man-trabas').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">9. Problemas frecuentes</a>
-          <a href="#man-faq" onclick="document.getElementById('man-faq').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">10. Preguntas y respuestas</a>
+          <a href="#man-import" onclick="document.getElementById('man-import').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">3. Importar una obra desde Excel</a>
+          <a href="#man-estructuras" onclick="document.getElementById('man-estructuras').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">4. Cargar estructuras: armadura y esquema</a>
+          <a href="#man-editar" onclick="document.getElementById('man-editar').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">5. Modificar una obra existente</a>
+          <a href="#man-copiar" onclick="document.getElementById('man-copiar').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">6. Copiar una obra</a>
+          <a href="#man-congelar" onclick="document.getElementById('man-congelar').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">7. Congelar la base y actualizar por CAC</a>
+          <a href="#man-mo" onclick="document.getElementById('man-mo').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">8. Mano de obra</a>
+          <a href="#man-cert" onclick="document.getElementById('man-cert').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">9. Certificar avance de obra</a>
+          <a href="#man-crono" onclick="document.getElementById('man-crono').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">10. Cronograma y compras por período</a>
+          <a href="#man-secciones" onclick="document.getElementById('man-secciones').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">11. Referencia de secciones</a>
+          <a href="#man-trabas" onclick="document.getElementById('man-trabas').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">12. Problemas frecuentes</a>
+          <a href="#man-faq" onclick="document.getElementById('man-faq').scrollIntoView({behavior:'smooth'});return false;" style="font-size:11px;color:var(--bl);text-decoration:none;padding:6px 10px;background:var(--bl-l);border-radius:4px;">13. Preguntas y respuestas</a>
         </div>
       </div>
 
-      <!-- 1. FLUJO -->
+      <!-- 1. FLUJO DE TRABAJO GENERAL -->
       <div class="card" style="margin-bottom:14px;" id="man-flujo">
         <div class="card-title" style="margin-bottom:14px;">1 &mdash; Flujo de trabajo general</div>
-        <div style="font-size:11px;color:var(--tx3);margin-bottom:14px;">El sistema funciona en una cadena. Cada paso alimenta al siguiente. No se puede saltear el orden.</div>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:14px;">El sistema funciona en cadena: cada paso alimenta al siguiente.</div>
         <div style="display:flex;flex-direction:column;gap:0;">
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">1</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Crear la obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Obras</b> &rarr; boton <b>+ Nueva obra</b>. Completar codigo, nombre, cliente, superficie y estado. El codigo es el identificador que aparece en todos los documentos exportados.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Crear la obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menú lateral &rarr; <b>Obras</b> &rarr; <b>+ Nueva obra</b>. Código, nombre, cliente, superficie y estado. El código identifica la obra en todos los documentos exportados. Si ya tenés el certificado o el cómputo en Excel, usá <b>↑ Importar desde Excel</b> (sección 3): crea la obra y carga las mediciones de una vez.</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">2</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar mediciones</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Mediciones</b>. Seleccionar la obra en el desplegable de arriba. Boton <b>+ Agregar medicion</b>. Buscar la tarea por codigo o nombre, ingresar dimensiones y guardar. Sin mediciones no hay computo.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar mediciones</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menú &rarr; <b>Cómputo &rarr; Mediciones</b>. Elegir la obra activa y <b>+ Agregar</b>. Buscar la tarea por código o nombre, cargar medidas o cantidad y guardar. Sin mediciones no hay cómputo.</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">3</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Ver el computo automatico</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Computo automatico</b>. Seleccionar la obra. El sistema calcula automaticamente cuantos materiales se necesitan por rubro con desperdicio incluido. Es de solo lectura.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Revisar</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">En Mediciones, <b>✓ Revisar</b> lista los ítems estructurales donde las medidas del texto no cierran con la cantidad cargada. El número en rojo junto a <b>Mediciones</b> en el menú indica cuántos hay.</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">4</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar precios de mano de obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Se puede cargar de tres formas: (1) al crear o editar una medición (campos <b>Contratista</b> y <b>Precio</b>; el botón <i>Aplicar a las demás mediciones de esta tarea sin precio</i> copia el precio al resto); (2) en el menu lateral &rarr; <b>Precios MO</b>, una fila por medición, con contratista, modo (por unidad / global) y precio; (3) automaticamente al importar un Excel con costo unitario. El contador <b>Sin precio de MO</b> te dice cuantas mediciones faltan.<span class="mo-ref"> Para comparar con jornales y cuadrilla: <b>Informacion de sustento</b>.</span></div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Ver el cómputo y el presupuesto</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;"><b>Cómputo automático</b> calcula los materiales por rubro con desperdicio (solo lectura). <b>Presupuesto</b> suma materiales y MO por rubro, con gastos generales y utilidad. Se exporta a PDF o texto.</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">5</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Generar el presupuesto</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Presupuesto</b>. Seleccionar la obra. Ver el desglose por rubro con columnas de materiales y MO. Ajustar los porcentajes de gastos generales y utilidad. Exportar a PDF con el boton de arriba.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Cargar la mano de obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">El precio del contratista se carga en cada medición (nueva o editar), en <b>Precios MO</b> o viene del Excel importado. Por unidad o global (sección 8).</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">6</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Materiales por obra</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Materiales por obra</b>. Seleccionar la obra. Ver todos los materiales consolidados con cantidad comercial y subtotal. Exportar a Excel para enviar al proveedor o a PDF para el registro.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Congelar la base</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Cuando el presupuesto está cerrado: <b>Obras &rarr; ❄</b>. Desde ahí la obra conserva sus precios aunque cambie la base de materiales, y se puede actualizar por CAC (sección 7).</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
-            <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--am);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">7</div></div>
-            <div style="padding:0 0 0 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Certificar avance</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;">Menu lateral &rarr; <b>Certificados</b>. Los precios vienen de la medicion (borrador) y se congelan con <b>Emitir certificado</b>. Crear nuevo certificado con el periodo, ingresar porcentaje de avance por tarea y exportar el PDF al cliente o al contratista con el coeficiente K aplicado.</div></div>
+            <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">7</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Comprar</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;"><b>Materiales por obra</b>: materiales consolidados con cantidad comercial, por material o por rubro, saldo computado vs comprado y registro de compras. <b>Cronograma</b>: qué comprar en cada período según el Project.</div></div>
+          </div>
+          <div style="display:flex;gap:0;align-items:stretch;">
+            <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--am);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">8</div></div>
+            <div style="padding:0 0 0 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Certificar avance</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;"><b>Certificados</b>: crear el certificado del período, cargar el % de avance por ítem, emitir y exportar al cliente (con K) o al contratista (sección 9).</div></div>
           </div>
         </div>
       </div>
 
-      <!-- 2. OBRA DE CERO -->
+      <!-- 2. CREAR UNA OBRA DE CERO -->
       <div class="card" style="margin-bottom:14px;" id="man-nueva">
         <div class="card-title" style="margin-bottom:4px;">2 &mdash; Crear una obra de cero</div>
-        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Para alguien que entra por primera vez</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Para quien entra por primera vez</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">PASO 1 &mdash; Ir a Obras</div>
-            <div style="font-size:11px;color:var(--tx2);">En el menu lateral, hacer clic en <b>Obras</b>. Aparece la lista de obras (vacia la primera vez). Hacer clic en <b>+ Nueva obra</b>.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">En el menú lateral, <b>Obras</b> &rarr; <b>+ Nueva obra</b>.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">PASO 2 &mdash; Completar los datos</div>
-            <div style="font-size:11px;color:var(--tx2);">Campos obligatorios: <b>Codigo</b> (ej: BAU-001) y <b>Nombre</b>. Opcionales pero recomendados: cliente, ubicacion, superficie en m2. El estado arranca en <b>Presupuesto</b>. Hacer clic en <b>Guardar obra</b>.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Obligatorios: <b>Código</b> (ej: BAU-001) y <b>Nombre</b>. Recomendados: cliente, ciudad, dirección, superficie en m², subsuelos y plantas (las plantas arman la lista de ubicaciones de las mediciones). El estado arranca en <b>Presupuesto</b>. <b>Guardar obra</b>.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">PASO 3 &mdash; Ir a Mediciones</div>
-            <div style="font-size:11px;color:var(--tx2);">Hacer clic en <b>Mediciones</b> en el menu lateral. En el desplegable <b>Obra activa</b> seleccionar la obra recien creada. Hacer clic en <b>+ Agregar medicion</b>.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Menú &rarr; <b>Cómputo &rarr; Mediciones</b>. En <b>Obra activa</b> elegir la obra recién creada (queda elegida al cambiar de sección y al volver a entrar). <b>+ Agregar</b>.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">PASO 4 &mdash; Cargar la primera medicion</div>
-            <div style="font-size:11px;color:var(--tx2);">En el campo <b>Buscar tarea</b> escribir el nombre o codigo de la tarea (ej: "5.4" o "muro"). Seleccionarla. Ingresar <b>Largo</b> y <b>Ancho</b>. Si son varias superficies, apretar <b>+ Sumar</b> para acumularlas. Al final apretar <b>Agregar y cerrar</b>.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">PASO 4 &mdash; Cargar la primera medición</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">En <b>Tarea</b> escribir el código o el nombre (ej: "5.4" o "muro") y elegirla. Según la tarea:<br>&bull; <b>m² o m³</b>: cargar las medidas (largo, ancho o alto) y apretar <b>+ Sumar</b> para acumular varias superficies; o escribir el total directo.<br>&bull; <b>ml, unidad o global</b>: escribir la cantidad.<br>&bull; <b>Estructuras</b> (columnas, vigas, zapatas, losas): se abre el formulario de armadura con su esquema (sección 4).<br>Elegir la <b>Ubicación</b>, cargar <b>Contratista</b> y <b>Precio</b> de MO si ya los tenés, y <b>Agregar y cerrar</b> (o <b>Guardar + otra</b> para seguir cargando).</div>
           </div>
           <div style="background:var(--gr-l);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--gr);margin-bottom:4px;">A PARTIR DE ACA TODO ES AUTOMATICO</div>
-            <div style="font-size:11px;color:var(--tx2);">Con las mediciones cargadas, ir a <b>Computo automatico</b> para ver los materiales calculados, a <b>Presupuesto</b> para ver costos, y a <b>Materiales por obra</b> para ver que comprar. Todo se actualiza solo.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--gr);margin-bottom:4px;">A PARTIR DE ACÁ TODO ES AUTOMÁTICO</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Con las mediciones cargadas, <b>Cómputo automático</b>, <b>Presupuesto</b> y <b>Materiales por obra</b> se actualizan solos.</div>
           </div>
         </div>
       </div>
 
-      <!-- 3. MODIFICAR OBRA -->
+      <!-- 3. IMPORTAR UNA OBRA DESDE EXCEL -->
+      <div class="card" style="margin-bottom:14px;" id="man-import">
+        <div class="card-title" style="margin-bottom:4px;">3 &mdash; Importar una obra desde Excel</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Certificado o cómputo hecho a mano: crea la obra y carga las mediciones de una vez</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">DÓNDE</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Obras &rarr; ↑ Importar desde Excel</b> para una obra nueva, o <b>Mediciones &rarr; ↑ Importar</b> para sumar ítems a una obra existente. Elegí la <b>Revisión</b> (Rev00 original, Rev01… adicionales) en la que entran.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">TIPO DE ARCHIVO</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Certificado</b>: crea las mediciones y el certificado base con contratista y precio. <b>Cómputo</b>: carga las mediciones con su N° de ítem y el precio de MO, sin certificado. Se detecta solo (si la hoja no trae "Contratista" es un cómputo), pero lo podés cambiar.<br>Opcional: <b>Chequear vínculo con Project</b> muestra, antes de importar, qué N° de ítem no están en el cronograma, cuáles se repiten y cuáles apuntan a una tarea con otro nombre. El N° se corrige ahí mismo.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CÓMO ASIGNA CADA ÍTEM</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">1. <b>Lector</b>: reconoce la tarea por el texto del ítem.<br>2. <b>🧠 Memoria</b>: si ya confirmaste esa descripción con la misma tarea, la asigna directo.<br>3. <b>🤖 IA</b>: lo que queda sin tarea se clasifica con IA. Confianza alta: se asigna. Media: se asigna con aviso. Baja: queda como sugerencia para que la elijas.<br>Todo lo que corregís a mano queda registrado y mejora las próximas importaciones.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">QUÉ CALCULA SOLO</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">&bull; m² a m³ con el espesor del texto ("e=10cm", "esp. 12 cm", "ESP: 4 CM", "8 cm de espesor").<br>&bull; Capa aisladora de ml a m² (muro de 0,20 m).<br>&bull; m³ de estructuras desde las medidas del texto, respetando "N unid".<br>&bull; Precio de MO en nuestra unidad: misma unidad, mismo precio; unidad distinta, se conserva el total del Excel; tareas globales, monto global.<br>&bull; N° de ítem con el prefijo de obra; los repetidos se renumeran con aviso.<br>&bull; Limpieza, replanteo y limpieza final: global o por m² según la unidad del Excel.<br>&bull; Escaleras de Hº siempre globales (17.1): la cantidad es el número de escaleras y el precio de MO queda "a completar".<br>Cada cálculo queda anotado en la descripción del ítem.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">LA VISTA PREVIA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Antes de confirmar se ve cada ítem con la tarea asignada, de dónde salió (lector, 🧠 memoria, 🤖 IA o a mano), la cantidad y el precio que se van a guardar. Lo que necesita revisión aparece en amarillo o rojo (por ejemplo, un precio de MO igual al N° de ítem o varias secciones distintas en un mismo ítem). En tareas en m³, el botón <b>📐</b> permite corregir ancho, alto, largo y unidades.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ARMADURA POR DEFECTO</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Columnas, vigas, zapatas corridas, vigas de fundación, bases y losas macizas con medidas que cierran con los m³ reciben una armadura estimada: Ø10 principal, estribos Ø6 c/25 y parrillas c/20. Quedan con borde naranja y <b>⚙ armadura por defecto</b> en Mediciones, y la lista de compras avisa qué parte del hierro es estimada. Para detallarla: editar la medición, ajustar la armadura según la planilla y guardar. La marca desaparece.</div>
+          </div>
+          <div style="background:var(--gr-l);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--gr);margin-bottom:4px;">TODO O NADA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Si el import falla a mitad de camino, se deshace: en una obra nueva se borra la obra; en una existente, solo lo que agregó ese import. No quedan obras a medio cargar.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. CARGAR ESTRUCTURAS: ARMADURA Y ESQUEMA -->
+      <div class="card" style="margin-bottom:14px;" id="man-estructuras">
+        <div class="card-title" style="margin-bottom:4px;">4 &mdash; Cargar estructuras: armadura y esquema</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Columnas, vigas, zapatas, bases, pozos, tabiques y losas</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">QUÉ TAREAS TIENEN ESQUEMA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Columnas, vigas y encadenados, vigas de fundación, zapatas corridas, media zapata de medianera, bases y cabezales, pozos, muros/tabiques de Hº, plateas, losas macizas, losas nervuradas con casetones y losas de viguetas. Al elegir la tarea se abre el formulario de armadura con el esquema arriba, que se redibuja con cada dato.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CÓMO LEER EL ESQUEMA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">&bull; Cada medida cargada aparece rotulada: lados de la sección, largo o altura, separaciones, cantidades de barras y cantidad de elementos.<br>&bull; Si un campo está vacío se dibuja con un valor típico en <span style="color:var(--am);font-style:italic;">ocre, en cursiva y con &asymp;</span>, y una nota lo aclara.<br>&bull; <b>Ojo:</b> lados, largos y alturas vacíos no computan. Separaciones y cantidades vacías sí usan ese valor típico en el cálculo.<br>&bull; Si la medición viene de un import con armadura por defecto, el esquema dice <b>ARMADURA ESTIMADA (import)</b> hasta que la guardes detallada.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">COLORES (MISMOS EN EL FORMULARIO Y EN EL DIBUJO)</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><span style="color:#c0392b;font-weight:600;">Rojo</span>: hierros principales o inferiores, barras en X y su Ø, nervios.<br><span style="color:var(--gr);font-weight:600;">Verde</span>: hierros superiores o perchas, barras en Y, Ø8 de la media zapata, bastones y refuerzos.<br><span style="color:var(--bl);font-weight:600;">Azul</span>: estribos, zunchos y secundarios de zapata (separación, Ø y alas).<br>Sin color: medidas del hormigón (lados, largos, alturas, espesores) y cantidad de elementos.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CRITERIOS DE CÁLCULO (CHANDÍAS)</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Recubrimiento 2,5 cm · pata de anclaje 25 cm por extremo · empalme 0,60 m si la barra supera 12 m · vigas, losas y plateas: hierro = luz + luz/6 · estribo = perímetro + 12,5 cm · alambre 0,03 kg/ml. Zapatas corridas y media zapata: sin estribos, principales longitudinales y secundarios transversales = ancho útil + alas.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">TIPO DE HORMIGÓN</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Por defecto H17. En tareas de Hº elaborado, el selector <b>Tipo de hormigón</b> permite elegir H21 u otro para esa medición; el cómputo, el presupuesto y la lista de compras usan el elegido.</div>
+          </div>
+          <div style="background:var(--am-l);border-radius:4px;padding:10px 14px;border:1px solid #E8D5A0;">
+            <div style="font-size:11px;color:var(--am);line-height:1.7;">Tip: cargá la armadura desde la planilla del calculista. La armadura por defecto sirve para presupuestar, no para comprar hierro.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. MODIFICAR UNA OBRA EXISTENTE -->
       <div class="card" style="margin-bottom:14px;" id="man-editar">
-        <div class="card-title" style="margin-bottom:4px;">3 &mdash; Modificar una obra existente</div>
-        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Editar datos de la obra, cambiar una medicion, agregar o eliminar items</div>
+        <div class="card-title" style="margin-bottom:4px;">5 &mdash; Modificar una obra existente</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Editar datos, cambiar mediciones, agregar o eliminar ítems</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">EDITAR DATOS DE LA OBRA (nombre, cliente, superficie)</div>
-            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Obras</b>. En la fila de la obra hacer clic en el lapiz <b>&#9998;</b>. Se abre el mismo formulario de alta. Modificar lo necesario y guardar.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">EDITAR DATOS DE LA OBRA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Obras</b> &rarr; lápiz <b>&#9998;</b> en la fila de la obra. Se abre el mismo formulario del alta.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CAMBIAR UNA CANTIDAD YA CARGADA</div>
-            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Mediciones</b> &rarr; seleccionar la obra. Encontrar la medicion en la tabla (usar los filtros de <b>Rubro</b> o <b>Piso</b> si hay muchas). Hacer clic en el lapiz <b>&#9998;</b> de esa fila. Modificar la cantidad o descripcion. Guardar. El computo se actualiza automaticamente.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CAMBIAR UNA MEDICIÓN</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Mediciones</b> &rarr; elegir la obra &rarr; filtrar por <b>Rubro</b> o <b>Piso / Ubicación</b> si hay muchas &rarr; lápiz <b>&#9998;</b>. Se puede cambiar la tarea, la cantidad, las medidas (con el mismo ayudante que al cargar), la armadura, el tipo de Hº, el contratista y el precio. Los datos de armadura guardados se vuelven a cargar en el formulario.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">AGREGAR UN ITEM QUE FALTABA</div>
-            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Mediciones</b> &rarr; seleccionar la obra &rarr; <b>+ Agregar medicion</b>. Buscar la tarea y cargar la cantidad. Se suma al computo existente.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">AGREGAR O DUPLICAR</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>+ Agregar</b> para un ítem nuevo, o <b>⧉</b> en la fila para duplicar una medición parecida y editarla.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ELIMINAR UN ITEM</div>
-            <div style="font-size:11px;color:var(--tx2);">Hacer clic en la <b>X</b> de la fila. Pide confirmacion. La eliminacion queda registrada en el <b>Historial</b> con fecha y usuario para poder auditar despues.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ELIMINAR UN ÍTEM</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>&#10005;</b> en la fila. Pide confirmación y queda registrado en el <b>Historial</b> con fecha y usuario.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">USAR REVISIONES PARA ADICIONALES</div>
-            <div style="font-size:11px;color:var(--tx2);">Si la obra tiene adicionales aprobados, cambiar el selector <b>Revision</b> a Rev01, Rev02, etc. antes de agregar las mediciones nuevas. Asi los adicionales quedan separados de las mediciones originales (Rev00) sin pisar nada.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">REVISIONES PARA ADICIONALES</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Para adicionales aprobados, cambiar el selector <b>Revisión</b> a Rev01, Rev02… antes de agregar. Quedan separados del original (Rev00) sin pisar nada.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">EXPORTAR</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>↓ Excel</b> en Mediciones respeta los filtros activos, agrupa por rubro en orden de obra y agrega la cabecera de la obra.</div>
           </div>
         </div>
       </div>
 
-      <!-- 4. COPIAR OBRA -->
+      <!-- 6. COPIAR UNA OBRA -->
       <div class="card" style="margin-bottom:14px;" id="man-copiar">
-        <div class="card-title" style="margin-bottom:4px;">4 &mdash; Copiar una obra</div>
-        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Cuando tenes una obra similar y queres reusar la estructura</div>
+        <div class="card-title" style="margin-bottom:4px;">6 &mdash; Copiar una obra</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Cuando tenés una obra similar y querés reusar los datos</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">DONDE ESTA EL BOTON</div>
-            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Obras</b>. En la fila de cada obra, al final hay 4 botones: &#10052; (congelar), <b>&#10065;</b> (duplicar), &#9998; (editar) y &#10005; (eliminar). El boton de duplicar es el segundo.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">DÓNDE ESTÁ EL BOTÓN</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Obras</b>: al final de cada fila hay cuatro botones: ❄ (congelar), <b>⧉</b> (duplicar), &#9998; (editar) y &#10005; (eliminar). Duplicar es el segundo.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">QUE COPIA Y QUE NO</div>
-            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><span style="color:var(--gr);">&#10003; Copia:</span> nombre, cliente, ubicacion, superficie, cantidad de plantas, notas.<br><span style="color:var(--re);">&#10007; No copia:</span> mediciones, precios de MO, certificados, archivos, precios congelados. La nueva obra arranca en estado <b>Presupuesto</b> y lista para recibir mediciones nuevas.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">QUÉ COPIA Y QUÉ NO</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><span style="color:var(--gr);">&#10003; Copia:</span> nombre, cliente, ubicación, dirección, superficie, subsuelos, plantas y notas.<br><span style="color:var(--re);">&#10007; No copia:</span> mediciones, precios de MO, certificados, archivos ni base congelada. La copia arranca en estado <b>Presupuesto</b>.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">PASO A PASO</div>
-            <div style="font-size:11px;color:var(--tx2);">1. Ir a <b>Obras</b><br>2. Encontrar la obra a copiar<br>3. Hacer clic en el boton <b>&#10065;</b><br>4. El sistema pide un <b>nombre nuevo</b> y un <b>codigo nuevo</b><br>5. Confirmar. La nueva obra aparece en la lista al instante.<br>6. Ir a <b>Mediciones</b>, seleccionar la nueva obra y empezar a cargar.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">1. <b>Obras</b> &rarr; <b>⧉</b> en la obra a copiar.<br>2. Escribir el <b>nombre</b> y el <b>código</b> nuevos.<br>3. Ir a <b>Mediciones</b>, elegir la obra nueva y cargar (o importar) las mediciones.</div>
           </div>
           <div style="background:var(--am-l);border-radius:4px;padding:10px 14px;border:1px solid #E8D5A0;">
-            <div style="font-size:11px;color:var(--am);">Tip: para casas en serie o proyectos repetidos, mantener una obra "plantilla" con la estructura tipo y duplicarla cada vez. Ahorra el tiempo de configuracion inicial.</div>
+            <div style="font-size:11px;color:var(--am);line-height:1.7;">Tip: para casas en serie, mantené una obra "plantilla" y duplicala cada vez.</div>
           </div>
         </div>
       </div>
 
-      <!-- 5. CONGELAR Y ACTUALIZAR -->
+      <!-- 7. CONGELAR LA BASE Y ACTUALIZAR POR CAC -->
       <div class="card" style="margin-bottom:14px;" id="man-congelar">
-        <div class="card-title" style="margin-bottom:4px;">5 &mdash; Congelar precios y actualizar a 3 meses</div>
-        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">El flujo completo para presupuestar, ejecutar y re-presupuestar con precios actualizados</div>
+        <div class="card-title" style="margin-bottom:4px;">7 &mdash; Congelar la base y actualizar por CAC</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Presupuestar, ejecutar y saber cuánto vale hoy sin perder lo presupuestado</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ETAPA 1 &mdash; TERMINAR EL COMPUTO Y CONGELAR</div>
-            <div style="font-size:11px;color:var(--tx2);">Una vez terminadas todas las mediciones y conforme con el presupuesto, ir a <b>Obras</b> y hacer clic en <b>&#10052;</b> (copo de nieve) en la fila de la obra. Elegir el mes de referencia y el tipo de indice (recomendado: "Cada uno por su indice"). Confirmar. Los precios quedan guardados dentro de la obra y ya no cambian aunque se actualice la base de materiales.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">QUÉ GUARDA EL CONGELADO</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Obras &rarr; ❄ &rarr; Congelar base</b> guarda una foto fija de la obra: el precio de cada material con el <b>mes CAC</b> al que corresponde ese precio, y el precio de MO de cada medición. Lo que cambies después en Materiales no la toca. La armadura y el Hº elegido en cada medición (por ejemplo H21) también quedan en la foto.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ETAPA 2 &mdash; EJECUTAR LA OBRA (3 meses despues)</div>
-            <div style="font-size:11px;color:var(--tx2);">Durante la ejecucion, usar la obra original para los certificados de avance. El presupuesto congelado sirve como referencia fija. El semaforo del Dashboard muestra si el costo real se esta desviando del congelado.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">SE CONGELA UNA SOLA VEZ</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">No hay "recongelar" encima. Si necesitás rehacer la base, <b>Quitar congelado</b>: la base anterior queda guardada en el historial de la obra y recién ahí se puede volver a congelar. Al congelar avisa si hay materiales en $0.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ETAPA 3 &mdash; ACTUALIZAR LA BASE DE PRECIOS</div>
-            <div style="font-size:11px;color:var(--tx2);">Cuando sale la nueva revista Metro Obra:<br>1. Ir a <b>Materiales</b> &rarr; <b>Exportar Excel</b><br>2. Abrir el archivo, actualizar la columna Precio y cambiar el campo Mes base al mes nuevo (ej: 2026-08)<br>3. Volver a importar con <b>Importar Excel</b><br>Los materiales quedan actualizados. Las obras congeladas no se ven afectadas.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ACTUALIZAR POR CAC (SIN TOCAR LA BASE)</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">En <b>Presupuesto</b>, <b>Valores</b>: <b>Base congelada</b> o <b>Actualizados</b>. Con Actualizados elegís el mes destino (solo meses con índice cargado). Cada material se lleva desde el mes de su precio con el CAC de materiales. La MO se puede actualizar por <b>CAC mano de obra</b>, por un <b>% de negociación</b> que cargás vos, o dejar <b>sin ajuste</b>. <b>Guardar actualización</b> deja un registro (fecha, mes, factor y total); la base no cambia.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ETAPA 4 &mdash; CREAR LA OBRA NUEVA CON PRECIOS ACTUALIZADOS</div>
-            <div style="font-size:11px;color:var(--tx2);">Para empezar una obra similar con precios del momento actual:<br>1. Ir a <b>Obras</b> &rarr; boton <b>&#10065;</b> en la obra original<br>2. Darle un nuevo nombre y codigo<br>3. Ir a <b>Mediciones</b> y cargar las mediciones nuevas (la copia no trae mediciones)<br>4. El computo automaticamente usa los precios actualizados que importaste<br>5. Congelar cuando el nuevo presupuesto este cerrado</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">EN LAS OTRAS PANTALLAS</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Materiales por obra</b>: Precios <i>Base congelada</i> o <i>Actualizados al último CAC</i>, separados por tipo de Hº.<br><b>Dashboard</b>: el semáforo muestra el desvío por cantidades y MO (cómputo de hoy contra la base) y aparte cuánto subió por CAC.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ACTUALIZAR LA BASE DE MATERIALES (REVISTA NUEVA)</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Materiales &rarr; ↓ Exportar Excel</b>, actualizar la columna Precio (y el Mes base en formato AAAA-MM si querés fijarlo) y volver con <b>↑ Importar Excel</b>. Si una fila no trae mes, toma el último mes CAC cargado. Editar un precio a mano también le pone el último mes CAC. Si no sos administrador, el precio queda como precio propio de tu empresa. Las obras congeladas no se ven afectadas.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">ÍNDICES CAC</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Índices CAC</b>: un mes por fila con índice General, Materiales y Mano de obra. La CAC publica con unos dos meses de atraso: "hoy" en la app es el último mes cargado.</div>
           </div>
           <div style="background:var(--bl-l);border-radius:4px;padding:10px 14px;border:1px solid #B0C4D8;">
-            <div style="font-size:11px;color:var(--bl);line-height:1.7;"><b>Por que congelar?</b> Sin congelar, si actualizas los precios de materiales hoy, todos los presupuestos anteriores cambian sus numeros retroactivamente. Con el congelado, cada obra guarda su propia foto de precios y no le importa lo que pase despues con la base.</div>
+            <div style="font-size:11px;color:var(--bl);line-height:1.7;"><b>¿Por qué congelar?</b> Sin congelar, si actualizás los precios de materiales hoy, todos los presupuestos anteriores cambian sus números para atrás. Con la base congelada, cada obra guarda su foto y la actualización por CAC muestra cuánto vale hoy sin perder lo presupuestado.</div>
           </div>
         </div>
       </div>
 
-      <!-- 6. MANO DE OBRA -->
+      <!-- 8. MANO DE OBRA -->
       <div class="card" style="margin-bottom:14px;" id="man-mo">
-        <div class="card-title" style="margin-bottom:4px;">6 &mdash; Mano de obra y precios reales</div>
-        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Como funciona la MO en el sistema y como cargar lo que realmente se paga</div>
+        <div class="card-title" style="margin-bottom:4px;">8 &mdash; Mano de obra</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">El precio del contratista, por unidad o global</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">LO QUE CALCULA EL SISTEMA AUTOMATICAMENTE</div>
-            <div style="font-size:11px;color:var(--tx2);">La mano de obra del presupuesto NO se calcula: es el precio que acordaste con el contratista para cada medicion (precio por unidad x cantidad, o monto global).<span class="mo-ref"> El calculo por jornales y cuadrilla (UOCRA) se conserva solo como referencia en <b>Informacion de sustento</b>, para comparar y negociar, y no suma en ningun total.</span></div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CÓMO FUNCIONA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">La mano de obra no se calcula: es el precio que acordaste con el contratista para cada medición.<span class="mo-ref"> La referencia por jornales y cuadrilla (UOCRA) está en <b>Información de sustento</b> y no suma en ningún total.</span></div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CARGAR EL PRECIO REAL DEL CONTRATISTA</div>
-            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Precios MO</b> &rarr; seleccionar la obra. Hay una fila por medicion con: <b>Contratista</b>, <b>Precio por</b> (por unidad o global) y <b>Precio</b>.<br><br><b>Por unidad</b>: lo que cobra el gremio por cada m2, m3 o ml (ej: $5.000/m2 de revoque). El sistema multiplica por la cantidad de ESA medicion, asi que si la cantidad cambia el total se actualiza solo.<br><br><b>Global</b>: monto fijo por toda la tarea (ej: $300.000 por hacer todo el piso). Es lo habitual en tareas en GL.<br><br>Tambien se carga desde el modal de la medicion (nueva o editar). El contador <b>Sin precio de MO</b> muestra cuantas mediciones faltan.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">DOS MODOS</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Por unidad</b>: lo que cobra el gremio por m², m³, ml o unidad. Se multiplica por la cantidad de esa medición, así que si cambia la cantidad el total se actualiza solo.<br><b>Global (monto fijo)</b>: un monto por toda la tarea, sin importar la cantidad. Es lo habitual en tareas GL, instalaciones y herrería.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">TAREAS SIN MATERIALES (INSTALACIONES Y HERRERIA)</div>
-            <div style="font-size:11px;color:var(--tx2);">Las instalaciones electricas, sanitarias, de gas y herreria no tienen materiales cargados porque sus precios varian mucho por proyecto. Para estas tareas, cargar el precio total del contratista en <b>Total fijo</b> en la seccion Precios MO. Eso las incluye correctamente en el presupuesto total.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">DÓNDE SE CARGA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">&bull; En la medición (nueva o editar): <b>Contratista</b>, <b>Precio</b> y <b>Modo</b>. <i>Aplicar a las demás mediciones de esta tarea sin precio</i> copia el precio al resto.<br>&bull; En <b>Precios MO</b>: una fila por medición.<br>&bull; Desde el Excel importado.<br>Una medición sin precio figura en $0 y se marca en rojo.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">TAREAS SIN MATERIALES</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Instalaciones y herrería no tienen materiales cargados porque varían mucho por proyecto. Cargá el precio del contratista en modo <b>Global</b> y entran bien en el presupuesto.</div>
           </div>
         </div>
       </div>
 
-      <!-- 7. CERTIFICADOS -->
+      <!-- 9. CERTIFICAR AVANCE DE OBRA -->
       <div class="card" style="margin-bottom:14px;" id="man-cert">
-        <div class="card-title" style="margin-bottom:4px;">7 &mdash; Certificar avance de obra</div>
-        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Como emitir un certificado de avance mensual o por periodo</div>
+        <div class="card-title" style="margin-bottom:4px;">9 &mdash; Certificar avance de obra</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Certificado mensual o por período</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CREAR EL CERTIFICADO</div>
-            <div style="font-size:11px;color:var(--tx2);">Ir a <b>Certificados</b> &rarr; seleccionar la obra &rarr; <b>+ Nuevo certificado</b>. Completar el numero de certificado y el periodo (ej: Julio 2026). El estado arranca en borrador.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Certificados</b> &rarr; elegir la obra &rarr; <b>+ Nuevo certificado</b>. Número y período (ej: Noviembre 2026). Arranca en borrador. Si la obra se importó como certificado, ya tiene el certificado base.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CARGAR EL AVANCE POR TAREA</div>
-            <div style="font-size:11px;color:var(--tx2);">En cada fila de la tabla ingresar:<br>- <b>Contratista</b>: quien ejecuto esa tarea<br>- <b>Precio unit.</b>: costo acordado por unidad<br>- <b>% Avance</b>: porcentaje completado en este periodo<br>- <b>Econ/Dem</b>: cantidad de economia o demasia si hubo cambios de alcance</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CARGAR EL AVANCE</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Por ítem: <b>Contratista</b>, <b>Costo unit.</b>, <b>% Actual</b> del período y <b>Econ/Dem</b> si hubo economías o demasías. La tabla muestra el % previo, el monto actual y el acumulado. El total de MO se reparte aunque la tarea sea global.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">BORRADOR, EMITIDO Y REABIERTO</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Un borrador usa el precio vigente de cada medición. <b>Emitir certificado</b> congela precios y contratistas: si después cambia el precio de la medición, el emitido no se mueve. Para corregirlo, <b>Reabrir a borrador</b>. Emitir y reabrir se aplican completos o no se aplican.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">EL COEFICIENTE K</div>
-            <div style="font-size:11px;color:var(--tx2);">K es el factor de precio al cliente. K=1.15 significa que al cliente le cobras 15% mas que el costo directo calculado. Se configura en la seccion de certificados de la obra. El PDF de contratista usa el costo directo, el PDF de cliente usa costo x K.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">K es el factor de precio al cliente: K = 1,15 significa cobrarle 15 % más que el costo directo. Se carga arriba en Certificados (1,15 por defecto). El import propone 1,10: revisalo después de importar.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
-            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">EXPORTAR EL CERTIFICADO</div>
-            <div style="font-size:11px;color:var(--tx2);">Con el certificado completo, usar los botones de exportacion:<br>- <b>PDF Contratista</b>: para el que ejecuta la obra, con costos directos<br>- <b>PDF Cliente</b>: para el dueno de la obra, con el precio K aplicado<br>Los PDF incluyen cabecera con nombre de obra, cliente, direccion y fecha.</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">EXPORTAR</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>⎙ PDF Contratista</b> y <b>↓ Excel Contratista</b>: costo directo. <b>⎙ PDF Cliente</b> y <b>↓ Excel Cliente</b>: costo &times; K. Llevan la cabecera con obra, cliente, dirección y fecha.</div>
           </div>
         </div>
       </div>
 
-      <!-- 8. REFERENCIA DE SECCIONES -->
+      <!-- 10. CRONOGRAMA Y COMPRAS POR PERÍODO -->
+      <div class="card" style="margin-bottom:14px;" id="man-crono">
+        <div class="card-title" style="margin-bottom:4px;">10 &mdash; Cronograma y compras por período</div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:16px;">Vínculo con el MS Project de BkTableros</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">VINCULAR CON EL PROJECT</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Cronograma</b> &rarr; elegir la obra, el <b>Project (BkTableros)</b> de la empresa y la revisión &rarr; <b>Cargar y vincular</b>. Cada medición se une con la tarea del Project que tiene el mismo <b>N° de ítem</b> (campo Texto4 de MS Project), sin el prefijo de obra.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">QUÉ MUESTRA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Vinculadas</b>, mediciones <b>sin tarea</b>, <b>códigos duplicados</b> y <b>tareas del Project sin medición</b>. También avisa las tareas del Project que no tienen N° de ítem.</div>
+          </div>
+          <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">MATERIALES POR PERÍODO DE COMPRA</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Elegir <b>Comprar desde</b>, <b>Comprar hasta</b> y la <b>Anticipación (días)</b>. Lista los materiales de las tareas que empiezan en ese período, con la fecha de compra sugerida (inicio menos anticipación). Se pueden excluir las tareas al 100 % y exportar a Excel.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 11. REFERENCIA DE SECCIONES -->
       <div class="card" style="margin-bottom:14px;" id="man-secciones">
-        <div class="card-title" style="margin-bottom:14px;">8 &mdash; Referencia de secciones</div>
+        <div class="card-title" style="margin-bottom:14px;">11 &mdash; Referencia de secciones</div>
         <table style="width:100%;font-size:11px;border-collapse:collapse;">
           <thead><tr style="border-bottom:2px solid var(--border);">
-            <th style="text-align:left;padding:6px 8px;color:var(--tx3);">Seccion</th>
-            <th style="text-align:left;padding:6px 8px;color:var(--tx3);">Que hace</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--tx3);">Sección</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--tx3);">Qué hace</th>
             <th style="text-align:left;padding:6px 8px;color:var(--tx3);">Requiere</th>
           </tr></thead>
           <tbody>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Dashboard</td><td style="padding:7px 8px;color:var(--tx2);">Resumen de cartera con semaforo de desvio</td><td style="padding:7px 8px;color:var(--tx3);">Obras con mediciones</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Obras</td><td style="padding:7px 8px;color:var(--tx2);">Alta, edicion, duplicado y congelado</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mediciones</td><td style="padding:7px 8px;color:var(--tx2);">Carga de tareas con cantidades</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Computo automatico</td><td style="padding:7px 8px;color:var(--tx2);">Lista de materiales calculados (solo lectura)</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Presupuesto</td><td style="padding:7px 8px;color:var(--tx2);">Costo total por rubro con materiales y MO</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales</td><td style="padding:7px 8px;color:var(--tx2);">Base de precios, exportar e importar Excel</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr class="mo-ref" style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mano de obra</td><td style="padding:7px 8px;color:var(--tx2);">Categorias UOCRA con jornal: solo referencia (Informacion de sustento)</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Consumos</td><td style="padding:7px 8px;color:var(--tx2);">Consumos de materiales de cada tarea (recetas), agrupados por rubro</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Indices CAC</td><td style="padding:7px 8px;color:var(--tx2);">Indice mensual para congelado de precios</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Archivos</td><td style="padding:7px 8px;color:var(--tx2);">Fotos y planos por obra</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales por obra</td><td style="padding:7px 8px;color:var(--tx2);">Materiales consolidados para comprar</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Precios MO</td><td style="padding:7px 8px;color:var(--tx2);">Precio real del contratista por tarea</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Certificados</td><td style="padding:7px 8px;color:var(--tx2);">Avance de obra con coeficiente K</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones y precios MO</td></tr>
-            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Historial</td><td style="padding:7px 8px;color:var(--tx2);">Registro de cambios en mediciones</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
-            <tr><td style="padding:7px 8px;font-weight:500;">Cartera</td><td style="padding:7px 8px;color:var(--tx2);">Comparativa de costo por m2 entre obras</td><td style="padding:7px 8px;color:var(--tx3);">Obras con mediciones y superficie</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Dashboard</td><td style="padding:7px 8px;color:var(--tx2);">Resumen de cartera y semáforo de desvío contra la base congelada</td><td style="padding:7px 8px;color:var(--tx3);">Obras con mediciones</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Obras</td><td style="padding:7px 8px;color:var(--tx2);">Alta, edición, duplicado, congelado e import de Excel</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mediciones</td><td style="padding:7px 8px;color:var(--tx2);">Carga de tareas, armadura, revisión e import</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Cómputo automático</td><td style="padding:7px 8px;color:var(--tx2);">Materiales calculados por rubro (solo lectura)</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Presupuesto</td><td style="padding:7px 8px;color:var(--tx2);">Materiales y MO por rubro; base congelada o actualizada por CAC</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Archivos</td><td style="padding:7px 8px;color:var(--tx2);">Fotos y planos por obra (privados de la empresa)</td><td style="padding:7px 8px;color:var(--tx3);">Una obra creada</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales por obra</td><td style="padding:7px 8px;color:var(--tx2);">Lista de compras, saldo computado vs comprado y registro de compras</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Cronograma</td><td style="padding:7px 8px;color:var(--tx2);">Vínculo con el Project por N° de ítem y materiales por período</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones con N° de ítem y un Project</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Precios MO</td><td style="padding:7px 8px;color:var(--tx2);">Precio del contratista por medición</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
+            <tr class="mo-ref" style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Información de sustento</td><td style="padding:7px 8px;color:var(--tx2);">Referencia por jornales UOCRA (solo lectura)</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Certificados</td><td style="padding:7px 8px;color:var(--tx2);">Avance de obra con coeficiente K, PDF y Excel</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones y precios MO</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Historial</td><td style="padding:7px 8px;color:var(--tx2);">Registro de cambios con fecha y usuario</td><td style="padding:7px 8px;color:var(--tx3);">Mediciones cargadas</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Materiales</td><td style="padding:7px 8px;color:var(--tx2);">Base de precios agrupada por categoría, columna "Se usa en", exportar e importar Excel</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr class="mo-ref" style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Mano de obra</td><td style="padding:7px 8px;color:var(--tx2);">Categorías UOCRA con jornal: solo referencia</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Consumos</td><td style="padding:7px 8px;color:var(--tx2);">Consumo de materiales de cada tarea, por rubro</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:7px 8px;font-weight:500;">Índices CAC</td><td style="padding:7px 8px;color:var(--tx2);">Índice mensual para congelar y actualizar precios</td><td style="padding:7px 8px;color:var(--tx3);">Nada</td></tr>
+            <tr><td style="padding:7px 8px;font-weight:500;">Cartera</td><td style="padding:7px 8px;color:var(--tx2);">Costo por m² comparado entre obras</td><td style="padding:7px 8px;color:var(--tx3);">Obras con mediciones y superficie</td></tr>
           </tbody>
         </table>
       </div>
 
-      <!-- 9. PROBLEMAS FRECUENTES -->
+      <!-- 12. PROBLEMAS FRECUENTES Y CÓMO RESOLVERLOS -->
       <div class="card" style="margin-bottom:14px;border-color:#E8A000;" id="man-trabas">
-        <div class="card-title" style="margin-bottom:14px;color:#8B5E00;">9 &mdash; Problemas frecuentes y como resolverlos</div>
+        <div class="card-title" style="margin-bottom:14px;color:#8B5E00;">12 &mdash; Problemas frecuentes y cómo resolverlos</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
             <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">La MO muestra $0 en el presupuesto</div>
-            <div style="font-size:11px;color:var(--tx2);">La medicion no tiene precio de contratista cargado (se marca "sin precio" en rojo). Ir a <b>Precios MO</b>, seleccionar la obra y cargar el precio de cada medicion, o editar la medicion (&#9998;) y completar Contratista y Precio. Si ya tenias precios y desaparecieron, falta correr el SQL_04 en Supabase.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">La medición no tiene precio de contratista (se marca en rojo). Cargalo en <b>Precios MO</b> o editando la medición (&#9998;).</div>
           </div>
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
-            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">Archivos, Compras, Precios MO o Certificados aparecen vacios</div>
-            <div style="font-size:11px;color:var(--tx2);">Estas secciones requieren una obra seleccionada en el desplegable de arriba. Si el desplegable dice "Sin obras", hay que crear la obra primero en la seccion <b>Obras</b>.</div>
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">Archivos, Materiales por obra, Precios MO o Certificados aparecen vacíos</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Necesitan una obra elegida en el desplegable de arriba. Si dice "Sin obras", creá la obra en <b>Obras</b>.</div>
           </div>
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
-            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El computo no genera materiales para instalaciones o herreria</div>
-            <div style="font-size:11px;color:var(--tx2);">Es el comportamiento correcto. Esas tareas tienen materiales vacios porque su precio varia por proyecto. Cargar el costo total del contratista en <b>Precios MO</b> como Total fijo.</div>
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El cómputo no genera materiales para instalaciones o herrería</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Es correcto: esas tareas no tienen materiales. Cargá el precio del contratista en modo <b>Global</b>.</div>
           </div>
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
-            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El semaforo muestra "Sin presup." en el Dashboard</div>
-            <div style="font-size:11px;color:var(--tx2);">El semaforo compara el costo actual contra el presupuesto congelado. Para activarlo, ir a <b>Obras</b> y hacer clic en el boton &#10052; de la obra para congelar los precios.</div>
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">Una medición tiene "⚙ armadura por defecto"</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">La armadura se estimó al importar. Editá la medición, cargá la armadura de la planilla y guardá. Con el filtro <i>Ver solo pendientes</i> ves todas las que faltan.</div>
           </div>
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
-            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El indice CAC no tiene el mes que necesito</div>
-            <div style="font-size:11px;color:var(--tx2);">La base tiene indices hasta marzo 2026. Cuando la CAC publique nuevos meses, ir a <b>Indices CAC</b> y cargarlos manualmente. Son 3 valores por mes: General, Materiales y Mano de obra.</div>
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">En el esquema hay valores en ocre con &asymp;</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Esos campos están vacíos y se dibuja un valor típico. Completalos: los lados y largos vacíos no computan, y las separaciones y cantidades vacías usan el valor típico.</div>
+          </div>
+          <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El semáforo dice "Sin presup." en el Dashboard</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Compara contra la base congelada. Congelá la obra en <b>Obras &rarr; ❄</b>.</div>
+          </div>
+          <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">No aparece el mes CAC que necesito</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Cargalo en <b>Índices CAC</b> cuando se publique: General, Materiales y Mano de obra. Solo se puede actualizar a meses con índice cargado.</div>
+          </div>
+          <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">Mediciones que no vinculan con el Project</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">En <b>Cronograma</b>, revisá la lista de sin tarea y de duplicados: el N° de ítem de la medición tiene que coincidir con el Texto4 de la tarea en MS Project.</div>
+          </div>
+          <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El import tardó o falló</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Si falló, no quedó nada a medias: se deshizo. Revisá el mensaje, corregí el Excel o la vista previa y volvé a importar.</div>
           </div>
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
             <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">Entro con una cuenta y veo datos de otra empresa</div>
-            <div style="font-size:11px;color:var(--tx2);">Cerrar sesion completamente (boton "Cerrar sesion" al pie del menu lateral) y volver a ingresar. El sistema necesita leer las credenciales frescas para aplicar el filtro de empresa correcto.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Cerrar sesión</b> al pie del menú lateral y volver a entrar.</div>
           </div>
           <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
-            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El boton + Sumar no aparece en la medicion</div>
-            <div style="font-size:11px;color:var(--tx2);">El acumulador de superficies solo aparece para tareas con unidad M2 o M3. Para tareas con unidad ML, unidad o global, se escribe la cantidad directamente en el campo de resultado.</div>
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">No veo el último cambio que me avisaron</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Fijate el build en la barra superior y recargá con Ctrl+Shift+R.</div>
+          </div>
+          <div style="background:white;border-radius:4px;padding:10px 14px;border:1px solid #F0D090;">
+            <div style="font-size:11px;font-weight:600;color:#8B5E00;margin-bottom:3px;">El botón + Sumar no aparece</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">El acumulador de superficies es para tareas en m² o m³. En ml, unidad o global se escribe la cantidad directamente.</div>
           </div>
         </div>
       </div>
 
-      <!-- 10. FAQ -->
+      <!-- 13. FAQ -->
       <div class="card" id="man-faq">
-        <div class="card-title" style="margin-bottom:14px;">10 &mdash; Preguntas y respuestas</div>
+        <div class="card-title" style="margin-bottom:14px;">13 &mdash; Preguntas y respuestas</div>
         <div style="border-bottom:1px solid var(--border);">
-          <div onclick="toggleFaq(0)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Como cargo varias superficies en una sola medicion?</span><span id="faq-icon-0" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-0" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Completar Largo y Ancho y apretar <b>+ Sumar</b>. El sistema muestra la lista acumulada con cada linea. Podes quitar lineas con la X. Para restar una superficie (ej: descontar una puerta) ingresar los valores y el resultado se resta del total. Tambien podes escribir el total directamente en el campo verde sin usar el acumulador.</div>
+          <div onclick="toggleFaq(0)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Cómo cargo varias superficies en una sola medición?</span><span id="faq-icon-0" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-0" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Completá las medidas y apretá <b>+ Sumar</b>. Se arma la lista con cada línea y podés quitar líneas con la X. Para descontar (por ejemplo una puerta), cargá la superficie a restar. También podés escribir el total directamente.</div>
         </div>
         <div style="border-bottom:1px solid var(--border);">
-          <div onclick="toggleFaq(1)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Como cobro una tarea como precio global y no por m2?</span><span id="faq-icon-1" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-1" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Ir a <b>Precios MO</b> &rarr; seleccionar la obra &rarr; en la fila de la tarea, usar la columna <b>Total fijo</b>. Escribir el monto total que cobra el gremio por toda la tarea (ej: $300.000 por hacer todo el piso). El campo de precio unitario queda desactivado automaticamente cuando se carga un total fijo.</div>
+          <div onclick="toggleFaq(1)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Cómo pongo una tarea a precio global y no por m²?</span><span id="faq-icon-1" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-1" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">En la medición o en <b>Precios MO</b>, elegí el modo <b>Global (monto fijo)</b> y escribí el monto total que cobra el gremio por toda la tarea.</div>
         </div>
         <div style="border-bottom:1px solid var(--border);">
-          <div onclick="toggleFaq(2)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Como actualizo los precios de materiales con la revista nueva?</span><span id="faq-icon-2" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-2" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;"><b>Materiales</b> &rarr; <b>Exportar Excel</b>. Abrir el archivo, actualizar la columna Precio con los valores nuevos y cambiar el campo Mes base al mes nuevo (formato AAAA-MM, ej: 2026-08). Guardar el archivo y volver a importar con <b>Importar Excel</b>. El sistema actualiza cada material por codigo. No cambiar la columna de codigo o no va a reconocer el material.</div>
+          <div onclick="toggleFaq(2)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Cómo actualizo los precios de materiales con la revista nueva?</span><span id="faq-icon-2" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-2" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;"><b>Materiales &rarr; ↓ Exportar Excel</b>, actualizá la columna Precio (y el Mes base, AAAA-MM, si querés fijarlo) y volvé con <b>↑ Importar Excel</b>. No cambies la columna de código: el material se reconoce por código. Si no ponés mes, toma el último CAC cargado.</div>
         </div>
         <div style="border-bottom:1px solid var(--border);">
-          <div onclick="toggleFaq(3)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Que diferencia hay entre el PDF de contratista y el de cliente en certificados?</span><span id="faq-icon-3" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-3" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">El PDF de contratista muestra el costo directo de cada tarea, que es lo que se le paga a quien ejecuta la obra. El PDF de cliente muestra ese mismo costo multiplicado por el coeficiente K, que incluye los gastos generales y la utilidad del estudio. Ejemplo: si el costo directo de una tarea es $100.000 y K=1.15, el cliente ve $115.000.</div>
+          <div onclick="toggleFaq(3)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Qué diferencia hay entre los PDF de contratista y de cliente?</span><span id="faq-icon-3" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-3" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">El de contratista muestra el costo directo, lo que se le paga a quien ejecuta. El de cliente muestra ese costo &times; K. Ejemplo: costo $100.000 y K = 1,15 &rarr; el cliente ve $115.000.</div>
         </div>
         <div style="border-bottom:1px solid var(--border);">
-          <div onclick="toggleFaq(4)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Se pierden los datos si cierro el navegador o se va la luz?</span><span id="faq-icon-4" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-4" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">No. Cada medicion, obra o precio se guarda en la base de datos en el momento en que apreta Guardar. No hay un "guardar todo" al final. Cerrar el navegador, apagar la computadora o recargar la pagina no borra nada. Los datos estan en el servidor (Supabase) y no en la computadora local.</div>
+          <div onclick="toggleFaq(4)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Qué pasa si cambio un precio después de emitir un certificado?</span><span id="faq-icon-4" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-4" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Nada: el emitido conserva sus precios. Los borradores sí toman el precio nuevo. Para corregir un emitido, reabrilo a borrador.</div>
         </div>
         <div style="border-bottom:1px solid var(--border);">
-          <div onclick="toggleFaq(5)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Puedo ver quien modifico una medicion?</span><span id="faq-icon-5" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-5" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Si. Ir a <b>Historial</b> en el menu lateral, seleccionar la obra. Aparece la lista cronologica de todos los cambios con la fecha, el usuario que lo hizo y los valores antes y despues. Los cambios se marcan en verde (nuevo), naranja (editado) o rojo (eliminado).</div>
+          <div onclick="toggleFaq(5)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿El tipo de hormigón cambia la lista de compras?</span><span id="faq-icon-5" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-5" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Sí. Cada medición usa el Hº elegido (H17 por defecto) y Materiales por obra los lista separados.</div>
         </div>
         <div style="border-bottom:1px solid var(--border);">
-          <div onclick="toggleFaq(6)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Que pasa si cargo mal una medicion y la borro? Se puede recuperar?</span><span id="faq-icon-6" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-6" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Una vez borrada no se puede recuperar desde la app. Pero en el <b>Historial</b> queda registrado el valor que tenia antes de borrarse, con fecha y usuario. Desde ahi se puede ver que era y volver a cargarla manualmente. Por eso siempre pide confirmacion antes de borrar.</div>
+          <div onclick="toggleFaq(6)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Se pierden los datos si cierro el navegador?</span><span id="faq-icon-6" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-6" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">No. Cada cosa se guarda en el servidor cuando apretás Guardar. Cerrar o recargar no borra nada.</div>
+        </div>
+        <div style="border-bottom:1px solid var(--border);">
+          <div onclick="toggleFaq(7)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Puedo ver quién modificó una medición?</span><span id="faq-icon-7" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-7" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Sí. La columna <b>Modificado</b> muestra el último cambio, y <b>Historial</b> lista todos con fecha, usuario y valores antes y después (verde nuevo, naranja editado, rojo eliminado).</div>
+        </div>
+        <div style="border-bottom:1px solid var(--border);">
+          <div onclick="toggleFaq(8)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Borré una medición por error, ¿se recupera?</span><span id="faq-icon-8" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-8" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Desde la app no. En el <b>Historial</b> queda lo que tenía, con fecha y usuario, para volver a cargarla.</div>
+        </div>
+        <div style="border-bottom:1px solid var(--border);">
+          <div onclick="toggleFaq(9)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Cómo comparo el costo de dos obras?</span><span id="faq-icon-9" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-9" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;"><b>Cartera</b>: costo por m² de cada obra, desglosado en materiales y MO.</div>
         </div>
         <div>
-          <div onclick="toggleFaq(7)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">Como comparo el costo de dos obras similares?</span><span id="faq-icon-7" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
-          <div id="faq-7" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">Ir a <b>Cartera</b> en el menu lateral. Muestra una tabla comparativa con el costo por m2 de cada obra desglosado en materiales y mano de obra. Tambien muestra la barra proporcional y el semaforo de desvio. Es la vista mas rapida para ver si una obra esta cara o barata respecto a las demas.</div>
+          <div onclick="toggleFaq(10)" style="padding:10px 0;cursor:pointer;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:11px;font-weight:500;">¿Para qué sirve el asistente?</span><span id="faq-icon-10" style="color:var(--tx3);flex-shrink:0;">&#9662;</span></div>
+          <div id="faq-10" style="display:none;padding:0 0 12px;font-size:11px;color:var(--tx2);line-height:1.8;">El botón flotante abre un chat que busca en la app: obras, resúmenes, materiales y mediciones. Distingue la armadura por defecto de la cargada. Es una ayuda: verificá los números en las pantallas.</div>
         </div>
       </div>
 
@@ -1316,7 +1468,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-03.3';
+const APP_BUILD = '2026-11-03.4';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
