@@ -1316,7 +1316,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-03.1';
+const APP_BUILD = '2026-11-03.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2520,14 +2520,24 @@ function computeObra(obraId) {
 
     // Hierros de columnas, vigas, zapatas (est/ppal/sup/inf)
     if (armData.est && !armData.armTipo) {
-      // Estribos siempre Ø6mm (MAT-001)
-      const estMat = matPorCod('MAT-001');
+      // Estribos: Ø elegido en la medición (diamEst); Ø6 si es una medición vieja
+      const estMat = matPorCod(armData.diamEst || 'MAT-001');
       const mlEst = num(armData.est);
       const barrasEst = Math.ceil(mlEst / 12);
       if (estMat && barrasEst > 0) {
         matItems.push({ nombre: estMat.nombre, unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
           cantidadBase: mlEst, cantidadComercial: barrasEst,
           precioUnit: estMat.precio, subtotal: barrasEst * estMat.precio, matFound: true });
+      }
+    }
+    if (armData.sec && !armData.armTipo) {   // secundarios transversales de zapata (con alas)
+      const secMat = matPorCod(armData.diamSec || 'MAT-002');
+      const mlSecV = num(armData.sec);
+      const barrasSec = Math.ceil(mlSecV / 12);
+      if (secMat && barrasSec > 0) {
+        matItems.push({ nombre: secMat.nombre + ' (secundarios)', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
+          cantidadBase: mlSecV, cantidadComercial: barrasSec,
+          precioUnit: secMat.precio, subtotal: barrasSec * secMat.precio, matFound: true });
       }
     }
     if (armData.ppal && !armData.armTipo) {
@@ -2586,9 +2596,9 @@ function computeObra(obraId) {
       }
     }
     // Alambre para ataduras en cualquier elemento con hierros
-    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y) && !armData.armTipo) {
+    if ((armData.est || armData.sec || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
-      const mlTot = num(armData.est||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0) + num(armData.ref||0) + num(armData.x||0) + num(armData.y||0);
+      const mlTot = num(armData.est||0) + num(armData.sec||0) + num(armData.ppal||0) + num(armData.sup||0) + num(armData.inf||0) + num(armData.ref||0) + num(armData.x||0) + num(armData.y||0);
       if (alMat && mlTot > 0) {
         const kgAl = +(mlTot * 0.03).toFixed(2);
         matItems.push({ nombre: alMat.nombre||'Alambre negro nº17', unidad: 'kg', unComercial: 'kg', divisor: 1,
@@ -3098,7 +3108,7 @@ function tipoEstructural(cod) {
 
 // Calcula ML de estribos y hierros principales dados los datos de dimensiones
 function calcArmadura(tipo, dims) {
-  const { ladoA=0, ladoB=0, ml=0, sepEst=0.25, cantPpal=4, cantSup=2, cantInf=2, diam=0.006, sepX=0.20, sepY=0.20, ancho=0, largo=0, alto=0, sep=0.20, cant=1, armTipo='hierros', mallaTipo='MAT-008', hierroDiam='MAT-002', diamPpal='MAT-003', cantElem=1, refMl=0, refLargo=0, refSep=0.20, refDiam='MAT-003', esp=0.20, bwDado=0.20, dado=0.15, cant8=3, cantDiag=2 } = dims;
+  const { ladoA=0, ladoB=0, ml=0, sepEst=0.25, cantPpal=4, cantSup=2, cantInf=2, diam=0.006, sepX=0.20, sepY=0.20, ancho=0, largo=0, alto=0, sep=0.20, cant=1, armTipo='hierros', mallaTipo='MAT-008', hierroDiam='MAT-002', diamPpal='MAT-003', cantElem=1, refMl=0, refLargo=0, refSep=0.20, refDiam='MAT-003', esp=0.20, bwDado=0.20, dado=0.15, cant8=3, cantDiag=2, diamEst='MAT-001', diamSec='MAT-002', ala=0.10, nAla=2 } = dims;
   const rec2 = 2 * RECUB;
   let resultado = {};
 
@@ -3117,8 +3127,9 @@ function calcArmadura(tipo, dims) {
       mlPpal: +(mlPpal * cantElem).toFixed(3),
       cantEstribos: cantEst * cantElem,
       diamPpal,
+      diamEst,
       cantElem,
-      resumen: `${cantElem>1?cantElem+'u × ':''}${ladoA*100}×${ladoB*100}cm, H=${ml}m | ${cantPpal}Ø ppal, est. c/${sepEst*100}cm`
+      resumen: `${cantElem>1?cantElem+'u × ':''}${ladoA*100}×${ladoB*100}cm, H=${ml}m | ${cantPpal}Ø ppal, est. ${DIAM_LABEL[diamEst]||'Ø6'} c/${sepEst*100}cm`
     };
   }
 
@@ -3140,49 +3151,54 @@ function calcArmadura(tipo, dims) {
       mlInf: +(mlInf * cantElem).toFixed(3),
       cantEstribos: cantEst * cantElem,
       diamPpal,
+      diamEst,
       cantElem,
-      resumen: `${cantElem>1?cantElem+'u × ':''}${ladoA*100}×${ladoB*100}cm, L=${ml}m | ${cantSup}↑ + ${cantInf}↓, est. c/${sepEst*100}cm`
+      resumen: `${cantElem>1?cantElem+'u × ':''}${ladoA*100}×${ladoB*100}cm, L=${ml}m | ${cantSup}↑ + ${cantInf}↓, est. ${DIAM_LABEL[diamEst]||'Ø6'} c/${sepEst*100}cm`
     };
   }
 
   else if (tipo === 'zapata') {
-    const perimEst = 2*(ladoA - rec2) + 2*(ladoB - rec2);
-    const cantEst = Math.ceil(ml / sepEst) + 1;
-    const mlEst = cantEst * (perimEst + 0.125);
+    // Zapata corrida: SIN estribos. Principales = barras longitudinales (ml + pata de 25 cm por extremo).
+    // Secundarios = barras transversales c/sep: ancho útil (B − 2·recub) + alas hacia arriba en los extremos.
     const mlPpal = cantPpal * (ml + ANCLAJE*2);
+    const alaU = Math.min(ala, Math.max(0, ladoB - rec2));          // el ala no puede pasar la tapada superior
+    const nA = Math.max(0, Math.min(2, Math.round(nAla)));
+    const largoSec = Math.max(0, ladoA - rec2) + nA * alaU;
+    const cantSec = ml > 0 ? Math.ceil(ml / sep) + 1 : 0;
     const m3 = ladoA * ladoB * ml;
     resultado = {
       m3: +m3.toFixed(4),
-      mlEstribos: +mlEst.toFixed(3),
       mlPpal: +mlPpal.toFixed(3),
-      cantEstribos: cantEst,
-      diamPpal,
-      resumen: `B=${ladoA*100}cm A=${ladoB*100}cm, L=${ml}m | est. c/${sepEst*100}cm`
+      mlSec: +(cantSec * largoSec).toFixed(3), cantSec, largoSec: +largoSec.toFixed(3),
+      diamPpal, diamSec,
+      resumen: `B=${ladoA*100}cm A=${ladoB*100}cm, L=${ml}m | ${cantPpal}${DIAM_LABEL[diamPpal]||'Ø10'} princ. + secund. ${DIAM_LABEL[diamSec]||'Ø8'} c/${+(sep*100).toFixed(1)}cm${nA ? ` con ${nA} ala${nA>1?'s':''} de ${+(alaU*100).toFixed(1)}cm` : ''}`
     };
   }
 
   else if (tipo === 'zapata_excentrica') {
     // Media zapata de medianera. Sección por ml = base B×e + dado bw×(H−e) + cuña (B−bw)×(H−e)/2 + arranque bw×d
-    // Armadura (plano "Zapata excéntrica"): estribo Ø6 de perfil + Ø10 inferiores + 2Ø10 en la pendiente (→ ppal)
-    // y Ø8 inferiores (→ ref, para no tocar el costeo). Patas de 25 cm por extremo, igual que la zapata corrida.
+    // Armadura SIN estribos. Principales = longitudinales (7 barras del corte): cantPpal Ø10 + cant8 Ø8 en el fondo, alternadas,
+    // y cantDiag Ø10 sobre la pendiente (→ ppal); los Ø8 van como "refuerzo" para no tocar el costeo. Pata de 25 cm por extremo.
+    // Secundarios = barras transversales con alas, c/sep: ancho útil (B − 2·recub) + alas hacia arriba, en el diámetro elegido.
     const B = ladoA, H = ladoB, e = Math.min(esp, H), bw = Math.min(bwDado, B);
     const hp = Math.max(0, H - e), run = Math.max(0, B - bw);
     const area = B*e + bw*hp + run*hp/2 + bw*dado;
     const m3 = area * ml;
-    const perimEst = Math.max(0, B - rec2) + Math.max(0, H - rec2) + Math.max(0, bw - rec2) + Math.hypot(run, hp) + Math.max(0, e - rec2) + 0.125;
-    const cantEst = ml > 0 ? Math.ceil(ml / sepEst) + 1 : 0;
     const barraL = ml + ANCLAJE*2;
     const mlPpal = (cantPpal + cantDiag) * barraL;
     const mlRef8 = cant8 * barraL;
+    const alaU = Math.min(ala, Math.max(0, e - rec2));              // el ala no puede pasar la tapada superior de la punta
+    const nA = Math.max(0, Math.min(2, Math.round(nAla)));
+    const largoSec = Math.max(0, B - rec2) + nA * alaU;
+    const cantSec = ml > 0 ? Math.ceil(ml / sep) + 1 : 0;
     resultado = {
       m3: +m3.toFixed(4),
-      mlEstribos: +(cantEst * perimEst).toFixed(3),
       mlPpal: +mlPpal.toFixed(3),
       mlRef: +mlRef8.toFixed(3), refDiam: 'MAT-002', cantRef: cant8, refLargo: +barraL.toFixed(2), refLabel: 'Ø8 inferiores',
-      cantEstribos: cantEst,
-      diamPpal: 'MAT-003',
+      mlSec: +(cantSec * largoSec).toFixed(3), cantSec, largoSec: +largoSec.toFixed(3),
+      diamPpal: 'MAT-003', diamSec,
       areaSec: +area.toFixed(4),
-      resumen: `B=${+(B*100).toFixed(1)} H=${+(H*100).toFixed(1)} e=${+(e*100).toFixed(1)} dado ${+(bw*100).toFixed(1)}×${+(dado*100).toFixed(1)}cm, L=${ml}m | ${cantPpal}Ø10 inf + ${cantDiag}Ø10 pend. + ${cant8}Ø8 inf | est. Ø6 c/${+(sepEst*100).toFixed(1)}cm`
+      resumen: `B=${+(B*100).toFixed(1)} H=${+(H*100).toFixed(1)} e=${+(e*100).toFixed(1)} dado ${+(bw*100).toFixed(1)}×${+(dado*100).toFixed(1)}cm, L=${ml}m | ${cantPpal}Ø10 inf + ${cant8}Ø8 inf + ${cantDiag}Ø10 pend. | secund. ${DIAM_LABEL[diamSec]||'Ø8'} c/${+(sep*100).toFixed(1)}cm${nA ? ` con ${nA} ala${nA>1?'s':''} de ${+(alaU*100).toFixed(1)}cm` : ''}`
     };
   }
 
@@ -3259,7 +3275,8 @@ function calcArmadura(tipo, dims) {
       mlEstribos: +mlEst.toFixed(3),
       mlPpal: +mlPpal.toFixed(3),
       cantEstribos: cantEst,
-      resumen: `Ø=${ladoA*100}cm, Prof=${ml}m | ${cantPpal} ppal, est. c/${sepEst*100}cm`
+      diamEst,
+      resumen: `Ø=${ladoA*100}cm, Prof=${ml}m | ${cantPpal} ppal, est. ${DIAM_LABEL[diamEst]||'Ø6'} c/${sepEst*100}cm`
     };
   }
 
@@ -3341,10 +3358,36 @@ function _puntosSeccion(cx, cy, w, h, n) {
 
 // Media zapata de medianera: lee los campos propios del formulario (pre = '' en Nueva medición, 'e-' en Editar).
 // Un campo vacío toma el valor del plano "Zapata excéntrica"; devuelve las dims para calcArmadura.
+const _gdUI = pre => (id, def) => { const el = document.getElementById(pre + id); return (!el || el.value === '') ? def : num(el.value); };
+const _selUI = (pre, id, def) => document.getElementById(pre + id)?.value || def;
 function dimsZapataExcentrica(pre) {
-  const gd = (id, def) => { const el = document.getElementById(pre + id); return (!el || el.value === '') ? def : num(el.value); };
+  const gd = _gdUI(pre);
   return { exc: true, ladoA: gd('dim-la', 0), ladoB: gd('dim-lb', 0), ml: gd('dim-ml', 0), esp: gd('dim-e', 0.20), bwDado: gd('dim-bw', 0.20), dado: gd('dim-d', 0.15),
-           sepEst: gd('dim-sep', 0.20) || 0.20, cantPpal: gd('dim-np', 4), cant8: gd('dim-n8', 3), cantDiag: gd('dim-nd', 2) };
+           sep: gd('dim-sep', 0.20) || 0.20, cantPpal: gd('dim-np', 4), cant8: gd('dim-n8', 3), cantDiag: gd('dim-nd', 2),
+           diamSec: _selUI(pre, 'dim-diam-sec', 'MAT-002'), ala: gd('dim-ala', 0.10), nAla: gd('dim-nala', 2) };
+}
+// Zapata corrida: principales longitudinales + secundarios transversales con ala (sin estribos)
+function dimsZapataCorrida(pre) {
+  const gd = _gdUI(pre);
+  return { ladoA: gd('dim-la', 0), ladoB: gd('dim-lb', 0), ml: gd('dim-ml', 0), sep: gd('dim-sep', 0.20) || 0.20, cantPpal: gd('dim-np', 4) || 4,
+           diamPpal: _selUI(pre, 'dim-diam-ppal', 'MAT-003'), diamSec: _selUI(pre, 'dim-diam-sec', 'MAT-002'), ala: gd('dim-ala', 0.10), nAla: gd('dim-nala', 2) };
+}
+// Valores comunes que usan los diagramas (Ø de estribo y de secundarios, ala)
+function armExtrasUI(pre) {
+  const gd = _gdUI(pre);
+  return { diamEst: _selUI(pre, 'dim-diam-est', 'MAT-001'), diamSec: _selUI(pre, 'dim-diam-sec', 'MAT-002'), ala: gd('dim-ala', 0.10), nAla: gd('dim-nala', 2) };
+}
+// Selectores / campos nuevos (pre = '' en Nueva medición, 'e-' en Editar)
+function _optsDiam(sel) { return [['MAT-001','Ø6mm'],['MAT-002','Ø8mm'],['MAT-003','Ø10mm'],['MAT-004','Ø12mm']].map(([v, t]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${t}</option>`).join(''); }
+function diamEstSelectHtml(pre) {
+  return `<div class="ig-item"><div class="ig-label">Ø estribos</div><select class="ig-input" id="${pre}dim-diam-est" onchange="${pre ? 'calcEditDimEstructural' : 'calcDimEstructural'}()" style="font-family:var(--mono);font-size:11px;padding:6px;">${_optsDiam('MAT-001')}</select></div>`;
+}
+// Secundarios de zapata: Ø, ala y cantidad de alas (la separación usa el campo dim-sep)
+function zapataSecHtml(pre) {
+  const fn = (pre ? 'calcEditDimEstructural' : 'calcDimEstructural') + '()';
+  const inp = (id, label, ph, step) => `<div class="ig-item"><div class="ig-label">${label}</div><input class="ig-input" id="${pre}${id}" type="number" placeholder="${ph}" step="${step}" oninput="${fn}"></div>`;
+  return `<div class="ig-item"><div class="ig-label">Ø secundarios</div><select class="ig-input" id="${pre}dim-diam-sec" onchange="${fn}" style="font-family:var(--mono);font-size:11px;padding:6px;">${_optsDiam('MAT-002')}</select></div>`
+    + inp('dim-ala', 'Ala de cada extremo (m)', '0.10', '0.01') + inp('dim-nala', 'Alas por barra (0 · 1 · 2)', '2', '1');
 }
 
 function armDiagramaSVG(tipo, v) {
@@ -3373,7 +3416,7 @@ function armDiagramaSVG(tipo, v) {
     b += _S.rect(cx-w/2, cy-h/2, w, h, _cEst, 'none', 2);
     _puntosSeccion(cx, cy, w, h, np).forEach(p => { b += _S.dot(p[0], p[1], 4.5, _cMain); });
     b += _S.text(cx, cy+h/2+26, `${_fm(A*100,0)} × ${_fm(B*100,0)} cm`, {a:'middle',size:11,b:true});
-    b += _leyenda(290, 205, [{c:_cMain,t:`${np} ${dl} long. con pata de anclaje`},{c:_cEst,t:`Estribos Ø6 c/${_fm(sep*100,0)} cm`}]);
+    b += _leyenda(290, 205, [{c:_cMain,t:`${np} ${dl} long. con pata de anclaje`},{c:_cEst,t:`Estribos ${DIAM_LABEL[v.diamEst]||'Ø6'} c/${_fm(sep*100,0)} cm`}]);
     notas = [`Pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra) · empalme 0,60 m si H > 12 m · estribo = perímetro + 12,5 cm de gancho`,
              `Chandías (Tabla 7.6, ADN-420): gancho ${dl} = ${gancho} mm por dos ganchos`];
   }
@@ -3423,18 +3466,22 @@ function armDiagramaSVG(tipo, v) {
     notas = [`Longitud de cada hierro = <b>luz + luz/6</b> (Chandías: incluye ganchos, dobladuras y empalmes) · empalme 0,60 m si pasa de 12 m`];
     if (sub === 'viga') notas.push(`Chandías: gancho ${dl} (ADN-420) = ${gancho} mm por dos ganchos · cada dobladura a 45° en viga de ${H} cm suma Δ₂ = ${chandiasDobladura45(H)} cm (Tabla 7.9) — ya contemplado en el 1/6`,
              `Perchas: Chandías las toma como 2 Ø8 sup. (≈ 0,80 kg por m de luz)`);
-    else notas.push(`Apoyo continuo: barras rectas con gancho en los extremos, sin dobladuras · típico 2 + 2 barras (4 en total) y estribos Ø6`);
+    else notas.push(`Apoyo continuo: barras rectas con gancho en los extremos, sin dobladuras · típico 2 + 2 barras (4 en total) y estribos ${DIAM_LABEL[v.diamEst]||'Ø6'}`);
   }
 
   else if (tipo === 'zapata') {
-    const Bw = v.la || 0.6, Ah = v.lb || 0.3, L = v.ml || 5, sep = v.sep || 0.25, np = v.np || 4;
+    const Bw = v.la || 0.6, Ah = v.lb || 0.3, L = v.ml || 5, sep = v.sep || 0.20, np = v.np || 4;
+    const dls = DIAM_LABEL[v.diamSec] || 'Ø8', nA = v.nAla == null ? 2 : Math.max(0, Math.min(2, Math.round(v.nAla)));
+    const alaU = Math.min(v.ala == null ? 0.10 : v.ala, Math.max(0, Ah - 2*RECUB));
     // corte transversal
     const sc = Math.min(150/Bw, 90/Ah), w = Bw*sc, h = Ah*sc, x0 = 30, y0 = 90;
     b += _S.rect(x0+w/2-14, y0-46, 28, 46, _cHor, 'var(--bg)') + _S.text(x0+w/2, y0-52, 'muro', {a:'middle',c:'var(--tx3)',size:9});
     b += _S.rect(x0, y0, w, h, _cHor, 'var(--bg)');
-    b += _S.rect(x0+6, y0+5, w-12, h-10, _cEst, 'none', 1.8);
+    // secundario: barra transversal del fondo con alas hacia arriba (sin estribos)
+    const rr = RECUB*sc, ybs = y0+h-rr, aL = alaU*sc;
+    b += _S.path(`M${x0+rr} ${ybs-(nA>=1?aL:0)} L${x0+rr} ${ybs} L${x0+w-rr} ${ybs} L${x0+w-rr} ${ybs-(nA>=2?aL:0)}`, _cEst, 2);
     const nn = Math.min(np, 6);
-    for (let i = 0; i < nn; i++) b += _S.dot(x0+10+i*((w-20)/Math.max(1,nn-1)), y0+h-10, 3.8, _cMain);
+    for (let i = 0; i < nn; i++) b += _S.dot(x0+rr+4+i*((w-2*rr-8)/Math.max(1,nn-1)), ybs-5, 3.6, _cMain);
     b += _S.text(x0+w/2, y0+h+18, `corte: B = ${_fm(Bw*100,0)} cm · A = ${_fm(Ah*100,0)} cm`, {a:'middle',size:10,b:true});
     // elevación longitudinal
     const lx = 250, lw = 290, lh = Math.max(46, Math.min(Ah*sc, 80)), ly = 70;
@@ -3449,8 +3496,9 @@ function armDiagramaSVG(tipo, v) {
     b += _S.text(lx+lw/2, ly-8, 'elevación longitudinal', {a:'middle',c:'var(--tx3)',size:9});
     b += _dimH(lx, lx+lw, ly+lh+26, `L = ${_fm(L)} m`);
     b += _S.text(lx+10, ly+lh+44, 'pata de anclaje 25 cm c/extremo', {c:_cMain,size:9});
-    b += _leyenda(30, 200, [{c:_cMain,t:`${np} ${dl} longitudinales`},{c:_cEst,t:`Estribos Ø6 c/${_fm(sep*100,0)} cm`}]);
-    notas = [`Pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra) · estribo = perímetro + 12,5 cm`,
+    b += _leyenda(30, 200, [{c:_cMain,t:`${np} ${dl} principales (longitudinales)`},{c:_cEst,t:`Secundarios ${dls} c/${_fm(sep*100,0)} cm · ${nA} ala${nA===1?'':'s'}`}]);
+    notas = [`Sin estribos · principales con pata de anclaje <b>25 cm por extremo</b> (+0,50 m por barra)`,
+             `Secundario = ancho útil (B − 2×2,5 cm) + ${nA} ala${nA===1?'':'s'} de ${_fm(alaU*100,0)} cm · cantidad = L/sep + 1`,
              `Chandías (Tabla 7.6, ADN-420): gancho ${dl} = ${gancho} mm por dos ganchos`];
   }
 
@@ -3458,7 +3506,9 @@ function armDiagramaSVG(tipo, v) {
     const x = v.exc || {};
     const B = x.ladoA || 0.70, H = x.ladoB || 0.50, e = Math.min(x.esp || 0.20, H), bw = Math.min(x.bwDado || 0.20, B), d = (x.dado == null ? 0.15 : x.dado);
     const n10 = x.cantPpal == null ? 4 : x.cantPpal, n8 = x.cant8 == null ? 3 : x.cant8, nd = x.cantDiag == null ? 2 : x.cantDiag;
-    const sep = x.sepEst || 0.20, L = x.ml || 5, r = RECUB;
+    const sep = x.sep || 0.20, L = x.ml || 5, r = RECUB;
+    const dls = DIAM_LABEL[x.diamSec] || 'Ø8', nA = x.nAla == null ? 2 : Math.max(0, Math.min(2, Math.round(x.nAla)));
+    const alaU = Math.min(x.ala == null ? 0.10 : x.ala, Math.max(0, e - 2*r));
     const sc = Math.min(270/B, 140/(H+d)), x0 = 70, yb = 188;
     const X = m => +(x0 + m*sc).toFixed(1), Y = m => +(yb - m*sc).toFixed(1);
     // columna sobre el arranque y hormigón de limpieza (aparte)
@@ -3467,8 +3517,8 @@ function armDiagramaSVG(tipo, v) {
     // sección: base + pendiente + dado/arranque (el muro queda al borde del terreno)
     b += _S.path(`M${X(0)} ${Y(0)} L${X(B)} ${Y(0)} L${X(B)} ${Y(H+d)} L${X(B-bw)} ${Y(H+d)} L${X(B-bw)} ${Y(H)} L${X(0)} ${Y(e)} Z`, _cHor, 1.4, 'var(--bg)');
     b += _S.line(X(B), Y(H+d)-34, X(B), yb+14, 'var(--tx3)', 1, '6 3 1 3') + _S.text(X(B)+6, Y(H)+4, 'límite medianera', {c:'var(--tx3)',size:9});
-    // estribo de perfil Ø6
-    b += _S.path(`M${X(r)} ${Y(r)} L${X(B-r)} ${Y(r)} L${X(B-r)} ${Y(H-r)} L${X(B-bw+r)} ${Y(H-r)} L${X(r)} ${Y(e-r)} Z`, _cEst, 1.6);
+    // secundario: barra transversal del fondo con alas hacia arriba (sin estribos)
+    b += _S.path(`M${X(r)} ${Y(r+(nA>=1?alaU:0))} L${X(r)} ${Y(r)} L${X(B-r)} ${Y(r)} L${X(B-r)} ${Y(r+(nA>=2?alaU:0))}`, _cEst, 2);
     // barras inferiores: Ø10 y Ø8 alternadas, repartidas en el ancho
     const tipos = []; let a10 = n10, a8 = n8;
     while (a10 > 0 || a8 > 0) { if (a10 > 0) { tipos.push(10); a10--; } if (a8 > 0) { tipos.push(8); a8--; } }
@@ -3481,12 +3531,12 @@ function armDiagramaSVG(tipo, v) {
     b += _dimH(X(0), X(B), yb+42, `B = ${_fm(B*100,0)} cm`);
     b += _dimV(X(0)-16, Y(H), yb, `H = ${_fm(H*100,0)}`, true);
     const area = B*e + bw*Math.max(0, H-e) + Math.max(0, B-bw)*Math.max(0, H-e)/2 + bw*d;
-    b += _leyenda(372, 52, [{c:_cMain,t:`${n10}Ø10 inferiores`,dot:true},{c:_cRef,t:`${n8}Ø8 inferiores`,dot:true},{c:_cMain,t:`${nd}Ø10 en la pendiente`,dot:true},{c:_cEst,t:`Estribo Ø6 c/${_fm(sep*100,0)}`}]);
+    b += _leyenda(372, 52, [{c:_cMain,t:`${n10}Ø10 inferiores`,dot:true},{c:_cRef,t:`${n8}Ø8 inferiores`,dot:true},{c:_cMain,t:`${nd}Ø10 en la pendiente`,dot:true},{c:_cEst,t:`Secund. ${dls} c/${_fm(sep*100,0)} · ${nA} ala${nA===1?'':'s'}`}]);
     b += _S.text(372, 136, `e = ${_fm(e*100,0)} cm · dado ${_fm(bw*100,0)}×${_fm(d*100,0)} cm`, {size:10});
     b += _S.text(372, 152, `Sección: ${_fm(area,3)} m² por ml`, {size:10,b:true});
     b += _S.text(372, 168, `L = ${_fm(L)} m → ${_fm(area*L,2)} m³`, {size:10,b:true});
     notas = [`Media zapata de medianera: el muro queda en el borde del terreno, la base solo se abre hacia el lado propio · volumen = base B×e + dado + cuña de la pendiente + arranque`,
-             `Barras con <b>25 cm de pata por extremo</b> (+0,50 m) · estribo de perfil = contorno + 12,5 cm · los 4Ø10 y Ø6 c/20 de la columna se computan en la columna`];
+             `Barras con <b>25 cm de pata por extremo</b> (+0,50 m) · sin estribos: secundario transversal = ancho útil + ${nA} ala${nA===1?'':'s'} de ${_fm(alaU*100,0)} cm · los 4Ø10 y Ø6 c/20 de la columna se computan en la columna`];
   }
 
   else if (tipo === 'zapata_puntual') {
@@ -3678,6 +3728,7 @@ function renderArmDiagrama() {
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   if (tipo === 'zapata_excentrica') v.exc = dimsZapataExcentrica('');
+  Object.assign(v, armExtrasUI(''));
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
@@ -3781,6 +3832,7 @@ function onTareaChange() {
       ${ig('dim-lb','Lado B — largo (m)')}
       ${ig('dim-ml','Altura libre (m)')}
       ${ig('dim-sep','Sep. estribos (m)','0.25')}
+      ${diamEstSelectHtml('')}
       ${ig('dim-np','Cant. hierros ppal','4','1')}
       <div class="ig-item">
           <div class="ig-label">Ø hierros ppal</div>
@@ -3810,6 +3862,7 @@ function onTareaChange() {
       ${ig('dim-lb','Altura — Lado B (m)')}
       ${ig('dim-ml','Longitud libre (m)')}
       ${ig('dim-sep','Sep. estribos (m)','0.25')}
+      ${diamEstSelectHtml('')}
       ${ig('dim-ns','Hierros sup. (cant)','2','1')}
       ${ig('dim-ni','Hierros inf. (cant)','2','1')}
       <div class="ig-item">
@@ -3834,13 +3887,12 @@ function onTareaChange() {
   else if (tipo === 'zapata') {
     wrap.innerHTML = `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata corrida · Recubrimiento: 2.5cm · Anclaje: 25cm
+        Zapata corrida · Sin estribos: principales longitudinales + secundarios transversales con ala · Recubrimiento: 2.5cm · Anclaje: 25cm
       </div>
       ${ig('dim-la','Ancho base B (m)')}
       ${ig('dim-lb','Altura A (m)')}
       ${ig('dim-ml','Metros lineales (m)')}
-      ${ig('dim-sep','Sep. estribos (m)','0.25')}
-      ${ig('dim-np','Cant. hierros ppal','4','1')}
+      ${ig('dim-np','Principales longitudinales (cant)','4','1')}
       <div class="ig-item">
           <div class="ig-label">Ø hierros ppal</div>
           <select class="ig-input" id="dim-diam-ppal" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
@@ -3852,6 +3904,8 @@ function onTareaChange() {
             <option value="MAT-006">Ø20mm</option>
           </select>
         </div>
+      ${ig('dim-sep','Sep. secundarios (m)','0.20')}
+      ${zapataSecHtml('')}
       <div class="ig-item" style="grid-column:1/-1;">
         <div class="ig-label">Resultado calculado</div>
         <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
@@ -3870,10 +3924,11 @@ function onTareaChange() {
       ${ig('dim-bw','Ancho del dado (m)','0.20')}
       ${ig('dim-d','Arranque sobre pendiente (m)','0.15')}
       ${ig('dim-ml','Metros lineales (m)')}
-      ${ig('dim-sep','Sep. estribos Ø6 (m)','0.20')}
       ${ig('dim-np','Ø10 inferiores (cant)','4','1')}
       ${ig('dim-n8','Ø8 inferiores (cant)','3','1')}
       ${ig('dim-nd','Ø10 en pendiente (cant)','2','1')}
+      ${ig('dim-sep','Sep. secundarios (m)','0.20')}
+      ${zapataSecHtml('')}
       <div class="ig-item" style="grid-column:1/-1;">
         <div class="ig-label">Resultado calculado</div>
         <div id="arm-preview" style="background:var(--gr-l);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--gr);line-height:1.8;min-height:40px;"></div>
@@ -3951,6 +4006,7 @@ function onTareaChange() {
       ${ig('dim-la','Diámetro (m)')}
       ${ig('dim-ml','Profundidad (m)')}
       ${ig('dim-sep','Sep. estribos (m)','0.25')}
+      ${diamEstSelectHtml('')}
       ${ig('dim-np','Cant. hierros ppal','6','1')}
       <div class="ig-item" style="grid-column:1/-1;">
         <div class="ig-label">Resultado calculado</div>
@@ -4379,7 +4435,13 @@ function formatArmDesc(rawDesc) {
   if (d.est) {
     const ml = num(d.est);
     const barras = Math.ceil(ml / 12);
-    parts.push(`Estribos Ø6: ${ml.toFixed(1)} ml → ${barras} barras`);
+    parts.push(`Estribos ${DIAM_LABEL[d.diamEst]||'Ø6'}: ${ml.toFixed(1)} ml → ${barras} barras`);
+  }
+
+  // Secundarios transversales de zapata (con alas)
+  if (d.sec) {
+    const ml = num(d.sec);
+    parts.push(`Secundarios ${DIAM_LABEL[d.diamSec]||'Ø8'}: ${ml.toFixed(1)} ml → ${Math.ceil(ml / 12)} barras`);
   }
 
   // Hierros principales (columnas, zapatas)
@@ -4446,9 +4508,9 @@ function calcDimEstructural() {
   const g = id => num(document.getElementById(id)?.value);
   let dims = {};
 
-  if (tipo === 'columna') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'viga') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'zapata') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003' };
+  if (tipo === 'columna') dims = { diamEst:document.getElementById('dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
+  else if (tipo === 'viga') dims = { diamEst:document.getElementById('dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
+  else if (tipo === 'zapata') dims = dimsZapataCorrida('');
   else if (tipo === 'zapata_puntual') dims = { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1 };
   else if (tipo === 'zapata_excentrica') dims = dimsZapataExcentrica('');
   else if (tipo === 'tabique_hormigon') {
@@ -4457,7 +4519,7 @@ function calcDimEstructural() {
     const hierroDiam = document.getElementById('dim-hierro-diam')?.value || 'MAT-002';
     dims = { ancho:g('dim-la')||0.20, largo:g('dim-ml'), alto:g('dim-lb'), sep:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, armTipo, mallaTipo, hierroDiam };
   }
-  else if (tipo === 'pozo') dims = { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
+  else if (tipo === 'pozo') dims = { diamEst:document.getElementById('dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
   else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('dim-ref-diam')?.value||'MAT-003' };
   else if (tipo === 'losa_vigueta') { calcDimLosaVigueta(); return; }
   else if (tipo === 'losa_nervurada') { calcDimLosaNervurada(); return; }
@@ -4471,7 +4533,8 @@ function calcDimEstructural() {
   if (res) res.value = r.m3;
 
   let html = `<b>M³ hormigón:</b> ${r.m3} m³<br>`;
-  if (r.mlEstribos) html += `<b>ML estribos (Ø6):</b> ${r.mlEstribos} ml → ${Math.ceil(r.mlEstribos/12)} barras 12m (${r.cantEstribos} estribos)<br>`;
+  if (r.mlEstribos) html += `<b>ML estribos (${DIAM_LABEL[r.diamEst]||'Ø6'}):</b> ${r.mlEstribos} ml → ${Math.ceil(r.mlEstribos/12)} barras 12m (${r.cantEstribos} estribos)<br>`;
+  if (r.mlSec) html += `<b>ML secundarios (${DIAM_LABEL[r.diamSec]||'Ø8'}):</b> ${r.cantSec} barras × ${r.largoSec} m = ${r.mlSec} ml → ${Math.ceil(r.mlSec/12)} barras 12m<br>`;
   if (r.mlPpal) html += `<b>ML hierros ppal:</b> ${r.mlPpal} ml → ${Math.ceil(r.mlPpal/12)} barras 12m<br>`;
   if (r.mlSup) html += `<b>ML hierros sup:</b> ${r.mlSup} ml → ${Math.ceil(r.mlSup/12)} barras 12m<br>`;
   if (r.mlInf) html += `<b>ML hierros inf:</b> ${r.mlInf} ml → ${Math.ceil(r.mlInf/12)} barras 12m<br>`;
@@ -4510,7 +4573,8 @@ async function saveMedicion(keepOpen) {
   if (window._armResult && window._armResult.m3 === cantidad) {
     const r = window._armResult;
     const extras = [];
-    if (r.mlEstribos) extras.push(`est:${r.mlEstribos}`);
+    if (r.mlEstribos) { extras.push(`est:${r.mlEstribos}`); if (r.diamEst) extras.push(`diamEst:${r.diamEst}`); }
+    if (r.mlSec) { extras.push(`sec:${r.mlSec}`); extras.push(`diamSec:${r.diamSec}`); }
     if (r.mlPpal) extras.push(`ppal:${r.mlPpal}`);
     if (r.mlSup) extras.push(`sup:${r.mlSup}`);
     if (r.mlInf) extras.push(`inf:${r.mlInf}`);
@@ -4541,6 +4605,7 @@ async function saveMedicion(keepOpen) {
       if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
       if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
       if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+      if (d.nAla != null) extras.push(`iAla:${d.ala}`, `iNAla:${d.nAla}`);
       if (d.exc) extras.push(`iLa:${d.ladoA}`, `iLb:${d.ladoB}`, `iMl:${d.ml}`, `iE:${d.esp}`, `iBw:${d.bwDado}`, `iD:${d.dado}`, `iN8:${d.cant8}`, `iNd:${d.cantDiag}`);
     }
     if (extras.length) descFinal = (desc ? desc + ' | ' : '') + extras.join('|');
@@ -4788,6 +4853,7 @@ function _buildEditDimsWrap(coef, wrap) {
       ${ige('dim-lb','Lado B — largo (m)')}
       ${ige('dim-ml','Altura libre (m)')}
       ${ige('dim-sep','Sep. estribos (m)','0.25')}
+      ${diamEstSelectHtml('e-')}
       ${ige('dim-np','Cant. hierros ppal','4','1')}
       ${diamSelect('dim-diam-ppal')}
       ${ige('dim-cant-elem','Cantidad de elementos','1','1')}
@@ -4803,6 +4869,7 @@ function _buildEditDimsWrap(coef, wrap) {
       ${ige('dim-lb','Altura — Lado B (m)')}
       ${ige('dim-ml','Longitud libre (m)')}
       ${ige('dim-sep','Sep. estribos (m)','0.25')}
+      ${diamEstSelectHtml('e-')}
       ${ige('dim-ns','Hierros sup. (cant)','2','1')}
       ${ige('dim-ni','Hierros inf. (cant)','2','1')}
       ${diamSelect('dim-diam-ppal')}
@@ -4813,14 +4880,15 @@ function _buildEditDimsWrap(coef, wrap) {
     wrap.innerHTML = `
       <div id="e-arm-diagrama" style="grid-column:1/-1;margin-bottom:8px;"></div>
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Zapata corrida · Recubrimiento: 2.5cm · Anclaje: 25cm
+        Zapata corrida · Sin estribos: principales longitudinales + secundarios transversales con ala · Recubrimiento: 2.5cm · Anclaje: 25cm
       </div>
       ${ige('dim-la','Ancho base B (m)')}
       ${ige('dim-lb','Altura A (m)')}
       ${ige('dim-ml','Metros lineales (m)')}
-      ${ige('dim-sep','Sep. estribos (m)','0.25')}
-      ${ige('dim-np','Cant. hierros ppal','4','1')}
+      ${ige('dim-np','Principales longitudinales (cant)','4','1')}
       ${diamSelect('dim-diam-ppal')}
+      ${ige('dim-sep','Sep. secundarios (m)','0.20')}
+      ${zapataSecHtml('e-')}
       ${previewBlock}`;
   }
   else if (tipo === 'zapata_excentrica') {
@@ -4835,10 +4903,11 @@ function _buildEditDimsWrap(coef, wrap) {
       ${ige('dim-bw','Ancho del dado (m)','0.20')}
       ${ige('dim-d','Arranque sobre pendiente (m)','0.15')}
       ${ige('dim-ml','Metros lineales (m)')}
-      ${ige('dim-sep','Sep. estribos Ø6 (m)','0.20')}
       ${ige('dim-np','Ø10 inferiores (cant)','4','1')}
       ${ige('dim-n8','Ø8 inferiores (cant)','3','1')}
       ${ige('dim-nd','Ø10 en pendiente (cant)','2','1')}
+      ${ige('dim-sep','Sep. secundarios (m)','0.20')}
+      ${zapataSecHtml('e-')}
       ${previewBlock}`;
   }
   else if (tipo === 'zapata_puntual') {
@@ -4904,6 +4973,7 @@ function _buildEditDimsWrap(coef, wrap) {
       ${ige('dim-la','Diámetro (m)')}
       ${ige('dim-ml','Profundidad (m)')}
       ${ige('dim-sep','Sep. estribos (m)','0.25')}
+      ${diamEstSelectHtml('e-')}
       ${ige('dim-np','Cant. hierros ppal','6','1')}
       ${previewBlock}`;
   }
@@ -5039,6 +5109,7 @@ function renderEditArmDiagrama() {
   if (tipo === 'zapata_puntual') { v.sep = g('dim-sep') || 0.2; }
   if (tipo === 'losa_nervurada') v.nv = nervLeerUI(cont.id === 'e-arm-diagrama' ? 'e-' : '');
   if (tipo === 'zapata_excentrica') v.exc = dimsZapataExcentrica('e-');
+  Object.assign(v, armExtrasUI('e-'));
   cont.innerHTML = armDiagramaSVG(tipo, v);
 }
 
@@ -5053,9 +5124,9 @@ function calcEditDimEstructural() {
   const g = id => num(document.getElementById('e-' + id)?.value);
   let dims = {};
 
-  if (tipo === 'columna') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'viga') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'zapata') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003' };
+  if (tipo === 'columna') dims = { diamEst:document.getElementById('e-dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
+  else if (tipo === 'viga') dims = { diamEst:document.getElementById('e-dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
+  else if (tipo === 'zapata') dims = dimsZapataCorrida('e-');
   else if (tipo === 'zapata_puntual') dims = { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1 };
   else if (tipo === 'zapata_excentrica') dims = dimsZapataExcentrica('e-');
   else if (tipo === 'tabique_hormigon') {
@@ -5064,7 +5135,7 @@ function calcEditDimEstructural() {
     const hierroDiam = document.getElementById('e-dim-hierro-diam')?.value || 'MAT-002';
     dims = { ancho:g('dim-la')||0.20, largo:g('dim-ml'), alto:g('dim-lb'), sep:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, armTipo, mallaTipo, hierroDiam };
   }
-  else if (tipo === 'pozo') dims = { ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
+  else if (tipo === 'pozo') dims = { diamEst:document.getElementById('e-dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
   else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('e-dim-ref-diam')?.value||'MAT-003' };
   else if (tipo === 'losa_vigueta') {
     const largo = g('dim-la'), ancho = g('dim-lb'), sep = g('dim-sep') || 0.50;
@@ -5117,7 +5188,8 @@ function calcEditDimEstructural() {
   document.getElementById('edit-med-cant').value = r.m3;
 
   let html = `<b>M³ hormigón:</b> ${r.m3} m³<br>`;
-  if (r.mlEstribos) html += `<b>ML estribos (Ø6):</b> ${r.mlEstribos} ml → ${Math.ceil(r.mlEstribos/12)} barras 12m (${r.cantEstribos} estribos)<br>`;
+  if (r.mlEstribos) html += `<b>ML estribos (${DIAM_LABEL[r.diamEst]||'Ø6'}):</b> ${r.mlEstribos} ml → ${Math.ceil(r.mlEstribos/12)} barras 12m (${r.cantEstribos} estribos)<br>`;
+  if (r.mlSec) html += `<b>ML secundarios (${DIAM_LABEL[r.diamSec]||'Ø8'}):</b> ${r.cantSec} barras × ${r.largoSec} m = ${r.mlSec} ml → ${Math.ceil(r.mlSec/12)} barras 12m<br>`;
   if (r.mlPpal) html += `<b>ML hierros ppal:</b> ${r.mlPpal} ml → ${Math.ceil(r.mlPpal/12)} barras 12m<br>`;
   if (r.mlSup) html += `<b>ML hierros sup:</b> ${r.mlSup} ml → ${Math.ceil(r.mlSup/12)} barras 12m<br>`;
   if (r.mlInf) html += `<b>ML hierros inf:</b> ${r.mlInf} ml → ${Math.ceil(r.mlInf/12)} barras 12m<br>`;
@@ -5321,7 +5393,8 @@ function openEditMed(medId) {
     if (tipo === 'zapata_excentrica') {
       setTimeout(() => {
         const val = { 'dim-la': armData.iLa ?? (dims && dims.la), 'dim-lb': armData.iLb ?? (dims && dims.lb), 'dim-ml': armData.iMl ?? (dims && dims.ml),
-                      'dim-e': armData.iE, 'dim-bw': armData.iBw, 'dim-d': armData.iD, 'dim-np': armData.iNp, 'dim-n8': armData.iN8, 'dim-nd': armData.iNd, 'dim-sep': armData.iSep };
+                      'dim-e': armData.iE, 'dim-bw': armData.iBw, 'dim-d': armData.iD, 'dim-np': armData.iNp, 'dim-n8': armData.iN8, 'dim-nd': armData.iNd, 'dim-sep': armData.iSep,
+                      'dim-diam-sec': armData.diamSec, 'dim-ala': armData.iAla, 'dim-nala': armData.iNAla };
         Object.entries(val).forEach(([id, v]) => { const el = document.getElementById('e-' + id); if (el && v !== undefined && v !== null && v !== '') el.value = v; });
         calcEditDimEstructural();
       }, 30);
@@ -5362,6 +5435,14 @@ function openEditMed(medId) {
           document.getElementById('e-dim-hierro-diam').value = armData.hierroDiam;
         if (armData.mallaTipo && document.getElementById('e-dim-malla-tipo'))
           document.getElementById('e-dim-malla-tipo').value = armData.mallaTipo;
+        if (armData.diamEst && document.getElementById('e-dim-diam-est'))
+          document.getElementById('e-dim-diam-est').value = armData.diamEst;
+        if (armData.diamSec && document.getElementById('e-dim-diam-sec'))
+          document.getElementById('e-dim-diam-sec').value = armData.diamSec;
+        if (armData.iAla && document.getElementById('e-dim-ala'))
+          document.getElementById('e-dim-ala').value = armData.iAla;
+        if (armData.iNAla && document.getElementById('e-dim-nala'))
+          document.getElementById('e-dim-nala').value = armData.iNAla;
         if (armData.refDiam && document.getElementById('e-dim-ref-diam'))
           document.getElementById('e-dim-ref-diam').value = armData.refDiam;
         if (armData.armTipo && document.getElementById('e-dim-arm-tipo')) {
@@ -5611,7 +5692,7 @@ async function saveEditMed() {
 
   // Reconstruir descripción con datos de armadura (como saveMedicion)
   // 1) Quitar pipe-data anterior de la descripción
-  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:','esc:','iLa:','iLb:','iMl:','iE:','iBw:','iD:','iN8:','iNd:'];
+  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:','esc:','iLa:','iLb:','iMl:','iE:','iBw:','iD:','iN8:','iNd:','sec:','diamSec:','diamEst:','iAla:','iNAla:'];
   const pipeIdx = newDesc.lastIndexOf(' | ');
   if (pipeIdx >= 0) {
     const tail = newDesc.slice(pipeIdx + 3);
@@ -5621,7 +5702,8 @@ async function saveEditMed() {
   if (window._editArmResult && window._editArmResult.m3 === newCant) {
     const r = window._editArmResult;
     const extras = [];
-    if (r.mlEstribos) extras.push(`est:${r.mlEstribos}`);
+    if (r.mlEstribos) { extras.push(`est:${r.mlEstribos}`); if (r.diamEst) extras.push(`diamEst:${r.diamEst}`); }
+    if (r.mlSec) { extras.push(`sec:${r.mlSec}`); extras.push(`diamSec:${r.diamSec}`); }
     if (r.mlPpal) extras.push(`ppal:${r.mlPpal}`);
     if (r.mlSup) extras.push(`sup:${r.mlSup}`);
     if (r.mlInf) extras.push(`inf:${r.mlInf}`);
@@ -5652,6 +5734,7 @@ async function saveEditMed() {
       if (d.refMl > 0) extras.push(`iRefMl:${d.refMl}`);
       if (d.refLargo > 0) extras.push(`iRefLargo:${d.refLargo}`);
       if (d.refSep > 0) extras.push(`iRefSep:${d.refSep}`);
+      if (d.nAla != null) extras.push(`iAla:${d.ala}`, `iNAla:${d.nAla}`);
       if (d.exc) extras.push(`iLa:${d.ladoA}`, `iLb:${d.ladoB}`, `iMl:${d.ml}`, `iE:${d.esp}`, `iBw:${d.bwDado}`, `iD:${d.dado}`, `iN8:${d.cant8}`, `iNd:${d.cantDiag}`);
     }
     if (extras.length) newDesc = (newDesc ? newDesc + ' | ' : '') + extras.join('|');
@@ -6551,8 +6634,12 @@ function consolidarMateriales(obraId, medsFiltro) {
       if (armData.armDef) consolidado[key].mlDef = (consolidado[key].mlDef || 0) + mlVal;   // armadura por defecto del import, sin detallar
     };
     if (armData.est && !armData.armTipo) {
-      const estMat = matPorCod('MAT-001');
+      const estMat = matPorCod(armData.diamEst || 'MAT-001');
       if (estMat) addConsolidado(estMat, num(armData.est), '(estribos)');
+    }
+    if (armData.sec && !armData.armTipo) {
+      const secMat = matPorCod(armData.diamSec || 'MAT-002');
+      if (secMat) addConsolidado(secMat, num(armData.sec), '(secundarios)');
     }
     if (armData.ppal && !armData.armTipo) {
       const pMat = matPorCod((armData.diamPpal||'MAT-003'));
@@ -6574,10 +6661,10 @@ function consolidarMateriales(obraId, medsFiltro) {
       const xyMat = matPorCod((armData.diamPpal || (['losa_maciza', 'platea'].includes(tipoEstructural(coef.cod)) ? 'MAT-002' : 'MAT-003')));
       if (xyMat) addConsolidado(xyMat, num(armData.x || 0) + num(armData.y || 0), '(parrilla)');
     }
-    if ((armData.est || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y) && !armData.armTipo) {
+    if ((armData.est || armData.sec || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
       if (alMat) {
-        const mlTot = num(armData.est||0)+num(armData.ppal||0)+num(armData.sup||0)+num(armData.inf||0)+num(armData.ref||0)+num(armData.x||0)+num(armData.y||0);
+        const mlTot = num(armData.est||0)+num(armData.sec||0)+num(armData.ppal||0)+num(armData.sup||0)+num(armData.inf||0)+num(armData.ref||0)+num(armData.x||0)+num(armData.y||0);
         const kgAl = mlTot * 0.03;
         const keyAl = alMat.nombre||'Alambre negro nº17';
         if (!consolidado[keyAl]) consolidado[keyAl] = { nombre: keyAl, unBase:'kg', unComercial:'kg', divisor:1, cantBase:0, cantComercial:0, precio:alMat.precio, rubros:new Set() };
@@ -9790,7 +9877,7 @@ function impArmaduraDefecto(item, coef, calc) {
     if (!(L > 0 && n > 0)) return null;
     if (tipo === 'columna') dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantPpal: 4, diamPpal: 'MAT-003', cantElem: n };
     else if (tipo === 'viga') dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantSup: 2, cantInf: 2, diamPpal: 'MAT-003', cantElem: n };
-    else if (tipo === 'zapata') { if (n !== 1) return null; dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantPpal: 4, diamPpal: 'MAT-003' }; }
+    else if (tipo === 'zapata') { if (n !== 1) return null; dims = { ladoA: d.la, ladoB: d.lb, ml: L, sep: 0.20, cantPpal: 4, diamPpal: 'MAT-003', diamSec: 'MAT-002', ala: 0.10, nAla: 2 }; }
     else if (tipo === 'zapata_puntual') dims = { ancho: d.la, largo: d.lb, alto: L, sep: 0.20, cant: n };
   }
   if (!dims) return null;
@@ -9799,7 +9886,8 @@ function impArmaduraDefecto(item, coef, calc) {
   if (!(r.m3 > 0) || Math.abs(r.m3 - calc.cantidad) > Math.max(0.005, calc.cantidad * 0.02)) return null;
   if (tipo === 'zapata_puntual' || tipo === 'losa_maciza' || tipo === 'platea') r.diamPpal = tipo === 'zapata_puntual' ? 'MAT-003' : 'MAT-002';
   const ex = [];
-  if (r.mlEstribos) ex.push(`est:${r.mlEstribos}`);
+  if (r.mlEstribos) { ex.push(`est:${r.mlEstribos}`); if (r.diamEst) ex.push(`diamEst:${r.diamEst}`); }
+  if (r.mlSec) { ex.push(`sec:${r.mlSec}`); ex.push(`diamSec:${r.diamSec}`); }
   if (r.mlPpal) ex.push(`ppal:${r.mlPpal}`);
   if (r.mlSup) ex.push(`sup:${r.mlSup}`);
   if (r.mlInf) ex.push(`inf:${r.mlInf}`);
@@ -9814,8 +9902,9 @@ function impArmaduraDefecto(item, coef, calc) {
   if (dims.cantInf > 0) ex.push(`iNi:${dims.cantInf}`);
   if (dims.cantElem > 1) ex.push(`iCant:${dims.cantElem}`);
   if (dims.cant > 1) ex.push(`iCant:${dims.cant}`);
+  if (dims.nAla != null) ex.push(`iAla:${dims.ala}`, `iNAla:${dims.nAla}`);
   ex.push('armDef:import');
-  const mlH = num(r.mlEstribos) + num(r.mlPpal) + num(r.mlSup) + num(r.mlInf) + num(r.mlX) + num(r.mlY);
+  const mlH = num(r.mlEstribos) + num(r.mlSec) + num(r.mlPpal) + num(r.mlSup) + num(r.mlInf) + num(r.mlX) + num(r.mlY);
   return { desc: ' | ' + ex.join('|'), barras: Math.ceil(num(r.mlEstribos) / 12) + Math.ceil((mlH - num(r.mlEstribos)) / 12), resumen: r.resumen, tipo };
 }
 
