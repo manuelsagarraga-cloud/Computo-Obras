@@ -733,7 +733,10 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
         <div id="med-tarea-elegida" class="tarea-elegida"></div></div>
       <div class="fg" style="grid-column:1/-1;"><label>Ubicación</label><select id="med-ubicacion"><option value="Global">Global (sin planta específica)</option></select></div>
     </div>
-    <div class="fg" style="margin-bottom:8px;"><label>Descripción (opcional)</label><input id="med-desc" placeholder="Ej: Muro frente N"></div>
+    <div class="form-grid" style="grid-template-columns:140px 1fr;margin-bottom:8px;">
+      <div class="fg"><label>N° ítem</label><input id="med-nitem" placeholder="ej. 2.05" title="N° de ítem del cronograma (vínculo con BuildPlan)"></div>
+      <div class="fg"><label>Descripción (opcional)</label><input id="med-desc" placeholder="Ej: Muro frente N"></div>
+    </div>
     <div id="med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
     <div class="card" style="margin:10px 0 0;padding:10px;background:var(--am-l);border-color:#E8D5A0;">
       <div style="font-size:11px;font-weight:600;color:var(--am);margin-bottom:6px;">Mano de obra · precio del contratista</div>
@@ -759,7 +762,10 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
         <div id="edit-med-tarea-elegida" class="tarea-elegida"></div></div>
       <div class="fg" style="grid-column:1/-1;"><label>Ubicación</label><select id="edit-med-ubic"><option value="Global">Global</option></select></div>
     </div>
-    <div class="fg" style="margin-bottom:8px;"><label>Descripción</label><input id="edit-med-desc"></div>
+    <div class="form-grid" style="grid-template-columns:140px 1fr;margin-bottom:8px;">
+      <div class="fg"><label>N° ítem</label><input id="edit-med-nitem" placeholder="s/n" title="N° de ítem del cronograma (vínculo con BuildPlan)"></div>
+      <div class="fg"><label>Descripción</label><input id="edit-med-desc"></div>
+    </div>
     <div id="edit-med-dims-wrap" class="input-grid" style="margin-top:4px;"></div>
     <div class="form-grid" style="margin-top:8px;">
       <div class="fg"><label>Cantidad</label><input id="edit-med-cant" type="number" step="0.001"></div>
@@ -1151,7 +1157,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">CAMBIAR UNA MEDICIÓN</div>
-            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Mediciones</b> &rarr; elegir la obra &rarr; filtrar por <b>Rubro</b> o <b>Piso / Ubicación</b> si hay muchas &rarr; lápiz <b>&#9998;</b>. Se puede cambiar la tarea, la cantidad, las medidas (con el mismo ayudante que al cargar), la armadura, el tipo de Hº, el contratista y el precio. Los datos de armadura guardados se vuelven a cargar en el formulario.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;"><b>Mediciones</b> &rarr; elegir la obra &rarr; filtrar por <b>Rubro</b> o <b>Piso / Ubicación</b> si hay muchas &rarr; lápiz <b>&#9998;</b>. Se puede cambiar la tarea, la cantidad, las medidas (con el mismo ayudante que al cargar), la armadura, el tipo de Hº, el contratista y el precio. También el <b>N° ítem</b>, que es el vínculo con el cronograma y BuildPlan: la tabla lo muestra en la primera columna (en rojo <i>s/n</i> si falta) y al lado la designación original del Excel. Los datos de armadura guardados se vuelven a cargar en el formulario.</div>
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">AGREGAR O DUPLICAR</div>
@@ -1469,7 +1475,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-03.5';
+const APP_BUILD = '2026-11-03.6';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -4624,6 +4630,15 @@ function eliminarLineaDim(idx) {
 }
 
 // Formatea la descripción cruda de armadura en texto legible para mostrar en cómputo/presupuesto
+// Designación original de la medición: el texto del Excel o el que se escribió, sin el "[N°]" del principio
+// ni los datos de armadura que van después de " | ". Las mediciones cargadas a mano solo con armadura no tienen.
+const _escH = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function descOriginal(rawDesc) {
+  const d = String(rawDesc || '');
+  let t = d.split('|')[0];
+  if (/^\s*(est|ppal|sup|inf|x|y|res|armTipo|hierroDiam|diamPpal|mlTotal|barras|m2Malla|nv|esc)\s*:/.test(t)) return '';
+  return t.replace(/^\s*\[[^\]]*\]\s*/, '').trim();
+}
 function formatArmDesc(rawDesc) {
   if (!rawDesc) return '—';
   // Si no tiene datos de armadura (no tiene | con claves conocidas), devolver tal cual
@@ -4762,6 +4777,9 @@ async function saveMedicion(keepOpen) {
   const obraId = document.getElementById('sel-obra-med').value;
   const coefId = document.getElementById('med-tarea-sel').value;
   let desc = document.getElementById('med-desc').value.trim();
+  const nItemTxt = (document.getElementById('med-nitem')?.value || '').trim(), nItemP = nItemTxt ? parseNItem(nItemTxt) : null;
+  if (nItemTxt && !nItemP) { notif('N° de ítem no válido: usá el formato del cronograma, ej. 2.05 o EM2.05'); return; }
+  if (nItemP) desc = `[${nItemP.key}] ${desc.replace(/^\s*\[[^\]]*\]\s*/, '')}`.trim();
   // Si quedó una línea sin sumar y ya hay otras sumadas, se agrega sola
   if (num(document.getElementById('dim-linea')?.value) > 0 && (window._dimLineas || []).length) agregarLineaDim();
   const cantidad = num(document.getElementById('dim-res')?.value);
@@ -4843,6 +4861,7 @@ async function saveMedicion(keepOpen) {
       }
     }
     const data = { obra_id: obraId, coef_id: coefId, descripcion: descFinal, cantidad, fecha: new Date().toLocaleDateString('es-AR'), ubicacion, revision, mat_overrides: matOverrides };
+    if (nItemP) data.n_item = nItemP.key;   // vínculo con el cronograma / BuildPlan
     const res = await sbPost('mediciones', data);
     const med = res[0] || data;
     meds.push({...med, obraId: med.obra_id, coefId: med.coef_id, desc: med.descripcion});
@@ -4853,6 +4872,7 @@ async function saveMedicion(keepOpen) {
     if (keepOpen) {
       // Limpiar solo dims, mantener tarea y ubicación
       document.getElementById('med-desc').value = '';
+      if (document.getElementById('med-nitem')) document.getElementById('med-nitem').value = '';
       const wrap = document.getElementById('med-dims-wrap');
       wrap.querySelectorAll('input[type=number]').forEach(i => { if (!i.readOnly) i.value = ''; });
       onTareaChange();
@@ -4909,16 +4929,18 @@ function loadMediciones() {
     <div class="rubro-block">
       <div class="rubro-hdr"><span>${rubro}</span><span style="font-size:10px;color:var(--tx3);">${items.length} ítem${items.length!==1?'s':''}</span></div>
       <div class="rubro-body">
-        <table><thead><tr><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Descripción</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
+        <table><thead><tr><th title="N° de ítem del Excel / cronograma (vínculo con BuildPlan)">N° ítem</th><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Designación original / detalle</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
         <tbody>${items.map(({med,coef}) => {
           const sinDesp = coef && (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
           const cantDesp = sinDesp ? num(med.cantidad) : num(med.cantidad)*desp;
           const armDef = esArmDef(med);
+          const nIt = nItemDeMed(med), rawD = med.desc || med.descripcion || '', dOrig = descOriginal(rawD), dArm = rawD.includes('|') ? formatArmDesc(rawD) : '';
           return `<tr${armDef ? ' class="arm-def-row"' : ''}>
+          <td style="font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap;${nIt ? '' : 'color:var(--re);'}" title="${nIt ? 'Vínculo con el cronograma / BuildPlan' : 'Sin N° de ítem: no se vincula con el cronograma. Cargalo en Editar medición.'}">${nIt ? _escH(nIt.key) : 's/n'}</td>
           <td style="font-size:10px;color:var(--tx3);">${coef?coef.cod:''}</td>
           <td class="hi">${coef?coef.nombre:'(eliminada)'}${armDef ? `<br><span class="arm-def" title="Armadura supuesta al importar, no la del cálculo estructural. Editá la medición, ajustá la armadura y guardá para quitar la marca.">⚙ armadura por defecto</span>` : ''}</td>
           <td style="font-size:10px;color:${med.ubicacion && med.ubicacion !== 'Global' ? 'var(--bl)' : 'var(--tx3)'};">${med.ubicacion||'Global'}</td>
-          <td>${formatArmDesc(med.desc||med.descripcion)||'—'}</td>
+          <td>${dOrig ? _escH(dOrig) : (dArm ? '' : '—')}${dArm && dArm !== '—' ? `<div style="font-size:10px;color:var(--tx3);margin-top:2px;">${dArm}</div>` : ''}</td>
           <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}${med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad) ? `<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:1})} ${med.unidad_origen||''}</span>` : ''}</td>
           <td class="num" style="color:var(--am);">${cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
           <td>${coef?coef.unidad:'—'}${med.unidad_origen && med.unidad_origen !== (coef?.unidad||'') ? `<br><span style="font-size:9px;color:var(--bl);">${med.unidad_origen}</span>` : ''}</td>
@@ -5548,6 +5570,7 @@ function openEditMed(medId) {
 
   // Llenar campos
   document.getElementById('edit-med-desc').value = med.desc || med.descripcion || '';
+  { const ni = nItemDeMed(med); document.getElementById('edit-med-nitem').value = ni ? ni.key : ''; }
   document.getElementById('edit-med-cant').value = num(med.cantidad);
   document.getElementById('edit-med-rev').value = med.revision || 'Rev00';
   document.getElementById('edit-med-rev-nota').value = '';
@@ -5980,25 +6003,33 @@ async function saveEditMed() {
     }
   }
 
-  // Detectar si algo cambió
+  // N° de ítem (vínculo con el cronograma / BuildPlan): va en mediciones.n_item y como "[N°]" al inicio de la descripción
+  const nItemTxt = (document.getElementById('edit-med-nitem')?.value || '').trim(), nItemP = nItemTxt ? parseNItem(nItemTxt) : null;
+  if (nItemTxt && !nItemP) { notif('N° de ítem no válido: usá el formato del cronograma, ej. 2.05 o EM2.05'); return; }
+  const oldNItem = (nItemDeMed(med) || {}).key || null, newNItem = nItemP ? nItemP.key : null;
+  const nItemChanged = newNItem !== oldNItem;
+  const _sinPref = t => String(t || '').replace(/^\s*\[[^\]]*\]\s*/, '');
+  if (nItemChanged) newDesc = newNItem ? `[${newNItem}] ${_sinPref(newDesc)}` : _sinPref(newDesc);
+
+  // Detectar si algo cambió (cambiar solo el N° de ítem no genera revisión nueva)
   const oldCoefId = med.coefId || med.coef_id;
   const oldDesc = med.desc || med.descripcion || '';
   const oldCant = num(med.cantidad);
   const oldUbic = med.ubicacion || 'Global';
   const oldOverrides = (med.mat_overrides && typeof med.mat_overrides === 'object') ? med.mat_overrides : {};
   const overridesChanged = JSON.stringify(editMatOverrides) !== JSON.stringify(oldOverrides);
-  const changed = newCoefId !== oldCoefId || newDesc !== oldDesc || newCant !== oldCant || newUbic !== oldUbic || overridesChanged;
+  const changed = newCoefId !== oldCoefId || _sinPref(newDesc) !== _sinPref(oldDesc) || newCant !== oldCant || newUbic !== oldUbic || overridesChanged;
 
   const moF = moLeerModal('edit');
   const moEx = _moByMed[editingMedId];
   const moChanged = (moEx ? (num(moEx.precio) !== moF.precio || (moEx.contratista||'') !== moF.contratista || (moEx.tipo === 'global' ? 'global' : 'unitario') !== moF.tipo)
                           : (moF.precio > 0 || !!moF.contratista));
 
-  if (!changed && !revNota && !moChanged) {
+  if (!changed && !revNota && !moChanged && !nItemChanged) {
     closeModal('m-edit-med');
     return;
   }
-  if (!changed && !revNota && moChanged) {
+  if (!changed && !revNota && !nItemChanged && moChanged) {
     // Solo cambió el precio de MO: no genera nueva revisión de la medición
     try {
       await withSync(async () => { await moGuardarDesdeModal(med, moF); });
@@ -6021,9 +6052,11 @@ async function saveEditMed() {
       revision: newRev,
       revision_fecha: new Date().toLocaleDateString('es-AR'),
       revision_nota: revNota || (changed ? 'Editado' : ''),
-      mat_overrides: editMatOverrides
+      mat_overrides: editMatOverrides,
+      n_item: newNItem
     };
-    const valorPrevio = { coef_id: oldCoefId, descripcion: oldDesc, cantidad: oldCant, ubicacion: oldUbic };
+    if (!changed && !revNota) { delete patch.revision_fecha; delete patch.revision_nota; }
+    const valorPrevio = { coef_id: oldCoefId, descripcion: oldDesc, cantidad: oldCant, ubicacion: oldUbic, n_item: oldNItem };
     await sbPatch('mediciones', editingMedId, patch);
     registrarAuditoria('mediciones', editingMedId, 'UPDATE', valorPrevio, patch, med.obraId||med.obra_id);
     if (moChanged) await moGuardarDesdeModal(med, moF);
@@ -6036,9 +6069,10 @@ async function saveEditMed() {
     med.cantidad = newCant;
     med.ubicacion = newUbic;
     med.revision = newRev;
-    med.revision_fecha = patch.revision_fecha;
-    med.revision_nota = patch.revision_nota;
+    med.revision_fecha = patch.revision_fecha ?? med.revision_fecha;
+    med.revision_nota = patch.revision_nota ?? med.revision_nota;
     med.mat_overrides = editMatOverrides;
+    med.n_item = newNItem;
     invalidateComputeCache();
 
     closeModal('m-edit-med');
