@@ -98,22 +98,25 @@
   --re:#8B2D2D;--re-l:#F0E8E8;
   --bl:#1A3A5C;--bl-l:#E8EFF5;
   --mono:'IBM Plex Mono',monospace;--serif:'Fraunces',serif;
+  --emp:#3A3A3A;--emp-l:#ECEBEA;--emp-m:#8A8A8A;--emp-d:#1A1714;--emp-tx:#fff;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--mono);background:var(--bg);color:var(--tx);font-size:12px;min-height:100vh;}
 .app{display:flex;min-height:100vh;}
-.sidebar{width:210px;min-width:210px;background:var(--tx);color:var(--bg);display:flex;flex-direction:column;padding:20px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.sidebar{width:210px;min-width:210px;background:var(--emp-d);color:var(--bg);display:flex;flex-direction:column;padding:20px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
 .logo{font-family:var(--serif);font-size:17px;font-weight:500;padding:0 18px 20px;border-bottom:1px solid rgba(245,242,236,.1);line-height:1.2;}
 .logo span{display:block;font-size:9px;font-family:var(--mono);font-weight:400;opacity:.45;text-transform:uppercase;letter-spacing:.1em;margin-top:3px;}
 .nav-sec{padding:14px 18px 3px;font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.35;}
 .nav-item{display:flex;align-items:center;gap:9px;padding:8px 18px;cursor:pointer;font-size:11px;opacity:.6;transition:opacity .15s,background .15s;border-left:2px solid transparent;}
 .nav-item:hover{opacity:1;background:rgba(255,255,255,.05);}
-.nav-item.active{opacity:1;border-left-color:#7BC99A;background:rgba(255,255,255,.07);}
+.nav-item.active{opacity:1;border-left-color:var(--emp-m);border-left-width:3px;background:rgba(255,255,255,.09);}
 .sidebar-bottom{margin-top:auto;padding:14px 18px;border-top:1px solid rgba(245,242,236,.1);font-size:10px;opacity:.35;line-height:1.6;}
 .main{flex:1;display:flex;flex-direction:column;overflow-x:hidden;}
-.topbar{background:var(--surf);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+.topbar{background:var(--surf);border-bottom:1px solid var(--border);box-shadow:inset 0 3px 0 var(--emp);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
 .page-title{font-family:var(--serif);font-size:19px;font-weight:500;letter-spacing:-.02em;}
 .topbar-right{display:flex;align-items:center;gap:12px;}
+.emp-chip{display:inline-flex;align-items:center;gap:6px;font-size:10px;padding:3px 10px 3px 8px;border-radius:12px;background:var(--emp-l);color:var(--emp);font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;border:1px solid var(--emp);}
+.emp-chip i{width:8px;height:8px;border-radius:50%;background:var(--emp);display:inline-block;}
 .obra-badge{font-size:10px;padding:3px 10px;border-radius:3px;background:var(--bl-l,#e3f0ff);color:var(--bl,#1a73e8);font-weight:600;letter-spacing:.02em;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;}
 .sync-badge{font-size:9px;padding:3px 8px;border-radius:3px;background:var(--gr-l);color:var(--gr);letter-spacing:.06em;text-transform:uppercase;}
 .sync-badge.err{background:var(--re-l);color:var(--re);}
@@ -125,8 +128,8 @@ body{font-family:var(--mono);background:var(--bg);color:var(--tx);font-size:12px
 .btn{font-family:var(--mono);font-size:11px;padding:7px 13px;border-radius:4px;cursor:pointer;border:1px solid var(--border-s);background:transparent;color:var(--tx);transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
 .btn:hover{background:var(--surf2);}
 .btn:disabled{opacity:.4;cursor:not-allowed;}
-.btn-primary{background:var(--gr);color:#fff;border-color:var(--gr);}
-.btn-primary:hover{background:var(--gr-m);}
+.btn-primary{background:var(--emp);color:var(--emp-tx);border-color:var(--emp);}
+.btn-primary:hover{background:var(--emp-m);border-color:var(--emp-m);}
 .btn-sm{padding:5px 10px;font-size:10px;}
 .btn-icon{background:none;border:none;cursor:pointer;color:var(--tx3);padding:3px 5px;border-radius:3px;font-size:12px;transition:color .15s,background .15s;}
 .btn-icon:hover{color:var(--re);background:var(--re-l);}
@@ -208,7 +211,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
 .imp-incl input{width:16px;height:16px;cursor:pointer;}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);}
 .rubro-block{margin-bottom:16px;}
-.rubro-hdr{background:var(--surf2);padding:8px 12px;border-radius:4px 4px 0 0;display:flex;justify-content:space-between;align-items:center;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--tx2);font-weight:500;}
+.rubro-hdr{background:var(--surf2);box-shadow:inset 3px 0 0 var(--emp);padding:8px 12px;border-radius:4px 4px 0 0;display:flex;justify-content:space-between;align-items:center;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--tx2);font-weight:500;}
 .rubro-hdr .rt{font-family:var(--serif);font-size:13px;font-weight:500;color:var(--tx);text-transform:none;letter-spacing:0;}
 .rubro-body{border:1px solid var(--border);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;}
 .med-item{border-bottom:1px solid var(--border);}
@@ -384,6 +387,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
   <div class="topbar">
     <div class="page-title" id="topbar-title">Dashboard</div>
     <div class="topbar-right">
+      <span id="emp-chip" class="emp-chip" style="display:none;" title="Empresa activa"><i></i><span></span></span>
       <span id="obra-badge" class="obra-badge" style="display:none;" title="Obra activa"></span>
       <span class="sync-badge loading" id="sync-badge">● Conectando</span>
       <span class="badge-src">Precios: <b>Metro Obra Mayo 2026</b><span class="mo-ref"> · UOCRA Zona A</span> · <span style="opacity:.6;" id="app-build-label">build 2026-10-26.3</span></span>
@@ -1480,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-04.2';
+const APP_BUILD = '2026-11-04.3';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -1689,11 +1693,23 @@ function applyBranding() {
   } else if (logoEl) {
     logoEl.textContent = emp.nombre;
   }
-  if (emp.color_primario) {
-    document.documentElement.style.setProperty('--gr', emp.color_primario);
-    document.documentElement.style.setProperty('--side', emp.color_primario);
-    document.documentElement.style.setProperty('--tx', '#1A1714');
-  }
+  aplicarColorEmpresa(emp);
+}
+// Color de la empresa activa (empresas.color_primario) → tokens --emp*. Se usa en el menú lateral, la franja
+// y el chip de la barra superior, botones principales y encabezados de rubro. El verde --gr sigue siendo "ok".
+function _hexRgb(h) { const m = String(h || '').trim().match(/^#?([0-9a-f]{6})$/i); if (!m) return null; const n = parseInt(m[1], 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function _mezcla(a, b, t) { return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
+function aplicarColorEmpresa(emp) {
+  const root = document.documentElement.style, c = _hexRgb(emp && emp.color_primario) || [58, 58, 58];
+  const lum = (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
+  root.setProperty('--emp', _mezcla(c, c, 0));
+  root.setProperty('--emp-l', _mezcla(c, [255, 255, 255], 0.88));
+  root.setProperty('--emp-m', _mezcla(c, [255, 255, 255], 0.35));
+  root.setProperty('--emp-d', _mezcla(c, [20, 20, 20], 0.62));
+  root.setProperty('--emp-tx', lum > 0.62 ? '#1A1714' : '#fff');
+  const chip = document.getElementById('emp-chip');
+  if (chip) { chip.style.display = emp ? '' : 'none'; chip.querySelector('span').textContent = emp ? emp.nombre : ''; }
+  if (emp) document.title = `Cómputo · ${emp.nombre}`;
 }
 
 // Arranque con auth
