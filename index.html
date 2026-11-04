@@ -1480,7 +1480,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-04.1';
+const APP_BUILD = '2026-11-04.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -3211,7 +3211,34 @@ function ordenRubros(rubrosPresentes) {
 }
 
 // Devuelve listado de ubicaciones según subsuelos y plantas de la obra
+// Orden de plantas: subsuelos (del más profundo), PB, PA, pisos.
+function _ordenUbic(u) {
+  const s = String(u || ''); let m;
+  if ((m = s.match(/^Subsuelo (\d+)/))) return -100 - parseInt(m[1]);
+  if (s === 'Planta Baja') return 0;
+  if (s === 'Planta Alta') return 1;
+  if ((m = s.match(/^Piso (\d+)/))) return parseInt(m[1]);
+  return 500;
+}
+// Plantas que necesita una lista de ubicaciones (para ajustar subsuelos/plantas de la obra).
+function _plantasNecesarias(ubics) {
+  let subs = 0, pl = 1;
+  ubics.forEach(u => { const s = String(u || ''); let m;
+    if ((m = s.match(/^Subsuelo (\d+)/))) subs = Math.max(subs, parseInt(m[1]));
+    else if (s === 'Planta Alta') pl = Math.max(pl, 2);
+    else if ((m = s.match(/^Piso (\d+)/))) pl = Math.max(pl, parseInt(m[1]) + 1); });
+  return { subs, pl };
+}
+// Ubicaciones de la obra: las de su configuración (subsuelos/plantas) MÁS las que ya usan sus mediciones.
+// Antes, si la obra figuraba sin subsuelo, al editar una medición de "Subsuelo 1" el selector no tenía esa
+// opción y la ubicación se perdía al guardar (pasó en DC con las losas 2.61–2.63).
 function getUbicaciones(obra) {
+  const base = _getUbicacionesConfig(obra);
+  if (!obra || typeof meds === 'undefined') return base;
+  const usadas = meds.filter(m => (m.obraId || m.obra_id) === obra.id).map(m => m.ubicacion).filter(u => u && u !== 'Global');
+  return [...new Set([...base, ...usadas])].sort((a, b) => _ordenUbic(a) - _ordenUbic(b));
+}
+function _getUbicacionesConfig(obra) {
   if (!obra) return ['Planta Baja'];
   const subs = parseInt(obra.subsuelos) || 0;
   const pl = parseInt(obra.plantas) || 1;
@@ -5570,7 +5597,8 @@ function openEditMed(medId) {
 
   // Poblar ubicaciones
   const ubicSel = document.getElementById('edit-med-ubic');
-  ubicSel.innerHTML = '<option value="Global">Global</option>' + getUbicaciones(obra).map(u => `<option value="${u}">${u}</option>`).join('');
+  { const ops = getUbicaciones(obra); if (med.ubicacion && med.ubicacion !== 'Global' && !ops.includes(med.ubicacion)) ops.push(med.ubicacion);
+    ubicSel.innerHTML = '<option value="Global">Global</option>' + ops.map(u => `<option value="${u}">${u}</option>`).join(''); }
   ubicSel.value = med.ubicacion || 'Global';
 
   // Llenar campos
@@ -9666,6 +9694,7 @@ else{currentSeccion=col1;currentUbicacion='Global';currentEtiqueta='';}const m=m
     if(col1.length>2&&cantVal>0&&!esMetadato){const it={nItem:hasNum?parseNItem(col0p).key:'s/n',nItemOk:hasNum,desc:descEf,cant:cantVal,cantExcel:cantVal,unidad:normUnidad(col3),unidadExcel:col3,contratista:col4,costoUnit,rubro:currentRubro||'Sin rubro',ubicacion:(currentUbicacion==='Global'&&ubicDelTexto(col1))||currentUbicacion,ubicTexto:ubicDelTexto(col1),seccion:currentSeccion,subtipo:detectSubtipoCtx(descEf,currentSeccion),incluir:true};if(/^\s*S\d+\s*[-–]/.test(col1)&&it.unidad==='ml')it.subtipo='zocalo';   /* piso S# medido en ml = zócalo (misma descripción que el piso) */
 autoCorregirItem(it);importData.push(it);}}
   if(!importData.length){document.getElementById('imp-preview').innerHTML=`<div style="padding:12px;background:#fff3cd;border-radius:6px;font-size:11px;"><b>No se encontraron ítems.</b> Primeras filas:<br><br><table style="font-size:10px;width:100%;"><thead><tr><th>Fila</th><th>N°</th><th>Desc</th><th>Cant</th><th>Un</th></tr></thead><tbody>${debugRows.map(r=>'<tr><td>'+r.i+'</td><td>'+r.col0+'</td><td>'+r.col1.substring(0,40)+'</td><td>'+r.cantVal+'</td><td>'+r.col3+'</td></tr>').join('')}</tbody></table><br>Header: ${headerFound?'Sí':'No'}</div>`;return;}
+  _impProponerPlantas();
   impNormalizarNItems();
   marcarImportDuplicados();
   asignarCoefsImport();
@@ -9852,7 +9881,7 @@ function processComputoRows(rows, ws) {
   }
   // Si el cómputo tiene ítems en subsuelo y la obra nueva figura sin subsuelos, se propone 1
   const subEl = document.getElementById('imp-sub');
-  if (!importTargetObraId && subEl && subEl.value === '0' && importData.some(i => i.ubicacion === 'Subsuelo 1')) subEl.value = '1';
+  _impProponerPlantas();
   impNormalizarNItems();
   marcarImportDuplicados();
   asignarCoefsImport();
@@ -10072,6 +10101,14 @@ function renderImportPreview() {
   _iaStatus();
 }
 
+// Obra nueva: si el Excel trae ítems en subsuelo o planta alta y los campos dicen menos, se proponen los necesarios.
+function _impProponerPlantas() {
+  if (importTargetObraId) return;
+  const n = _plantasNecesarias(importData.map(i => i.ubicacion));
+  const subEl = document.getElementById('imp-sub'), plEl = document.getElementById('imp-pl');
+  if (subEl && (parseInt(subEl.value) || 0) < n.subs) subEl.value = String(n.subs);
+  if (plEl && (parseInt(plEl.value) || 1) < n.pl) plEl.value = String(n.pl);
+}
 function _impRefrescar() { validarImport(); renderImportPreview(); }
 
 // Precio de MO del Excel expresado en la unidad de NUESTRA tarea (oct-2026). Única regla: vista previa, certificado y Precios MO.
