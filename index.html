@@ -140,6 +140,11 @@ body{font-family:var(--mono);background:var(--bg);color:var(--tx);font-size:12px
 .stat-sub{font-size:9px;color:var(--tx3);margin-top:3px;}
 .tbl-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:11px;}
+table.tbl-med{table-layout:fixed;min-width:1100px;}
+table.tbl-med td{overflow-wrap:anywhere;vertical-align:top;}
+table.tbl-med th{vertical-align:bottom;}
+table.tbl-med th:nth-child(6),table.tbl-med th:nth-child(7){text-align:right;}
+.rubro-body:has(> table.tbl-med){overflow-x:auto;}
 th{text-align:left;padding:7px 9px;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--tx3);border-bottom:1px solid var(--border);font-weight:400;background:var(--bg);}
 td{padding:8px 9px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--tx2);}
 tr:last-child td{border-bottom:none;}
@@ -1475,7 +1480,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-03.6';
+const APP_BUILD = '2026-11-04.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -4929,7 +4934,7 @@ function loadMediciones() {
     <div class="rubro-block">
       <div class="rubro-hdr"><span>${rubro}</span><span style="font-size:10px;color:var(--tx3);">${items.length} ítem${items.length!==1?'s':''}</span></div>
       <div class="rubro-body">
-        <table><thead><tr><th title="N° de ítem del Excel / cronograma (vínculo con BuildPlan)">N° ítem</th><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Designación original / detalle</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
+        <table class="tbl-med"><colgroup><col style="width:64px"><col style="width:50px"><col style="width:20%"><col style="width:92px"><col><col style="width:92px"><col style="width:76px"><col style="width:50px"><col style="width:86px"><col style="width:112px"></colgroup><thead><tr><th title="N° de ítem del Excel / cronograma (vínculo con BuildPlan)">N° ítem</th><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Designación original / detalle</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
         <tbody>${items.map(({med,coef}) => {
           const sinDesp = coef && (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
           const cantDesp = sinDesp ? num(med.cantidad) : num(med.cantidad)*desp;
