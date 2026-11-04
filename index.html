@@ -1484,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-04.3';
+const APP_BUILD = '2026-11-04.4';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -8397,6 +8397,7 @@ function detectSubtipo(t) {
     if (has('MADERA') || has('MACHIMBRE') || has('REVESTIM')) return 'cielorraso_madera';
     if (has('LONA')) return 'cielorraso_lona';
     if (has('DURLOCK') || has('PLACA') || has('SUSPENDID')) return 'cielorraso_susp';
+    if (has('APLICADO')) return (has('METAL') && has('DESPLEG')) ? 'cielorraso_yeso_metal' : 'cielorraso_yeso_malla';
     return 'cielorraso_yeso';
   }
 
@@ -8610,7 +8611,7 @@ function detectSubtipo(t) {
   if (has('CIELORRASO') || has('CIELORASO')) {
     if (has('PLACA') || has('DURLOCK') || has('SUSPENDID')) return 'cielorraso_susp';
     if (has('MADERA')) return 'cielorraso_madera';
-    if (has('YESO') && has('APLICADO')) return 'cielorraso_yeso';
+    if (has('YESO') && has('APLICADO')) return (has('METAL') && has('DESPLEG')) ? 'cielorraso_yeso_metal' : 'cielorraso_yeso_malla';   // 10.11 / 10.12
     if (has('LONA') || has('CAMUFLADA')) return 'cielorraso_lona';
     if (has('VIDRIO')) return 'cielorraso_vidrio';
     return 'cielorraso_yeso';
@@ -8760,7 +8761,7 @@ const MAP_SUBTIPO = {
   'impermeabilizacion': '9.1', 'impermeabilizacion_alu': '9.2',
   'ho_pendiente': '9.6', 'cubierta_chapa': '9.5', 'cubierta_teja': '9.4',
   // Cielorrasos (10.x — antes 13.x)
-  'cielorraso_yeso': '10.1', 'cielorraso_susp': '10.3',
+  'cielorraso_yeso': '10.1', 'cielorraso_yeso_malla': '10.11', 'cielorraso_yeso_metal': '10.12', 'cielorraso_susp': '10.3',
   'cielorraso_madera': '10.5', 'cielorraso_lona': '10.6',
   // Pisos (11.x — antes 10.x)
   'piso_porcelanato': '11.2', 'piso_porcelanato_60x120': '11.2',
@@ -9491,10 +9492,13 @@ const TEST_CASES_LECTOR = [
   ['Engrosado y enlucido de yeso PA', 'yeso_engrosado'],
   // Cielorrasos, pisos, revestimientos
   ['Cielorraso Durlock junta tomada', 'cielorraso_susp'],
-  ['C2- Cieloraso aplicado con terminacion de yeso', 'cielorraso_yeso'],
+  ['C2- Cieloraso aplicado con terminacion de yeso', 'cielorraso_yeso_malla'],
   ['C3- Cieloraso aplicado con terminacion de madera', 'cielorraso_madera'],
   ['C5- Cielorraso suspendido con buña perimetral', 'cielorraso_susp'],
-  ['Cielorraso aplicado de yeso s/losa', 'cielorraso_yeso'],
+  ['Cielorraso aplicado de yeso s/losa', 'cielorraso_yeso_malla'],
+  ['Cielorraso de Yeso Aplicado', 'cielorraso_yeso_malla'],
+  ['Cielorraso de yeso aplicado c/metal desplegado', 'cielorraso_yeso_metal'],
+  ['C3 - Cielorraso aplicado de yeso sobre metal desplegado', 'cielorraso_yeso_metal'],
   ['Piso porcelanato 60x120 rectificado', 'piso_porcelanato_60x120'],
   ['Piso cerámico 40x40', 'piso_ceramico'],
   ['Zócalo porcelanato h=10cm', 'zocalo'],
