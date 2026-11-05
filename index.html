@@ -416,7 +416,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <!-- MEDICIONES -->
     <div id="page-mediciones" class="page">
       <div class="desp-banner">
-        <span style="font-size:11px;color:var(--am);">% Desperdicio global — no aplica a tareas con precio libre</span>
+        <span style="font-size:11px;color:var(--am);">% Desperdicio global — solo en tareas con materiales; no aplica a movimiento de suelos, instalaciones, aberturas ni ítems por unidad o global</span>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="number" id="pct-desp" value="6" min="0" max="50" style="width:65px;" onchange="saveDesp()">
           <span style="font-size:13px;font-weight:600;color:var(--am);">%</span>
@@ -1484,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-04.4';
+const APP_BUILD = '2026-11-05.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -1941,6 +1941,18 @@ function coefsElegibles(mantenerId) {
   return coefsEmpresa().filter(c => !TAREAS_RETIRADAS.has(c.id) || c.id === mantenerId);
 }
 let desperdicio = parseFloat(localStorage.getItem('desp_v3') ?? 6);
+// El desperdicio aplica solo a tareas con materiales que se cortan o se pierden en obra. No aplica a:
+//  · tareas sin materiales (MO pura, instalaciones y herrería a precio global, movimiento de suelos)
+//  · tareas por unidad o global (no hay 1,06 puertas ni 1,06 instalaciones)
+//  · los rubros Movimiento de Suelos e Instalaciones
+const RUBROS_SIN_DESP = ['Movimiento de Suelos', 'Instalaciones'];   // aberturas: van por unidad (regla de abajo); vigas/columnas de madera en ml sí llevan desperdicio de corte
+function aplicaDesperdicio(coef) {
+  if (!coef) return false;
+  if (RUBROS_SIN_DESP.includes(coef.rubro)) return false;
+  if (/^(u|un|und|unid|unidad|ud|gl|global)\.?$/i.test(String(coef.unidad || '').trim())) return false;
+  const m = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? (() => { try { return JSON.parse(coef.mats || '[]'); } catch { return []; } })() : []);
+  return m.length > 0;
+}
 
 // =====================================================================
 // ARCHIVOS — Supabase Storage
@@ -2608,7 +2620,7 @@ function computeObra(obraId) {
     if (!coef) return;
     if (!rubros[coef.rubro]) rubros[coef.rubro] = { rubro: coef.rubro, items: [] };
     const cantidad = num(med.cantidad);
-    const sinDesp = (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
+    const sinDesp = !aplicaDesperdicio(coef);
     const cantDesp = sinDesp ? cantidad : cantidad * desp;
     const coefMats = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? JSON.parse(coef.mats||'[]') : []);
     // mat_overrides: { "nombre_original": "id_seleccionado" }
@@ -4979,7 +4991,7 @@ function loadMediciones() {
       <div class="rubro-body">
         <table class="tbl-med"><colgroup><col style="width:64px"><col style="width:50px"><col style="width:20%"><col style="width:92px"><col><col style="width:92px"><col style="width:76px"><col style="width:50px"><col style="width:86px"><col style="width:112px"></colgroup><thead><tr><th title="N° de ítem del Excel / cronograma (vínculo con BuildPlan)">N° ítem</th><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Designación original / detalle</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
         <tbody>${items.map(({med,coef}) => {
-          const sinDesp = coef && (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
+          const sinDesp = !aplicaDesperdicio(coef);
           const cantDesp = sinDesp ? num(med.cantidad) : num(med.cantidad)*desp;
           const armDef = esArmDef(med);
           const nIt = nItemDeMed(med), rawD = med.desc || med.descripcion || '', dOrig = descOriginal(rawD), dArm = rawD.includes('|') ? formatArmDesc(rawD) : '';
@@ -4990,7 +5002,7 @@ function loadMediciones() {
           <td style="font-size:10px;color:${med.ubicacion && med.ubicacion !== 'Global' ? 'var(--bl)' : 'var(--tx3)'};">${med.ubicacion||'Global'}</td>
           <td>${dOrig ? _escH(dOrig) : (dArm ? '' : '—')}${dArm && dArm !== '—' ? `<div style="font-size:10px;color:var(--tx3);margin-top:2px;">${dArm}</div>` : ''}</td>
           <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}${med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad) ? `<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:1})} ${med.unidad_origen||''}</span>` : ''}</td>
-          <td class="num" style="color:var(--am);">${cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
+          <td class="num" style="color:${sinDesp ? 'var(--tx3)' : 'var(--am)'};" title="${sinDesp ? 'Sin desperdicio: tarea sin materiales, por unidad/global o de movimiento de suelos, instalaciones o aberturas' : ''}">${sinDesp ? '—' : cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
           <td>${coef?coef.unidad:'—'}${med.unidad_origen && med.unidad_origen !== (coef?.unidad||'') ? `<br><span style="font-size:9px;color:var(--bl);">${med.unidad_origen}</span>` : ''}</td>
           <td style="font-size:10px;white-space:nowrap;" title="${(med.updated_at||med.created_at) ? new Date(med.updated_at||med.created_at).toLocaleString('es-AR') : ''}">${timeAgo(med.updated_at||med.created_at)}${(med.updated_by||med.created_by) ? '<br><span style="font-size:9px;color:var(--tx3);">'+getUserName(med.updated_by||med.created_by)+'</span>' : ''}</td>
           <td style="white-space:nowrap;"><span style="font-size:9px;color:var(--tx3);">${med.revision||'Rev00'}</span> <button class="btn-icon" onclick="dupMed('${med.id}')" title="Duplicar">⧉</button><button class="btn-icon" onclick="openEditMed('${med.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delMed('${med.id}')">✕</button></td>
@@ -6160,7 +6172,7 @@ function loadComputo() {
           <div class="med-hdr" onclick="toggleBody('mb-${rubro.replace(/\s/g,'-')}-${idx}')">
             <div>
               <div class="med-name">${item.med.etiqueta ? '<span style="font-family:var(--mono);font-size:10px;background:var(--surf2);padding:1px 5px;border-radius:3px;margin-right:5px;color:var(--tx2);">'+item.med.etiqueta+'</span>' : ''}${item.coef.nombre}${(item.med.desc||item.med.descripcion)?' — <span style="color:var(--tx3);">'+formatArmDesc(item.med.desc||item.med.descripcion)+'</span>':''}</div>
-              <div class="med-meta"><span>${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:3})} ${item.coef.unidad}</span><span style="color:var(--am);">+${desperdicio}% → ${item.cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</span><span style="color:var(--tx3);">▾ ver detalle</span></div>
+              <div class="med-meta"><span>${item.cantidad.toLocaleString('es-AR',{maximumFractionDigits:3})} ${item.coef.unidad}</span>${item.cantDesp !== item.cantidad ? `<span style="color:var(--am);">+${desperdicio}% → ${item.cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</span>` : '<span style="color:var(--tx3);">sin desperdicio</span>'}<span style="color:var(--tx3);">▾ ver detalle</span></div>
             </div>
             <div style="text-align:right;"><div style="font-size:12px;font-weight:500;">${$p(item.total)}</div><div style="font-size:9px;color:var(--tx3);margin-top:2px;">mat+MO${item.moSinPrecio?' <span style="color:var(--re);">· MO sin precio</span>':''}</div></div>
           </div>
@@ -6839,7 +6851,7 @@ function consolidarMateriales(obraId, medsFiltro) {
     const coef = coefs.find(c => c.id === (med.coefId||med.coef_id));
     if (!coef) return;
     const cantidad = num(med.cantidad);
-    const sinDesp = (num(coef.mo_rend) === 0 && (!coef.mats || coef.mats === '[]' || (Array.isArray(coef.mats) && coef.mats.length === 0)));
+    const sinDesp = !aplicaDesperdicio(coef);
     const cantDesp = sinDesp ? cantidad : cantidad * desp;
     const coefMats = Array.isArray(coef.mats) ? coef.mats : JSON.parse(coef.mats||'[]');
     // Tipo de Hº elegido por medición (mat_overrides): la compra va separada por ese material (H17 / H21 / …)
@@ -8432,9 +8444,11 @@ function detectSubtipo(t) {
   if (has('ALQUILER') && has('HERRAMIENTA')) return 'alquiler_herramientas';
 
   // ══ MOVIMIENTO DE SUELOS ══
-  if (has('EXCAVACION') || has('EXCAVAC')) return 'excavacion';
+  // Con máquina (retro, pala, minicargadora, compactador): sin materiales, la MO del contratista incluye el alquiler del equipo
+  const conMaquina = /MAQUIN|RETRO|MECANIC|PALA\b|PALA CARGADORA|CARGADORA|BOBCAT|MINICARGADORA|EXCAVADORA|EQUIPO|COMPACTADOR|VIBRO|RODILLO|PLANCHA VIBR|PISON/.test(t);
+  if (has('EXCAVACION') || has('EXCAVAC')) return conMaquina ? 'excavacion_maq' : (/DURO|ROCA|TOSCA/.test(t) ? 'excavacion_duro' : 'excavacion');
   if (has('RETIRO') && has('TIERRA')) return 'retiro_tierra';
-  if (has('RELLENO') && !has('HORMIGON') && !has('CONTRAPISO')) return 'relleno';
+  if (has('RELLENO') && !has('HORMIGON') && !has('CONTRAPISO')) return conMaquina ? 'relleno_maq' : 'relleno';
 
   // ══ LOSA TANQUE — antes de herrería ══
   if (has('LOSA') && has('TANQUE')) return 'losa_maciza';
@@ -8827,7 +8841,7 @@ const MAP_SUBTIPO = {
   // Variantes por m² (oct-2026): la versión global queda en el código original. Ver SUBTIPO_VARIANTE_UNIDAD.
   'limpieza_m2': '1.23', 'replanteo_m2': '1.24', 'limpieza_final_m2': '1.25',
   // Movimiento de suelos (2.x — sin cambios)
-  'excavacion': '2.1', 'relleno': '2.4', 'retiro_tierra': '2.6',
+  'excavacion': '2.1', 'excavacion_duro': '2.2', 'excavacion_maq': '2.3', 'relleno': '2.4', 'relleno_maq': '2.5', 'retiro_tierra': '2.6',
   // Hº genéricos
   'armadura': '4.14', 'hormigon_llenado': '4.14'
 };
@@ -9413,6 +9427,11 @@ const TEST_CASES_LECTOR = [
   ['Estudio de suelos', 'estudio_suelos'],
   ['Replanteo de obra', 'replanteo'],
   ['Excavación de bases en terreno natural', 'excavacion'],
+  ['Excavación con máquina retroexcavadora', 'excavacion_maq'],
+  ['Excavación terreno con minicargadora (incluye alquiler de equipo)', 'excavacion_maq'],
+  ['Excavación manual en terreno duro / tosca', 'excavacion_duro'],
+  ['Relleno y compactación con plancha vibradora', 'relleno_maq'],
+  ['Relleno de terreno', 'relleno'],
   ['Relleno y compactación c/suelo del lugar', 'relleno'],
   ['Retiro de tierra sobrante', 'retiro_tierra'],
   // Aislaciones (antes de mampostería)
