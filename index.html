@@ -416,7 +416,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <!-- MEDICIONES -->
     <div id="page-mediciones" class="page">
       <div class="desp-banner">
-        <span style="font-size:11px;color:var(--am);">% Desperdicio global — solo en tareas con materiales; no aplica a movimiento de suelos, instalaciones, aberturas ni ítems por unidad o global</span>
+        <span style="font-size:11px;color:var(--am);">% Desperdicio general — se aplica a todas las tareas; se quita por rubro o por tarea en <b>Consumos</b></span>
         <div style="display:flex;align-items:center;gap:8px;">
           <input type="number" id="pct-desp" value="6" min="0" max="50" style="width:65px;" onchange="saveDesp()">
           <span style="font-size:13px;font-weight:600;color:var(--am);">%</span>
@@ -1484,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-05.1';
+const APP_BUILD = '2026-11-05.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -1941,17 +1941,32 @@ function coefsElegibles(mantenerId) {
   return coefsEmpresa().filter(c => !TAREAS_RETIRADAS.has(c.id) || c.id === mantenerId);
 }
 let desperdicio = parseFloat(localStorage.getItem('desp_v3') ?? 6);
-// El desperdicio aplica solo a tareas con materiales que se cortan o se pierden en obra. No aplica a:
-//  · tareas sin materiales (MO pura, instalaciones y herrería a precio global, movimiento de suelos)
-//  · tareas por unidad o global (no hay 1,06 puertas ni 1,06 instalaciones)
-//  · los rubros Movimiento de Suelos e Instalaciones
-const RUBROS_SIN_DESP = ['Movimiento de Suelos', 'Instalaciones'];   // aberturas: van por unidad (regla de abajo); vigas/columnas de madera en ml sí llevan desperdicio de corte
+// Desperdicio: el % general se aplica a TODAS las tareas, salvo los rubros o tareas destildados en Consumos.
+// Se guarda en config 'desperdicio_excluir' = { rubros: [nombre], tareas: [coef.id] } (base común: lo edita el admin).
+// Solo afecta la cantidad de materiales (la MO es el precio del contratista sobre la cantidad medida).
+let despExcl = { rubros: [], tareas: [] };
+function _leerDespExcl(rows) {
+  const r = (rows || []).find(x => x.id === 'desperdicio_excluir');
+  try { const v = r ? JSON.parse(r.valor || '{}') : {}; despExcl = { rubros: Array.isArray(v.rubros) ? v.rubros : [], tareas: Array.isArray(v.tareas) ? v.tareas : [] }; }
+  catch { despExcl = { rubros: [], tareas: [] }; }
+}
+function despRubroActivo(rubro) { return !despExcl.rubros.includes(rubro); }
 function aplicaDesperdicio(coef) {
   if (!coef) return false;
-  if (RUBROS_SIN_DESP.includes(coef.rubro)) return false;
-  if (/^(u|un|und|unid|unidad|ud|gl|global)\.?$/i.test(String(coef.unidad || '').trim())) return false;
-  const m = Array.isArray(coef.mats) ? coef.mats : (typeof coef.mats === 'string' ? (() => { try { return JSON.parse(coef.mats || '[]'); } catch { return []; } })() : []);
-  return m.length > 0;
+  return despRubroActivo(coef.rubro) && !despExcl.tareas.includes(coef.id);
+}
+async function toggleDesp(tipo, valor, activo) {
+  if (!isAdmin) { notif('Solo el administrador cambia dónde aplica el desperdicio (es de la base común)'); renderCoefs(); return; }
+  const nuevo = { rubros: [...despExcl.rubros], tareas: [...despExcl.tareas] };
+  const arr = tipo === 'rubro' ? nuevo.rubros : nuevo.tareas;
+  const i = arr.indexOf(valor);
+  if (activo && i >= 0) arr.splice(i, 1);
+  if (!activo && i < 0) arr.push(valor);
+  try {
+    await sbUpsertLote('config', [{ id: 'desperdicio_excluir', valor: JSON.stringify(nuevo) }]);
+    despExcl = nuevo; invalidateComputeCache(); renderCoefs();
+    notif(activo ? 'Desperdicio aplicado ✓' : 'Sin desperdicio ✓');
+  } catch (e) { notif('No se pudo guardar: ' + e.message); renderCoefs(); }
 }
 
 // =====================================================================
@@ -2316,6 +2331,7 @@ async function loadAllData() {
   meds = (med || []).map(x => ({...x, obraId: x.obra_id, coefId: x.coef_id, desc: x.descripcion}));
   indicesCac = idx || [];
   preciosEmpresa = pe || [];
+  _leerDespExcl(await sbGet('config').catch(() => []));
   invalidateComputeCache();
   await loadMoPrecios();
 
@@ -5002,7 +5018,7 @@ function loadMediciones() {
           <td style="font-size:10px;color:${med.ubicacion && med.ubicacion !== 'Global' ? 'var(--bl)' : 'var(--tx3)'};">${med.ubicacion||'Global'}</td>
           <td>${dOrig ? _escH(dOrig) : (dArm ? '' : '—')}${dArm && dArm !== '—' ? `<div style="font-size:10px;color:var(--tx3);margin-top:2px;">${dArm}</div>` : ''}</td>
           <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}${med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad) ? `<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:1})} ${med.unidad_origen||''}</span>` : ''}</td>
-          <td class="num" style="color:${sinDesp ? 'var(--tx3)' : 'var(--am)'};" title="${sinDesp ? 'Sin desperdicio: tarea sin materiales, por unidad/global o de movimiento de suelos, instalaciones o aberturas' : ''}">${sinDesp ? '—' : cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
+          <td class="num" style="color:${sinDesp ? 'var(--tx3)' : 'var(--am)'};" title="${sinDesp ? 'Sin desperdicio: el rubro o la tarea están destildados en Consumos' : ''}">${sinDesp ? '—' : cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
           <td>${coef?coef.unidad:'—'}${med.unidad_origen && med.unidad_origen !== (coef?.unidad||'') ? `<br><span style="font-size:9px;color:var(--bl);">${med.unidad_origen}</span>` : ''}</td>
           <td style="font-size:10px;white-space:nowrap;" title="${(med.updated_at||med.created_at) ? new Date(med.updated_at||med.created_at).toLocaleString('es-AR') : ''}">${timeAgo(med.updated_at||med.created_at)}${(med.updated_by||med.created_by) ? '<br><span style="font-size:9px;color:var(--tx3);">'+getUserName(med.updated_by||med.created_by)+'</span>' : ''}</td>
           <td style="white-space:nowrap;"><span style="font-size:9px;color:var(--tx3);">${med.revision||'Rev00'}</span> <button class="btn-icon" onclick="dupMed('${med.id}')" title="Duplicar">⧉</button><button class="btn-icon" onclick="openEditMed('${med.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delMed('${med.id}')">✕</button></td>
@@ -6807,6 +6823,9 @@ function renderCoefs() {
           <span style="font-size:11px;font-weight:500;flex:1;">${c.nombre}</span>
           <span style="font-size:10px;color:var(--tx3);">${c.unidad}</span>
           <span style="font-size:9px;color:var(--tx3);margin-left:4px;">${cMats.length ? cMats.length+' mat.' : '—'}<span class="mo-ref"> · rend ${num(c.moRend||c.mo_rend)||'—'}/día</span></span>
+          <label onclick="event.stopPropagation()" title="${despRubroActivo(c.rubro) ? `Desperdicio general (${desperdicio} %) en esta tarea` : 'El rubro está sin desperdicio'}${isAdmin ? '' : ' — lo cambia el administrador'}" style="display:flex;align-items:center;gap:3px;font-size:9px;color:${aplicaDesperdicio(c) ? 'var(--am)' : 'var(--tx3)'};margin:0;text-transform:none;letter-spacing:0;">
+            <input type="checkbox" style="width:auto;margin:0;" ${aplicaDesperdicio(c) ? 'checked' : ''} ${isAdmin && despRubroActivo(c.rubro) ? '' : 'disabled'} onchange="toggleDesp('tarea', '${c.id}', this.checked)"> desp.
+          </label>
           <span style="font-size:10px;color:var(--tx3);">▾</span>
         </div>
         <div style="display:none;padding:10px 14px 10px 56px;background:var(--bg);">
@@ -6819,6 +6838,9 @@ function renderCoefs() {
       <div class="rubro-hdr" onclick="toggleRubro('${rubroId}')" style="cursor:pointer;user-select:none;">
         <span>${rubro}</span>
         <span style="display:flex;align-items:center;gap:8px;">
+          <label onclick="event.stopPropagation()" title="Desperdicio general (${desperdicio} %) para todas las tareas de este rubro${isAdmin ? '' : ' — lo cambia el administrador'}" style="display:flex;align-items:center;gap:4px;font-size:9px;color:${despRubroActivo(rubro) ? 'var(--am)' : 'var(--tx3)'};text-transform:none;letter-spacing:0;margin:0;cursor:${isAdmin ? 'pointer' : 'default'};">
+            <input type="checkbox" style="width:auto;margin:0;" ${despRubroActivo(rubro) ? 'checked' : ''} ${isAdmin ? '' : 'disabled'} onchange="toggleDesp('rubro', ${JSON.stringify(rubro).replace(/"/g, '&quot;')}, this.checked)"> desperdicio
+          </label>
           <span style="font-size:10px;color:var(--tx3);">${items.length} tarea${items.length!==1?'s':''}</span>
           <span id="${rubroId}-icon">▾</span>
         </span>
