@@ -409,7 +409,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
     <div id="page-obras" class="page">
       <div class="card">
         <div class="card-header"><div class="card-title">Obras</div><div style="display:flex;gap:8px;"><button class="btn" onclick="openImportNuevaObra()" title="Certificado o cómputo en Excel">↑ Importar desde Excel</button><button class="btn btn-primary" onclick="editingObraId=null;document.getElementById('modal-obra-title').textContent='Nueva obra';['o-cod','o-nombre','o-cliente','o-ubic','o-sup','o-notas'].forEach(id=>document.getElementById(id).value='');document.getElementById('o-subsuelos').value='0';document.getElementById('o-plantas').value='1';openModal('m-obra')">+ Nueva obra</button></div></div>
-        <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Obra</th><th>Cliente</th><th>Ubicación</th><th>Sup.</th><th>Estado</th><th>Total</th><th>Modificado</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-obras"></tbody></table></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Código</th><th>Obra</th><th>Cliente</th><th>Ubicación</th><th>Sup.</th><th>Estado</th><th>Total</th><th>Creado / Modificado</th><th>Rev / Acciones</th></tr></thead><tbody id="tb-obras"></tbody></table></div>
       </div>
     </div>
 
@@ -994,7 +994,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           <b>Certificados:</b> emitir y reabrir se hacen en una sola operación: o se aplica completo o no se aplica. Exportación a PDF y a Excel, de cliente y de contratista.<br>
           <b>Cronograma:</b> vincula las mediciones con las tareas del Project de BkTableros por N° de ítem y lista los materiales a comprar por período (sección 10).<br>
           <b>Asistente de obra:</b> el botón flotante abre un chat que consulta obras, materiales y mediciones de la app.<br>
-          <b>Quién y cuándo:</b> Obras y Mediciones muestran la columna <b>Modificado</b> con la fecha y el usuario del último cambio.<br>
+          <b>Quién y cuándo:</b> Obras muestra quién creó la obra y quién la modificó por última vez; Mediciones muestra la fecha y el usuario del último cambio.<br>
           <b>Menú reorganizado:</b> Obras · Cómputo (Mediciones, Cómputo automático, Presupuesto) · Obra (Archivos, Materiales por obra, Cronograma, Precios MO, Certificados, Historial) · Bases (Materiales, Consumos, Índices CAC) · Ayuda.<br>
           <b>Versión visible:</b> la barra superior muestra el build. Si después de una actualización no coincide con el que te avisaron, recargá con Ctrl+Shift+R.
         </div>
@@ -1484,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-05.2';
+const APP_BUILD = '2026-11-10.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2983,7 +2983,8 @@ async function renderObras() {
   if (!oe.length) { tb.innerHTML = `<tr><td colspan="9"><div class="empty">Sin obras.</div></td></tr>`; return; }
   // Precargar emails de usuarios involucrados
   const uids = oe.flatMap(o => [o.created_by, o.updated_by]).filter(Boolean);
-  if (uids.length) loadUserEmails(uids).then(() => { /* re-render silencioso si cambió algo */ });
+  const faltan = uids.filter(id => !_userEmailCache[id] && id !== authUser?.id);
+  if (faltan.length) loadUserEmails(uids).then(() => { if (faltan.some(id => _userEmailCache[id])) renderObras(); });
   tb.innerHTML = oe.map(o => {
     const r = computeObra(o.id);
     const tot = Object.values(r).reduce((s,rb) => s+rb.items.reduce((ss,i) => ss+i.total, 0), 0);
@@ -2991,9 +2992,15 @@ async function renderObras() {
     const badgeCong = pc
       ? `<div style="margin-top:3px;"><span class="tag tg" title="Base congelada${pc.fecha ? ' el ' + new Date(pc.fecha).toLocaleDateString('es-AR') : ''} · CAC de referencia ${fmtMesLargo(pc.mes_ref || pc.mes_destino || o.mes_congelado)}">🔒 Base CAC ${fmtMesLargo(pc.mes_ref || pc.mes_destino || o.mes_congelado)}</span></div>`
       : `<div style="margin-top:3px;"><span class="tag" style="background:var(--surf2);color:var(--tx3);">Precios vivos</span></div>`;
+    // Quién creó la obra y quién la modificó por última vez (obras.created_by / updated_by).
+    // Las obras cargadas antes de registrar el usuario no tienen creador: se muestra "sin registro".
+    const fCorta = d => new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const creInfo = o.created_by
+      ? `<span title="Creada el ${o.created_at ? new Date(o.created_at).toLocaleString('es-AR') : '—'} por ${getUserName(o.created_by)}">creó <b>${getUserName(o.created_by)}</b>${o.created_at ? ' · ' + fCorta(o.created_at) : ''}</span>`
+      : `<span style="color:var(--tx3);" title="Obra cargada antes de que se registrara quién la crea">creó — sin registro${o.created_at ? ' · ' + fCorta(o.created_at) : ''}</span>`;
     const modDate = o.updated_at || o.created_at;
     const modUser = o.updated_by || o.created_by;
-    const modInfo = modDate ? `<span title="${new Date(modDate).toLocaleString('es-AR')}${modUser ? ' · ' + getUserName(modUser) : ''}">${timeAgo(modDate)}${modUser ? '<br><span style="font-size:9px;color:var(--tx3);">' + getUserName(modUser) + '</span>' : ''}</span>` : '—';
+    const modInfo = `${creInfo}<br><span style="font-size:9px;color:var(--tx3);"${modDate ? ` title="Último cambio: ${new Date(modDate).toLocaleString('es-AR')}${modUser ? ' · ' + getUserName(modUser) : ''}"` : ''}>mod. ${modDate ? timeAgo(modDate) : '—'}${modUser ? ' · ' + getUserName(modUser) : ''}</span>`;
     return `<tr><td><code style="font-size:10px;">${o.cod}</code></td><td class="hi">${o.nombre}${badgeCong}</td><td>${o.cliente||'—'}</td><td style="font-size:10px;color:var(--tx3);">${o.ubic||''}${o.direccion?' · '+o.direccion:''}</td><td class="num">${o.sup?o.sup+' m²':'—'}</td><td>${stag(o.estado)}</td><td class="num hi">${tot?$p(tot):'—'}</td><td style="font-size:10px;white-space:nowrap;">${modInfo}</td><td style="white-space:nowrap;"><button class="btn-icon" onclick="openModalCongelar('${o.id}')" title="Congelar precios" style="color:var(--bl);">❄</button><button class="btn-icon" onclick="duplicarObra('${o.id}')" title="Duplicar obra">⧉</button><button class="btn-icon" onclick="openEditObra('${o.id}')" title="Editar">✎</button><button class="btn-icon" onclick="delObra('${o.id}')">✕</button></td></tr>`;
   }).join('');
 }
