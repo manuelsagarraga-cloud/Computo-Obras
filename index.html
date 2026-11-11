@@ -569,10 +569,12 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           <div class="fg"><label>Obra</label><select id="sel-obra-compras" onchange="loadCompras()"></select></div>
           <div class="fg"><label>Vista</label>
             <select id="compras-vista" onchange="loadCompras()">
-              <option value="consolidado">Consolidado por material</option>
-              <option value="rubros">Agrupado por rubro</option>
+              <option value="pedir">Pedir: qué comprar</option>
+              <option value="pedidos">Pedidos</option>
               <option value="saldo">Saldo: computado vs comprado</option>
               <option value="registro">Registro de compras</option>
+              <option value="consolidado">Consolidado por material</option>
+              <option value="rubros">Agrupado por rubro</option>
             </select>
           </div>
           <div class="fg"><label>Precios</label>
@@ -1051,7 +1053,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--gr);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">7</div><div style="width:2px;background:var(--border);flex:1;margin:2px 0;"></div></div>
-            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Comprar</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;"><b>Materiales por obra</b>: materiales consolidados con cantidad comercial, por material o por rubro, saldo computado vs comprado y registro de compras. <b>Cronograma</b>: qué comprar en cada período según el Project.</div></div>
+            <div style="padding:0 0 18px 12px;"><div style="font-weight:600;font-size:11px;margin-bottom:3px;">Comprar</div><div style="font-size:11px;color:var(--tx2);line-height:1.6;"><b>Materiales por obra → Pedir: qué comprar</b>: lo que falta de toda la obra o de las próximas tareas del cronograma, con proveedor de esa obra. <b>Armar pedido</b> lo guarda (N° OBRA-P001) y en <b>Pedidos</b> sale en PDF, Excel o WhatsApp por proveedor. El saldo descuenta lo ya pedido. <b>Cronograma</b>: qué comprar en cada período según el Project.</div></div>
           </div>
           <div style="display:flex;gap:0;align-items:stretch;">
             <div style="width:32px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:var(--am);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;">8</div></div>
@@ -1484,7 +1486,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-10.1';
+const APP_BUILD = '2026-11-10.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -7090,6 +7092,8 @@ function loadCompras() {
   if (!obraId) { body.innerHTML = '<div class="empty">Seleccioná una obra.</div>'; return; }
 
   if (vista === 'saldo' || vista === 'registro') { renderComprasReales(obraId, vista); return; }
+  if (vista === 'pedir') { renderPedir(obraId); return; }
+  if (vista === 'pedidos') { renderPedidos(obraId); return; }
 
   const consolidado = consolidarCompras(obraId);
   if (!Object.keys(consolidado).length) {
@@ -7186,17 +7190,20 @@ function calcSaldoCompras(obraId) {
   const compras = _comprasCache[obraId] || [];
   const filas = {};
   Object.values(consolidado).forEach(m => {
-    filas[_normMat(m.nombre)] = { nombre:m.nombre, un:m.unComercial, computado:m.cantComercialCeil, comprado:0, presup:m.subtotal, precioRef:m.precio, gastado:0, nCompras:0, enComputo:true };
+    filas[_normMat(m.nombre)] = { nombre:m.nombre, un:m.unComercial, computado:m.cantComercialCeil, comprado:0, pedido:0, presup:m.subtotal, precioRef:m.precio, gastado:0, nCompras:0, enComputo:true };
   });
   compras.forEach(c => {
     const k = _normMat(c.material);
-    if (!filas[k]) filas[k] = { nombre:c.material, un:c.un||'', computado:0, comprado:0, presup:0, precioRef:num(c.precio_unit), gastado:0, nCompras:0, enComputo:false };
+    if (!filas[k]) filas[k] = { nombre:c.material, un:c.un||'', computado:0, comprado:0, pedido:0, presup:0, precioRef:num(c.precio_unit), gastado:0, nCompras:0, enComputo:false };
+    // Un renglón de pedido todavía no está comprado: no suma gasto, pero cuenta como "ya pedido"
+    if ((c.estado || 'recibido') === 'pedido') { filas[k].pedido += num(c.cantidad); return; }
     filas[k].comprado += num(c.cantidad);
     filas[k].gastado += num(c.total);
     filas[k].nCompras++;
   });
   const lista = Object.values(filas).map(f => {
     f.comprado = +f.comprado.toFixed(3);
+    f.pedido = +f.pedido.toFixed(3);
     f.saldo = +(f.computado - f.comprado).toFixed(3);
     // Precio para estimar lo que falta: último precio pagado si hay compras, si no el de la base
     const pagado = f.comprado > 0 ? f.gastado / f.comprado : 0;
@@ -7244,11 +7251,12 @@ async function renderComprasReales(obraId, vista) {
     </div>
     <div class="card" style="padding:0;overflow:hidden;">
       <table>
-        <thead><tr><th>Material</th><th>Computado</th><th>Comprado</th><th>Saldo</th><th>Presupuestado</th><th>Gastado</th><th>Falta comprar $</th><th></th></tr></thead>
+        <thead><tr><th>Material</th><th>Computado</th><th>Comprado</th><th>Pedido</th><th>Saldo</th><th>Presupuestado</th><th>Gastado</th><th>Falta comprar $</th><th></th></tr></thead>
         <tbody>${s.filas.map(f => `<tr>
           <td class="hi">${_escC(f.nombre)}${f.nCompras ? ` <span style="font-size:9px;color:var(--tx3);">(${f.nCompras})</span>` : ''}</td>
           <td class="num" style="color:var(--tx3);">${f.enComputo ? fmtQ(f.computado) + ' ' + _escC(f.un) : '—'}</td>
           <td class="num">${f.comprado ? fmtQ(f.comprado) + ' ' + _escC(f.un) : '—'}</td>
+          <td class="num" style="color:var(--am);">${f.pedido ? fmtQ(f.pedido) : '—'}</td>
           <td class="num">${saldoCell(f)}</td>
           <td class="num">${f.presup ? $p(f.presup) : '—'}</td>
           <td class="num hi">${f.gastado ? $p(f.gastado) : '—'}</td>
@@ -7269,7 +7277,7 @@ function renderRegistroCompras(obraId) {
   body.innerHTML = `
     <div class="card" style="padding:0;overflow:hidden;">
       <table>
-        <thead><tr><th>Fecha</th><th>Material</th><th>Cantidad</th><th>Precio unit.</th><th>Total</th><th>Proveedor</th><th>Factura</th><th></th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Material</th><th>Cantidad</th><th>Precio unit.</th><th>Total</th><th>Proveedor</th><th>Pedido / Factura</th><th></th></tr></thead>
         <tbody>${compras.map(c => `<tr>
           <td style="white-space:nowrap;">${fecha(c.fecha)}</td>
           <td class="hi">${_escC(c.material)}${c.obs ? `<div style="font-size:9px;color:var(--tx3);">${_escC(c.obs)}</div>` : ''}</td>
@@ -7277,12 +7285,378 @@ function renderRegistroCompras(obraId) {
           <td class="num">${c.precio_unit ? $p(c.precio_unit) : '—'}</td>
           <td class="num hi">${$p(num(c.total))}</td>
           <td>${_escC(c.proveedor||'—')}</td>
-          <td style="font-size:10px;color:var(--tx3);">${_escC(c.factura||'')}</td>
+          <td style="font-size:10px;color:var(--tx3);">${c.pedido ? `<code>${_escC(c.pedido)}</code> ${(c.estado||'recibido') === 'pedido' ? '<span style="color:var(--am);">pedido</span>' : ''}<br>` : ''}${_escC(c.factura||'')}</td>
           <td style="white-space:nowrap;"><button class="btn-icon" title="Editar" onclick="openModalCompra('${c.id}')">✎</button><button class="btn-icon" title="Borrar" onclick="delCompra('${c.id}')">✕</button></td>
         </tr>`).join('')}</tbody>
       </table>
     </div>
     <div class="total-bar"><span class="tl">Total comprado</span><span class="tv">${$p(total)}</span></div>`;
+}
+
+
+// =====================================================================
+// PEDIR Y PEDIDOS — del cómputo (y del cronograma) al pedido al proveedor
+// Un pedido son filas de compras_reales con estado 'pedido' y el mismo N° de pedido (OBRA-P001).
+// Al recibir pasan a 'recibido'. El proveedor es por obra (zona y cliente): se recuerda el último
+// usado en ESTA obra para ese material, o para su categoría.
+// =====================================================================
+let _pedirState = null;          // { obraId, filas, modo }
+let _cronoPorObra = {};          // obraId → { vinculo, file, t }
+const _hoyISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const _isoDe = d => d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : '';
+const _fechaAR = iso => iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—';
+const _matBase = nombre => { const n = String(nombre || '').replace(/\s*\((estribos|secundarios|sup|inf|ref|bastones)\)\s*$/i, ''); return mats.find(m => _normMat(m.nombre) === _normMat(n)) || null; };
+const _esPedido = c => (c.estado || 'recibido') === 'pedido';
+
+// Proveedor sugerido: último usado en esta obra para el material; si no, para la misma categoría.
+function _provSugerido(obraId, nombre) {
+  const cs = (_comprasCache[obraId] || []).filter(c => c.proveedor).slice().sort((a, b) => String(b.created_at || b.fecha || '').localeCompare(String(a.created_at || a.fecha || '')));
+  const porMat = cs.find(c => _normMat(c.material) === _normMat(nombre));
+  if (porMat) return porMat.proveedor;
+  const cat = _matBase(nombre)?.cat;
+  if (cat) { const porCat = cs.find(c => _matBase(c.material)?.cat === cat); if (porCat) return porCat.proveedor; }
+  return '';
+}
+
+// Cronograma de la obra (Project publicado en BkTableros), vinculado por N° de ítem. Se guarda 10 minutos.
+async function _cronoParaObra(obraId) {
+  const c = _cronoPorObra[obraId];
+  if (c && Date.now() - c.t < 600000) return c;
+  const obra = obras.find(o => o.id === obraId);
+  const file = obra?.project_file || localStorage.getItem('crono_proj_' + obraId) || '';
+  if (!file) throw new Error('la obra no tiene un Project vinculado: vinculalo una vez en Cronograma');
+  let parsed = _cronoCache[currentEmpresa + '|' + file];
+  if (!parsed) { parsed = parseMSPDI(await bkFetch('projects/' + encodeURIComponent(file), false)); _cronoCache[currentEmpresa + '|' + file] = parsed; }
+  const cuenta = {};
+  meds.filter(m => (m.obraId || m.obra_id) === obraId).forEach(m => { const r = m.revision || 'Rev00'; cuenta[r] = (cuenta[r] || 0) + 1; });
+  const rev = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0] || 'Rev00';
+  const medsObra = meds.filter(m => (m.obraId || m.obra_id) === obraId && (m.revision || 'Rev00') === rev);
+  const r = { vinculo: cronoVincular(parsed.tareas, medsObra), file, rev, t: Date.now() };
+  _cronoPorObra[obraId] = r;
+  return r;
+}
+
+// Necesidad por material: todo el cómputo, o lo de las tareas que empiezan en la ventana del cronograma.
+function _necesidadPeriodo(obraId, vinculo, desde, hasta, ant, soloPend) {
+  const dia = 86400000;
+  const iniV = new Date(new Date(desde + 'T00:00:00').getTime() + ant * dia);
+  const finV = new Date(new Date(hasta + 'T23:59:59').getTime() + ant * dia);
+  const grupos = new Map();
+  vinculo.vinculadas.forEach(x => {
+    const t = x.tarea;
+    if (!t.inicio || t.inicio < iniV || t.inicio > finV) return;
+    if (soloPend && t.avance >= 100) return;
+    if (!grupos.has(t.uid)) grupos.set(t.uid, { tarea: t, meds: [] });
+    grupos.get(t.uid).meds.push(x.med);
+  });
+  const nec = {};
+  grupos.forEach(g => {
+    const fechaCompra = new Date(g.tarea.inicio.getTime() - ant * dia);
+    Object.values(consolidarMateriales(obraId, g.meds)).forEach(m => {
+      const k = _normMat(m.nombre);
+      if (!nec[k]) nec[k] = { nombre: m.nombre, cant: 0, divisor: m.divisor, un: m.unComercial, fecha: fechaCompra, tareas: new Set() };
+      nec[k].cant += num(m.cantComercial);
+      if (fechaCompra < nec[k].fecha) nec[k].fecha = fechaCompra;
+      nec[k].tareas.add((g.tarea.item ? g.tarea.item.key + ' ' : '') + g.tarea.nombre);
+    });
+  });
+  Object.values(nec).forEach(n => { n.cant = n.divisor > 1 ? Math.ceil(n.cant) : +n.cant.toFixed(3); });
+  return { nec, nTareas: grupos.size, iniV, finV };
+}
+
+async function renderPedir(obraId) {
+  const body = document.getElementById('compras-body');
+  body.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>';
+  try { await loadComprasReales(obraId); } catch (e) { body.innerHTML = `<div class="empty">No se pudieron leer las compras (${_escC(e.message)}).</div>`; return; }
+  if (document.getElementById('sel-obra-compras')?.value !== obraId) return;
+  const prev = _pedirState && _pedirState.obraId === obraId ? _pedirState : null;
+  const modo = prev?.modo || 'todo';
+  const hoy = new Date(), en30 = new Date(Date.now() + 30 * 86400000);
+  const ctrl = {
+    desde: prev?.desde || _isoDe(hoy), hasta: prev?.hasta || _isoDe(en30),
+    ant: prev?.ant ?? 15, soloPend: prev?.soloPend ?? true, verTodo: prev?.verTodo ?? false
+  };
+  let periodo = null, avisoCrono = '';
+  if (modo === 'crono') {
+    try {
+      const c = await _cronoParaObra(obraId);
+      periodo = _necesidadPeriodo(obraId, c.vinculo, ctrl.desde, ctrl.hasta, ctrl.ant, ctrl.soloPend);
+      avisoCrono = `Cronograma <b>${_escC(c.file.replace(/\.xml$/i, ''))}</b> (${_escC(c.rev)}): ${periodo.nTareas} tarea${periodo.nTareas !== 1 ? 's' : ''} empiezan entre ${_cFecha(periodo.iniV)} y ${_cFecha(periodo.finV)}.` +
+        (c.vinculo.sinTarea.length ? ` <span style="color:var(--am);">${c.vinculo.sinTarea.length} mediciones sin N° de ítem vinculado no entran.</span>` : '');
+    } catch (e) { avisoCrono = `<span style="color:var(--re);">No pude leer el cronograma: ${_escC(e.message)}.</span>`; }
+  }
+  if (document.getElementById('sel-obra-compras')?.value !== obraId) return;
+
+  // Saldo de toda la obra: computado − recibido − pedido pendiente
+  const s = calcSaldoCompras(obraId);
+  const saldoPor = new Map(s.filas.map(f => [_normMat(f.nombre), f]));
+  const base = modo === 'crono' && periodo ? Object.values(periodo.nec) : s.filas.filter(f => f.enComputo).map(f => ({ nombre: f.nombre, cant: f.computado, un: f.un, fecha: null, tareas: new Set() }));
+  const filas = base.map(n => {
+    const f = saldoPor.get(_normMat(n.nombre)) || { computado: n.cant, comprado: 0, pedido: 0, precioRef: _matBase(n.nombre)?.precio || 0, un: n.un };
+    const falta = Math.max(0, +(f.computado - f.comprado - f.pedido).toFixed(3));
+    const aPedir = Math.min(num(n.cant), falta);
+    const mb = _matBase(n.nombre);
+    return {
+      nombre: n.nombre, cod: mb?.cod || '', cat: mb?.cat || '', un: n.un || f.un || mb?.unidad || '',
+      fecha: n.fecha ? _isoDe(n.fecha) : '', tareas: [...(n.tareas || [])],
+      necesario: num(n.cant), computado: f.computado, comprado: f.comprado, pedido: f.pedido, falta,
+      aPedir: Math.ceil(aPedir * 1000) / 1000, precio: num(f.precioPend || f.precioRef || mb?.precio || 0),
+      proveedor: _provSugerido(obraId, n.nombre)
+    };
+  }).sort((a, b) => (a.fecha || '9999').localeCompare(b.fecha || '9999') || String(a.cat).localeCompare(String(b.cat)) || a.nombre.localeCompare(b.nombre));
+  _pedirState = { obraId, modo, ...ctrl, filas };
+
+  const visibles = filas.map((f, i) => ({ f, i })).filter(x => ctrl.verTodo || x.f.aPedir > 0);
+  const provsObra = [...new Set((_comprasCache[obraId] || []).map(c => c.proveedor).filter(Boolean))];
+  const provsOtras = [...new Set(Object.entries(_comprasCache).filter(([k]) => k !== obraId).flatMap(([, v]) => v.map(c => c.proveedor)).filter(Boolean))].filter(p => !provsObra.includes(p));
+  const fmtQ = n => (Math.abs(n) % 1 ? n.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : n.toLocaleString('es-AR'));
+
+  body.innerHTML = `
+    <div class="card" style="margin-bottom:10px;">
+      <div class="form-grid" style="grid-template-columns:1.6fr ${modo === 'crono' ? '1fr 1fr 0.8fr auto' : ''} auto;margin-bottom:0;align-items:end;">
+        <div class="fg"><label>Qué comprar</label>
+          <select onchange="_pedirCtrl('modo', this.value)">
+            <option value="todo" ${modo === 'todo' ? 'selected' : ''}>Todo lo que falta de la obra</option>
+            <option value="crono" ${modo === 'crono' ? 'selected' : ''}>Según cronograma (próximas tareas)</option>
+          </select></div>
+        ${modo === 'crono' ? `
+        <div class="fg"><label>Comprar desde</label><input type="date" value="${ctrl.desde}" onchange="_pedirCtrl('desde', this.value)"></div>
+        <div class="fg"><label>Comprar hasta</label><input type="date" value="${ctrl.hasta}" onchange="_pedirCtrl('hasta', this.value)"></div>
+        <div class="fg"><label>Anticipación (días)</label><input type="number" min="0" step="1" value="${ctrl.ant}" onchange="_pedirCtrl('ant', parseInt(this.value) || 0)"></div>
+        <label style="font-size:11px;display:flex;gap:5px;align-items:center;padding-bottom:8px;margin:0;text-transform:none;letter-spacing:0;"><input type="checkbox" style="width:auto;" ${ctrl.soloPend ? 'checked' : ''} onchange="_pedirCtrl('soloPend', this.checked)"> sin tareas al 100%</label>` : ''}
+        <label style="font-size:11px;display:flex;gap:5px;align-items:center;padding-bottom:8px;margin:0;text-transform:none;letter-spacing:0;"><input type="checkbox" style="width:auto;" ${ctrl.verTodo ? 'checked' : ''} onchange="_pedirCtrl('verTodo', this.checked)"> ver también lo cubierto</label>
+      </div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:6px;">${modo === 'crono' ? avisoCrono + ' "Necesario" es lo de esas tareas; "A pedir" no supera lo que falta en la obra (computado − recibido − ya pedido).' : '"A pedir" = computado de toda la obra − recibido − ya pedido. Para pedir por etapas usá "Según cronograma".'}</div>
+    </div>
+    <datalist id="pedir-provs">${[...provsObra, ...provsOtras].map(p => `<option value="${_escC(p)}"></option>`).join('')}</datalist>
+    ${visibles.length ? `
+    <div class="card" style="padding:0;overflow:auto;">
+      <table class="tbl-pedir" style="font-size:11px;">
+        <thead><tr>
+          <th style="width:28px;"><input type="checkbox" style="width:auto;" checked onchange="document.querySelectorAll('.pedir-chk').forEach(c => c.checked = this.checked); _pedirResumen()"></th>
+          <th>Material</th>${modo === 'crono' ? '<th>Comprar antes de</th><th class="num">Necesario</th>' : ''}
+          <th class="num">Computado</th><th class="num">Recibido</th><th class="num">Ya pedido</th><th class="num">A pedir</th><th>Un.</th><th class="num">Precio ref.</th><th>Proveedor (de esta obra)</th>
+        </tr></thead>
+        <tbody>${visibles.map(({ f, i }) => `<tr>
+          <td><input type="checkbox" class="pedir-chk" data-i="${i}" style="width:auto;" ${f.aPedir > 0 ? 'checked' : ''} onchange="_pedirResumen()"></td>
+          <td class="hi">${_escC(f.nombre)}${f.cat ? `<div style="font-size:9px;color:var(--tx3);">${_escC(f.cat)}</div>` : ''}</td>
+          ${modo === 'crono' ? `<td style="white-space:nowrap;" title="${_escC(f.tareas.join('\n'))}">${_fechaAR(f.fecha)}</td><td class="num">${fmtQ(f.necesario)}</td>` : ''}
+          <td class="num" style="color:var(--tx3);">${fmtQ(f.computado)}</td>
+          <td class="num">${f.comprado ? fmtQ(f.comprado) : '—'}</td>
+          <td class="num" style="color:var(--am);">${f.pedido ? fmtQ(f.pedido) : '—'}</td>
+          <td class="num"><input type="number" class="pedir-cant" data-i="${i}" min="0" step="any" value="${f.aPedir}" style="width:80px;text-align:right;" oninput="_pedirResumen()"></td>
+          <td style="font-size:10px;color:var(--tx3);white-space:nowrap;">${_escC(f.un)}</td>
+          <td class="num">${f.precio ? $p(f.precio) : '<span style="color:var(--re);font-size:10px;">sin precio</span>'}</td>
+          <td><input class="pedir-prov" data-i="${i}" list="pedir-provs" value="${_escC(f.proveedor)}" placeholder="proveedor" style="min-width:140px;"></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="total-bar" style="gap:12px;"><span class="tl" id="pedir-resumen"></span>
+      <span style="display:flex;gap:8px;align-items:center;"><input id="pedir-notas" placeholder="Nota para el pedido (lugar de entrega, horario…)" style="min-width:260px;"><button class="btn btn-primary" onclick="armarPedido()">Armar pedido</button></span></div>`
+    : `<div class="empty"><div class="empty-icon">✓</div>${modo === 'crono' && !periodo ? 'Sin datos del cronograma.' : 'No falta pedir nada' + (modo === 'crono' ? ' para esas tareas' : '') + '.'}<br><span style="font-size:10px;">Tildá "ver también lo cubierto" para ver todos los materiales.</span></div>`}`;
+  _pedirResumen();
+}
+
+function _pedirCtrl(k, v) {
+  if (!_pedirState) return;
+  _pedirState[k] = v;
+  renderPedir(_pedirState.obraId);
+}
+
+function _pedirLeer() {
+  const st = _pedirState; if (!st) return [];
+  const out = [];
+  document.querySelectorAll('.pedir-chk').forEach(chk => {
+    if (!chk.checked) return;
+    const i = +chk.dataset.i, f = st.filas[i];
+    const cant = num(document.querySelector(`.pedir-cant[data-i="${i}"]`)?.value);
+    const prov = (document.querySelector(`.pedir-prov[data-i="${i}"]`)?.value || '').trim();
+    if (f && cant > 0) out.push({ ...f, cant, proveedor: prov });
+  });
+  return out;
+}
+
+function _pedirResumen() {
+  const el = document.getElementById('pedir-resumen'); if (!el) return;
+  const sel = _pedirLeer();
+  const tot = sel.reduce((s, f) => s + f.cant * f.precio, 0);
+  const provs = new Set(sel.map(f => f.proveedor || 'sin proveedor'));
+  el.innerHTML = sel.length ? `${sel.length} material${sel.length !== 1 ? 'es' : ''} · ${provs.size} proveedor${provs.size !== 1 ? 'es' : ''} · estimado ${$p(tot)}` : 'Nada seleccionado';
+}
+
+function _siguientePedido(obraId) {
+  const obra = obras.find(o => o.id === obraId);
+  const pref = String(obra?.cod || 'OBRA').replace(/\s+/g, '').toUpperCase() + '-P';
+  let max = 0;
+  (_comprasCache[obraId] || []).forEach(c => { const m = String(c.pedido || '').match(/-P(\d+)$/); if (m) max = Math.max(max, parseInt(m[1])); });
+  return pref + String(max + 1).padStart(3, '0');
+}
+
+async function armarPedido() {
+  const st = _pedirState; if (!st) return;
+  const sel = _pedirLeer();
+  if (!sel.length) { notif('Tildá al menos un material con cantidad'); return; }
+  const sinProv = sel.filter(f => !f.proveedor).length;
+  if (sinProv && !await appConfirm(`${sinProv} material${sinProv !== 1 ? 'es' : ''} sin proveedor. ¿Armar el pedido igual? Van agrupados como "sin proveedor".`)) return;
+  const obraId = st.obraId, nro = _siguientePedido(obraId), hoy = _hoyISO();
+  const notas = (document.getElementById('pedir-notas')?.value || '').trim();
+  const filas = sel.map(f => ({
+    obra_id: obraId, fecha: hoy, estado: 'pedido', pedido: nro,
+    material: f.nombre, material_cod: f.cod || null, cantidad: f.cant, un: f.un,
+    precio_unit: f.precio || 0, total: +((f.precio || 0) * f.cant).toFixed(2),
+    proveedor: f.proveedor || null, fecha_necesaria: f.fecha || null, obs: notas || null
+  }));
+  showBusy('Armando pedido...');
+  let ok = false;
+  try {
+    await withSync(() => sbPost('compras_reales', filas));   // una sola escritura
+    await loadComprasReales(obraId, true);
+    ok = true;
+  } catch (e) { console.error(e); }
+  finally { hideBusy(); }
+  if (!ok) return;
+  notif(`Pedido ${nro} armado ✓`);
+  _pedidoAbierto = nro;
+  document.getElementById('compras-vista').value = 'pedidos';
+  loadCompras();
+}
+
+// ── Pedidos guardados ──
+let _pedidoAbierto = null;
+function _pedidosDe(obraId) {
+  const map = new Map();
+  (_comprasCache[obraId] || []).filter(c => c.pedido).forEach(c => {
+    if (!map.has(c.pedido)) map.set(c.pedido, { nro: c.pedido, fecha: c.fecha, filas: [] });
+    map.get(c.pedido).filas.push(c);
+  });
+  return [...map.values()].sort((a, b) => String(b.nro).localeCompare(String(a.nro), 'es', { numeric: true }));
+}
+const _porProveedor = filas => {
+  const g = new Map();
+  filas.forEach(c => { const p = c.proveedor || 'Sin proveedor'; if (!g.has(p)) g.set(p, []); g.get(p).push(c); });
+  return [...g.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+};
+
+async function renderPedidos(obraId) {
+  const body = document.getElementById('compras-body');
+  body.innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>';
+  try { await loadComprasReales(obraId); } catch (e) { body.innerHTML = `<div class="empty">No se pudieron leer las compras (${_escC(e.message)}).</div>`; return; }
+  if (document.getElementById('sel-obra-compras')?.value !== obraId) return;
+  const peds = _pedidosDe(obraId);
+  if (!peds.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">◫</div>Todavía no hay pedidos. Armalos desde la vista <b>Pedir: qué comprar</b>.</div>'; return; }
+  const fmtQ = n => (Math.abs(n) % 1 ? n.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : n.toLocaleString('es-AR'));
+  body.innerHTML = peds.map(p => {
+    const nPend = p.filas.filter(_esPedido).length, nRec = p.filas.length - nPend;
+    const tot = p.filas.reduce((s, c) => s + num(c.total), 0);
+    const abierto = _pedidoAbierto ? _pedidoAbierto === p.nro : p === peds[0];
+    const estadoTag = nPend === 0 ? '<span class="tag tg">recibido</span>' : nRec ? `<span class="tag ta">${nRec}/${p.filas.length} recibido</span>` : '<span class="tag ta">pedido</span>';
+    const nroJs = _escC(p.nro).replace(/'/g, "\\'");
+    return `<details class="card" style="margin-bottom:10px;padding:0;overflow:hidden;" ${abierto ? 'open' : ''}>
+      <summary style="cursor:pointer;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surf2);">
+        <span><b style="font-family:var(--mono);">${_escC(p.nro)}</b> · ${_fechaAR(p.fecha)} · ${p.filas.length} materiales · ${_porProveedor(p.filas).length} proveedor${_porProveedor(p.filas).length !== 1 ? 'es' : ''} ${estadoTag}</span>
+        <span style="display:flex;gap:6px;align-items:center;" onclick="event.stopPropagation()">
+          <b>${$p(tot)}</b>
+          <button class="btn" onclick="pedidoPDF('${nroJs}')">⎙ PDF</button>
+          <button class="btn" onclick="pedidoExcel('${nroJs}')">↓ Excel</button>
+          ${nPend ? `<button class="btn-icon" title="Anular lo que sigue pedido (no toca lo recibido)" onclick="anularPedido('${nroJs}')">✕</button>` : ''}
+        </span>
+      </summary>
+      ${_porProveedor(p.filas).map(([prov, fs]) => `
+        <div style="padding:8px 14px 4px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);">
+          <b>${_escC(prov)}</b>
+          <span style="display:flex;gap:6px;">
+            <button class="btn" title="Copiar el pedido de este proveedor para pegarlo en WhatsApp o mail" onclick="pedidoTexto('${nroJs}', '${_escC(prov).replace(/'/g, "\\'")}', false)">📋 Copiar</button>
+            <button class="btn" title="Abrir WhatsApp con el pedido de este proveedor" onclick="pedidoTexto('${nroJs}', '${_escC(prov).replace(/'/g, "\\'")}', true)">WhatsApp</button>
+          </span>
+        </div>
+        <table class="tbl-med" style="font-size:11px;min-width:0;"><colgroup><col><col style="width:90px"><col style="width:80px"><col style="width:130px"><col style="width:110px"><col style="width:120px"><col style="width:90px"></colgroup><thead><tr><th>Material</th><th class="num" style="text-align:right;">Cantidad</th><th>Un.</th><th>Necesario antes de</th><th class="num" style="text-align:right;">Precio ref.</th><th class="num" style="text-align:right;">Subtotal</th><th>Estado</th></tr></thead>
+        <tbody>${fs.map(c => `<tr>
+          <td class="hi">${_escC(c.material)}</td><td class="num">${fmtQ(num(c.cantidad))}</td><td style="font-size:10px;color:var(--tx3);">${_escC(c.un || '')}</td>
+          <td>${_fechaAR(c.fecha_necesaria)}</td><td class="num">${c.precio_unit ? $p(c.precio_unit) : '—'}</td><td class="num">${$p(num(c.total))}</td>
+          <td>${_esPedido(c) ? '<span style="color:var(--am);">pedido</span>' : '<span style="color:var(--gr);">✓ recibido</span>'}</td>
+        </tr>`).join('')}</tbody></table>`).join('')}
+      ${p.filas[0]?.obs ? `<div style="padding:6px 14px 10px;font-size:10px;color:var(--tx3);">Nota: ${_escC(p.filas[0].obs)}</div>` : ''}
+    </details>`;
+  }).join('');
+  _pedidoAbierto = null;
+}
+
+function _pedidoFilas(nro) {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  return (_comprasCache[obraId] || []).filter(c => c.pedido === nro);
+}
+
+function _textoPedido(nro, prov) {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  const obra = obras.find(o => o.id === obraId) || {};
+  const fs = _pedidoFilas(nro).filter(c => (c.proveedor || 'Sin proveedor') === prov && _esPedido(c));
+  const fmtQ = n => (Math.abs(n) % 1 ? n.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : n.toLocaleString('es-AR'));
+  const fechas = fs.map(c => c.fecha_necesaria).filter(Boolean).sort();
+  const lineas = [
+    `Pedido ${nro} — ${obra.nombre || ''}`,
+    obra.direccion ? `Entrega: ${obra.direccion}${obra.ubic ? ', ' + obra.ubic : ''}` : (obra.ubic ? `Entrega: ${obra.ubic}` : ''),
+    fechas.length ? `Necesario antes de: ${_fechaAR(fechas[0])}` : '',
+    '',
+    ...fs.map(c => `• ${fmtQ(num(c.cantidad))} ${c.un || ''} — ${c.material}`),
+    fs[0]?.obs ? '' : null, fs[0]?.obs ? `Nota: ${fs[0].obs}` : null,
+    '', 'Por favor confirmar precio y fecha de entrega. Gracias.'
+  ].filter(l => l !== null && l !== undefined);
+  return lineas.filter((l, i) => !(l === '' && lineas[i - 1] === '')).join('\n').trim();
+}
+
+async function pedidoTexto(nro, prov, whatsapp) {
+  const txt = _textoPedido(nro, prov);
+  if (!txt) { notif('Nada pendiente para ese proveedor'); return; }
+  if (whatsapp) { window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); return; }
+  try { await navigator.clipboard.writeText(txt); notif('Pedido copiado ✓ Pegalo en WhatsApp o mail'); }
+  catch (e) { await appPrompt('Copiá el pedido:', txt); }
+}
+
+function pedidoPDF(nro) {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  const obra = obras.find(o => o.id === obraId);
+  const fs = _pedidoFilas(nro);
+  if (!fs.length) return;
+  const fmtQ = n => (Math.abs(n) % 1 ? n.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : n.toLocaleString('es-AR'));
+  let html = pdfCabecera(obra, `Pedido de compra ${nro}`, `${_fechaAR(fs[0].fecha)} · ${fs.length} materiales`);
+  _porProveedor(fs).forEach(([prov, filas]) => {
+    const tot = filas.reduce((s, c) => s + num(c.total), 0);
+    html += `<h3 style="margin:14px 0 6px;font-size:11pt;">${_escC(prov)}</h3>
+    <table><thead><tr><th>Material</th><th class="num">Cantidad</th><th>Un.</th><th>Necesario antes de</th><th class="num">Precio ref.</th><th class="num">Subtotal</th></tr></thead><tbody>
+    ${filas.map((c, i) => `<tr style="${i % 2 === 0 ? 'background:#faf8f4;' : ''}"><td class="hi">${_escC(c.material)}</td><td class="num"><b>${fmtQ(num(c.cantidad))}</b></td><td>${_escC(c.un || '')}</td><td>${_fechaAR(c.fecha_necesaria)}</td><td class="num">${c.precio_unit ? $p(c.precio_unit) : '—'}</td><td class="num">${$p(num(c.total))}</td></tr>`).join('')}
+    </tbody></table><div class="total-row"><span>Subtotal ${_escC(prov)}</span><span>${$p(tot)}</span></div>`;
+  });
+  if (fs[0].obs) html += `<p style="font-size:9pt;color:#666;margin-top:10px;">Nota: ${_escC(fs[0].obs)}</p>`;
+  abrirVentanaPDF(html, `Pedido ${nro} - ${obra?.nombre || ''}`);
+}
+
+function pedidoExcel(nro) {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  const obra = obras.find(o => o.id === obraId);
+  const fs = _pedidoFilas(nro);
+  const aoa = [[`Pedido ${nro}`, obra?.nombre || '', obra?.direccion || ''], [], ['Proveedor', 'Material', 'Código', 'Cantidad', 'Unidad', 'Necesario antes de', 'Precio ref.', 'Subtotal', 'Estado']];
+  _porProveedor(fs).forEach(([prov, filas]) => filas.forEach(c => aoa.push([prov, c.material, c.material_cod || '', num(c.cantidad), c.un || '', _fechaAR(c.fecha_necesaria), num(c.precio_unit), num(c.total), _esPedido(c) ? 'pedido' : 'recibido'])));
+  const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 22 }, { wch: 42 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
+  XLSX.writeFile(wb, `Pedido_${nro}.xlsx`);
+}
+
+async function anularPedido(nro) {
+  const obraId = document.getElementById('sel-obra-compras')?.value;
+  const pend = _pedidoFilas(nro).filter(_esPedido);
+  if (!pend.length || !await appConfirm(`¿Anular el pedido ${nro}? Se borran ${pend.length} renglones que siguen como "pedido". Lo ya recibido no se toca.`)) return;
+  showBusy('Anulando pedido...');
+  try {
+    await withSync(async () => {
+      const r = await sbFetch(`${SB_URL}/rest/v1/compras_reales?obra_id=eq.${obraId}&pedido=eq.${encodeURIComponent(nro)}&estado=eq.pedido`, { method: 'DELETE', headers: getSBHeaders() });
+      if (!r.ok) throw new Error('DELETE compras_reales: ' + r.status);
+    });
+    await loadComprasReales(obraId, true);
+    notif(`Pedido ${nro} anulado ✓`);
+  } catch (e) { console.error(e); }
+  finally { hideBusy(); }
+  loadCompras();
 }
 
 async function openModalCompra(id=null, materialPre='') {
