@@ -986,7 +986,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           <b>Esquemas de armadura (nov-2026):</b> cada medida que cargás en una columna, viga, zapata, base, pozo, tabique o losa aparece rotulada en el esquema, incluida la cantidad de elementos. Si un campo está vacío, el esquema dibuja un valor típico en <span style="color:var(--am);font-style:italic;">ocre con &asymp;</span> para que no se confunda con lo cargado. Los campos del formulario tienen el mismo color que su elemento en el dibujo: <span style="color:#c0392b;font-weight:600;">rojo</span> hierros principales o barras en X, <span style="color:var(--gr);font-weight:600;">verde</span> hierros superiores, barras en Y y refuerzos, <span style="color:var(--bl);font-weight:600;">azul</span> estribos, zunchos y secundarios.<br>
           <b>Zapatas sin estribos (nov-2026):</b> la zapata corrida y la media zapata de medianera (3.21) llevan hierros principales longitudinales y secundarios transversales con alas (Ø, separación, largo y cantidad de alas editables). Columnas, vigas y pozos tienen selector de Ø de estribo (Ø6 a Ø12).<br>
           <b>Media zapata de medianera (3.21):</b> tarea nueva con la sección del plano (base, pendiente, dado y arranque), su esquema y su armadura.<br>
-          <b>Hormigón H17 por defecto:</b> las tareas de hormigón usan H17 salvo que el texto diga H21. El tipo de Hº se elige en cada medición con el selector <b>Tipo de hormigón</b> (solo en tareas de Hº elaborado) y la lista de compras lo respeta.<br>
+          <b>Hormigón por defecto:</b> losas y muros de hormigón usan H25 con binder; el resto H17 salvo que el texto diga H21. Sin asentamiento (se define por obra). El tipo de Hº se elige en cada medición con el selector <b>Tipo de hormigón</b> (solo en tareas de Hº elaborado) y la lista de compras lo respeta.<br>
           <b>Base congelada y actualización CAC (oct-2026):</b> congelar guarda una foto fija de la obra: cada material con su precio y el mes CAC de ese precio, y la MO de cada medición. Después, en <b>Presupuesto</b> elegís ver la base o los valores actualizados al mes CAC que quieras, sin tocar la base. Ver sección 7.<br>
           <b>Import con IA y memoria:</b> lo que el lector no reconoce se clasifica con IA (🤖) y lo que ya confirmaste antes con la misma tarea se asigna solo (🧠 memoria). El import es <b>todo o nada</b>: si falla a mitad de camino, se deshace.<br>
           <b>Armadura por defecto al importar:</b> columnas, vigas, zapatas, bases y losas importadas con medidas reciben una armadura estimada (Ø10 principal, estribos Ø6 c/25, parrillas c/20) marcada con <b>⚙ armadura por defecto</b> hasta que la detalles en Editar medición.<br>
@@ -1147,7 +1147,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           </div>
           <div style="background:var(--bg);border-radius:4px;padding:10px 14px;border:1px solid var(--border);">
             <div style="font-size:10px;font-weight:600;color:var(--tx3);margin-bottom:4px;">TIPO DE HORMIGÓN</div>
-            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Por defecto H17. En tareas de Hº elaborado, el selector <b>Tipo de hormigón</b> permite elegir H21 u otro para esa medición; el cómputo, el presupuesto y la lista de compras usan el elegido.</div>
+            <div style="font-size:11px;color:var(--tx2);line-height:1.7;">Por defecto H25 con binder en losas y muros, H17 en el resto. En tareas de Hº elaborado, el selector <b>Tipo de hormigón</b> permite elegir H21 u otro para esa medición; el cómputo, el presupuesto y la lista de compras usan el elegido.</div>
           </div>
           <div style="background:var(--am-l);border-radius:4px;padding:10px 14px;border:1px solid #E8D5A0;">
             <div style="font-size:11px;color:var(--am);line-height:1.7;">Tip: cargá la armadura desde la planilla del calculista. La armadura por defecto sirve para presupuestar, no para comprar hierro.</div>
@@ -1484,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-12.1';
+const APP_BUILD = '2026-11-12.2';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2760,12 +2760,12 @@ function computeObra(obraId) {
       }
     }
     if (armData.sup && !armData.armTipo) {
-      const diamCod = armData.diamPpal || 'MAT-003';
+      const diamCod = armData.diamSup || armData.diamPpal || 'MAT-003';
       const supMat = matPorCod(diamCod);
       const mlSup = num(armData.sup);
       const barrasSup = Math.ceil(mlSup / 12);
       if (supMat && barrasSup > 0) {
-        matItems.push({ nombre: supMat.nombre + ' (sup)', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
+        matItems.push({ nombre: supMat.nombre + ' (perchas / sup)', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
           cantidadBase: mlSup, cantidadComercial: barrasSup,
           precioUnit: supMat.precio, subtotal: barrasSup * supMat.precio, matFound: true });
       }
@@ -3379,11 +3379,14 @@ function calcArmadura(tipo, dims) {
     const perimEst = 2*(ladoA - rec2) + 2*(ladoB - rec2);
     const cantEst = Math.ceil(ml / sepEst) + 1;
     const mlEst = cantEst * (perimEst + 0.125);
-    // Longitud hierro = luz + luz/6 (Chandías — para ganchos y empalmes)
-    const longHierro = ml + ml/6;
+    // Longitud hierro = luz + luz/6 (Chandías — incluye ganchos, anclajes y empalmes).
+    // Si se carga el anclaje por extremo, se usa luz + 2 × anclaje en su lugar.
+    const anc = num(dims.anc);
+    const longHierro = anc > 0 ? ml + 2 * anc : ml + ml/6;
     const empalmes = longHierro > BARRA_MAX ? Math.ceil(longHierro / BARRA_MAX) - 1 : 0;
     const mlSup = cantSup * (longHierro + empalmes * EMPALME);
     const mlInf = cantInf * (longHierro + empalmes * EMPALME);
+    const diamSup = dims.diamSup || diamPpal;   // perchas: sin dato guardado = mismo Ø que los principales (como antes)
     const m3unit = ladoA * ladoB * ml;
     const m3 = m3unit * cantElem;
     resultado = {
@@ -3393,9 +3396,11 @@ function calcArmadura(tipo, dims) {
       mlInf: +(mlInf * cantElem).toFixed(3),
       cantEstribos: cantEst * cantElem,
       diamPpal,
+      diamSup,
       diamEst,
       cantElem,
-      resumen: `${cantElem>1?cantElem+'u × ':''}${ladoA*100}×${ladoB*100}cm, L=${ml}m | ${cantSup}↑ + ${cantInf}↓, est. ${DIAM_LABEL[diamEst]||'Ø6'} c/${sepEst*100}cm`
+      longHierro: +longHierro.toFixed(3),
+      resumen: `${cantElem>1?cantElem+'u × ':''}${ladoA*100}×${ladoB*100}cm, L=${ml}m | ${cantSup} perchas ${DIAM_LABEL[diamSup]||''} + ${cantInf} inf. ${DIAM_LABEL[diamPpal]||''}${anc>0?`, anclaje ${anc*100}cm`:''}, est. ${DIAM_LABEL[diamEst]||'Ø6'} c/${sepEst*100}cm`
     };
   }
 
@@ -3589,7 +3594,7 @@ function _E(id, s) {
   return `<tspan style="fill:var(--am);font-style:italic">≈ ${s}</tspan>`;
 }
 function _vaciosForm(pre) {
-  const ids = ['dim-la','dim-lb','dim-ml','dim-sep','dim-sep2','dim-np','dim-ns','dim-ni','dim-e','dim-bw','dim-d','dim-n8','dim-nd','dim-cant-elem','dim-cant','dim-ref-ml','dim-ref-largo','dim-ref-sep','dim-ala','dim-nala'];
+  const ids = ['dim-la','dim-lb','dim-ml','dim-sep','dim-sep2','dim-np','dim-ns','dim-ni','dim-e','dim-bw','dim-d','dim-n8','dim-nd','dim-cant-elem','dim-cant','dim-ref-ml','dim-ref-largo','dim-ref-sep','dim-ala','dim-nala','dim-anc'];
   return new Set(ids.filter(id => { const el = document.getElementById(pre + id); return el && el.value === ''; }));
 }
 // Campos del formulario con el mismo color que su elemento en el esquema
@@ -3719,6 +3724,9 @@ function armDiagramaSVG(tipo, v) {
       b += _S.rect(bx-26, by-14, 26, bh+28, _cHor, 'var(--bg)') + _S.rect(bx+bw, by-14, 26, bh+28, _cHor, 'var(--bg)');
       b += _S.text(bx-13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9}) + _S.text(bx+bw+13, by+bh+30, 'apoyo', {a:'middle',c:'var(--tx3)',size:9});
     } else {
+      // Encadenados: en los extremos llegan a columna o a otro encadenado (cruce): ahí anclan las barras
+      b += _S.rect(bx-26, by-4, 26, bh+8, _cHor, 'none', 1, '4 3') + _S.rect(bx+bw, by-4, 26, bh+8, _cHor, 'none', 1, '4 3');
+      b += _S.text(bx-26, by+bh+30, 'columna o cruce', {a:'start',c:'var(--tx3)',size:8}) + _S.text(bx+bw+26, by+bh+30, 'columna o cruce', {a:'end',c:'var(--tx3)',size:8});
       if (sub === 'sup' || sub === 'coron') b += banda(by+bh, 10, 'muro', '4 3');
       if (sub === 'inf' || sub === 'fund') b += banda(by-34, 10, 'muro', '4 3');
       if (sub === 'fund') b += banda(by+bh, 10, 'suelo', '2 3');
@@ -3727,17 +3735,25 @@ function armDiagramaSVG(tipo, v) {
     const n = Math.min(Math.ceil(L/sep)+1, 24);
     for (let i = 0; i < n; i++) { const x = bx + 8 + i*((bw-16)/(n-1)); b += _S.line(x, by+7, x, by+bh-7, _cEst, 1.1); }
     const x1 = bx+8, x2 = bx+bw-8;
-    for (let i = 0; i < Math.min(ni,3); i++) { const y = by+bh-10-i*6; b += _S.path(`M${x1} ${y-20} L${x1} ${y} L${x2} ${y} L${x2} ${y-20}`, _cMain, 2.2); }
-    for (let i = 0; i < Math.min(ns,3); i++) { const y = by+10+i*6; b += _S.path(`M${x1+4} ${y+20} L${x1+4} ${y} L${x2-4} ${y} L${x2-4} ${y+20}`, _cRef, 2.2); }
+    // Las barras entran en el apoyo / columna (anclaje) y terminan en pata
+    const xa1 = bx-18, xa2 = bx+bw+18;
+    for (let i = 0; i < Math.min(ni,3); i++) { const y = by+bh-10-i*6; b += _S.path(`M${xa1} ${y-20} L${xa1} ${y} L${xa2} ${y} L${xa2} ${y-20}`, _cMain, 2.2); }
+    for (let i = 0; i < Math.min(ns,3); i++) { const y = by+10+i*6; b += _S.path(`M${xa1+4} ${y+20} L${xa1+4} ${y} L${xa2-4} ${y} L${xa2-4} ${y+20}`, _cRef, 2.2); }
+    const ancTxt = v.anc > 0 ? _E('dim-anc', `anclaje ${_fm(v.anc*100,0)} cm`) : _E('dim-anc', 'anclaje (en luz/6)');
+    // Cota del anclaje en el extremo derecho: desde la cara del apoyo hasta la pata
+    const ya = by+bh+40;
+    b += _S.line(bx+bw, ya, xa2, ya, 'var(--tx2)', 1.2) + _S.line(bx+bw, ya-4, bx+bw, ya+4, 'var(--tx2)', 1.2) + _S.line(xa2, ya-4, xa2, ya+4, 'var(--tx2)', 1.2);
+    b += _S.text(bx+bw-4, ya+4, ancTxt, {a:'end',c:'var(--tx2)',size:10,b:true});
     // dobladura 45° (hierro doblado) — solo en vigas entre apoyos; los encadenados van con barras rectas
     if (sub === 'viga') {
       b += _S.path(`M${bx+95} ${by+bh-10} L${bx+150} ${by+10}`, _cMain, 1.6, 'none', '5 3');
       b += _S.text(bx+60, by+bh+34, 'dobladura 45° (Δ₂)', {c:_cMain,size:9});
     }
-    b += _S.text((x1+x2)/2, sub === 'inf' || sub === 'fund' ? by-8 : by-20, `${sub === 'viga' ? 'Perchas / hierros superiores' : 'Hierros superiores'}: ` + _E('dim-ns', `${ns} ${dl}`), {a:'middle',c:_cRef,size:10,b:true});
+    const dlSup = DIAM_LABEL[v.diamSup] || dl;
+    b += _S.text((x1+x2)/2, sub === 'inf' || sub === 'fund' ? by-8 : by-20, 'Perchas (hierros sup.): ' + _E('dim-ns', `${ns} ${dlSup}`), {a:'middle',c:_cRef,size:10,b:true});
     b += _S.text(x2, by+bh+20, 'Hierros inferiores: ' + _E('dim-ni', `${ni} ${dl}`), {a:'end',c:_cMain,size:10,b:true});
     b += _S.text(x1, by+bh+20, `Estribos ${DIAM_LABEL[v.diamEst]||'Ø6'} ` + _E('dim-sep', `c/${_fm(sep*100,0)} cm`), {c:_cEst,size:10,b:true});
-    b += _dimH(bx, bx+bw, by+bh+52, _E('dim-ml', `L = ${_fm(L)} m`) + `   →   hierro = luz + luz/6 = ${_fm(L+L/6)} m`);
+    b += _dimH(bx, bx+bw, by+bh+56, _E('dim-ml', `L = ${_fm(L)} m`) + (v.anc > 0 ? `   →   hierro = luz + 2 × anclaje = ${_fm(L+2*v.anc)} m` : `   →   hierro = luz + luz/6 = ${_fm(L+L/6)} m`));
     // sección
     const sc = Math.min(70/A, 95/B), w = A*sc, h = B*sc, cx = 490, cy = 110;
     b += _S.rect(cx-w/2, cy-h/2, w, h, _cHor, 'var(--bg)');
@@ -3749,8 +3765,9 @@ function armDiagramaSVG(tipo, v) {
     const H = Math.round(B*100);
     notas = [`Longitud de cada hierro = <b>luz + luz/6</b> (Chandías: incluye ganchos, dobladuras y empalmes) · empalme 0,60 m si pasa de 12 m`];
     if (sub === 'viga') notas.push(`Chandías: gancho ${dl} (ADN-420) = ${gancho} mm por dos ganchos · cada dobladura a 45° en viga de ${H} cm suma Δ₂ = ${chandiasDobladura45(H)} cm (Tabla 7.9) — ya contemplado en el 1/6`,
-             `Perchas: Chandías las toma como 2 Ø8 sup. (≈ 0,80 kg por m de luz)`);
-    else notas.push(`Apoyo continuo: barras rectas con gancho en los extremos, sin dobladuras · típico 2 + 2 barras (4 en total) y estribos ${DIAM_LABEL[v.diamEst]||'Ø6'}`);
+             `Perchas: Chandías las toma como 2 Ø8 sup. (≈ 0,80 kg por m de luz) · Anclaje: ${v.anc > 0 ? `${_fm(v.anc*100,0)} cm por extremo (cargado)` : 'incluido en el luz/6; cargalo en "Anclaje por extremo" para usar el real'}`);
+    else notas.push(`Apoyo continuo: barras rectas con gancho en los extremos, sin dobladuras · típico 2 perchas + 2 inferiores y estribos ${DIAM_LABEL[v.diamEst]||'Ø6'}`,
+             `Anclaje en columna o cruce de encadenados: ${v.anc > 0 ? `${_fm(v.anc*100,0)} cm por extremo (cargado)` : 'incluido en el luz/6; cargalo en "Anclaje por extremo" para usar el real'}`);
   }
 
   else if (tipo === 'zapata') {
@@ -3948,7 +3965,7 @@ function armDiagramaSVG(tipo, v) {
 
   else if (tipo === 'losa_nervurada') {
     const p = v.nv || nervNorm({}), k = nervPorM2(p);
-    const c = p.cas === '80' ? 0.80 : 0.60, sc = 300 / (2 * k.intereje + p.b);
+    const c = (+p.cas || 60) / 100, sc = 300 / (2 * k.intereje + p.b);
     const x0 = 30, yTop = 70, hcc = Math.max(8, p.cc * sc), hcas = Math.max(24, p.h * sc), base = yTop + hcc + hcas;
     b += _S.text(8, 14, 'Losa nervurada con casetones — corte', {size:10,b:true,c:'var(--tx)'});
     b += _S.rect(x0, yTop, 2 * k.intereje * sc + p.b * sc, hcc + hcas, _cHor, 'var(--bg)');
@@ -4013,7 +4030,8 @@ function renderArmDiagrama() {
   const v = {
     la: g('dim-la'), lb: g('dim-lb'), ml: g('dim-ml'), sep: g('dim-sep'), sep2: g('dim-sep2'),
     sepX: g('dim-sep'), sepY: g('dim-sep2'),
-    np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0,
+    np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0, anc: g('dim-anc'),
+    diamSup: document.getElementById('dim-diam-sup')?.value || '', diamEst: document.getElementById('dim-diam-est')?.value || '',
     diam: document.getElementById('dim-diam-ppal')?.value || document.getElementById('dim-hierro-diam')?.value || 'MAT-003',
     armTipo: document.getElementById('dim-arm-tipo')?.value || 'hierros',
     refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), refSep: g('dim-ref-sep'), cod: coef.cod,
@@ -4158,8 +4176,10 @@ function onTareaChange() {
       ${ig('dim-ml','Longitud libre (m)')}
       ${ig('dim-sep','Sep. estribos (m)','0.25')}
       ${diamEstSelectHtml('')}
-      ${ig('dim-ns','Hierros sup. (cant)','2','1')}
+      ${ig('dim-ns','Perchas / hierros sup. (cant)','2','1')}
+      <div class="ig-item"><div class="ig-label">Ø perchas (hierros sup.)</div><select class="ig-input" id="dim-diam-sup" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">${_optsDiam('MAT-002')}</select></div>
       ${ig('dim-ni','Hierros inf. (cant)','2','1')}
+      ${ig('dim-anc','Anclaje por extremo (m) — vacío: luz/6','luz/6','0.05')}
       <div class="ig-item">
           <div class="ig-label">Ø hierros ppal</div>
           <select class="ig-input" id="dim-diam-ppal" onchange="calcDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">
@@ -4487,19 +4507,22 @@ function calcDimLosaVigueta() {
 // salvo que se cargue el de la ficha del fabricante. Acero: kg/m² editable (no hay cálculo de nervios).
 // Contraste: CYPE, losa 25+5 intereje 70 nervio 12 → 0,189 m³/m² con macizados, 19,95 kg/m², malla 1,10 m²/m².
 var NERV_KG_ML = { 'MAT-001':0.222, 'MAT-002':0.395, 'MAT-003':0.617, 'MAT-004':0.888, 'MAT-005':1.578, 'MAT-006':2.466 };
-var NERV_MAT = { rec60:'MAT-164', rec80:'MAT-165', eps60:'MAT-166', eps80:'MAT-167', separador:'MAT-168', malla:'MAT-007', alambre:'MAT-010' };
-var NERV_HOR = [['MAT-034','H17 (as. 8)'],['MAT-035','H21 (as. 8)'],['MAT-036','H21 (as. 12,5)'],['MAT-161','H25 (as. 8)']];
+var NERV_MAT = { rec40:'MAT-171', rec60:'MAT-164', rec80:'MAT-165', eps40:'MAT-172', eps60:'MAT-166', eps80:'MAT-167', separador:'MAT-168', malla:'MAT-007', alambre:'MAT-010' };
+// Sin asentamiento (no cambia el presupuesto; se define por obra). Losas: H25 con binder por defecto.
+var NERV_HOR = [['MAT-161','H25 con binder'],['MAT-035','H21'],['MAT-034','H17']];
+var NERV_HOR_DEF = 'MAT-161';
 
 function nervNorm(p) {
   p = p || {};
   const n = (v, d) => (v === undefined || v === null || v === '' || isNaN(parseFloat(v))) ? d : parseFloat(v);
   return {
     sis: ['rec','prop','eps'].includes(p.sis) ? p.sis : 'rec',
-    cas: String(p.cas) === '80' ? '80' : '60',
+    cas: ['40','60','80'].includes(String(p.cas)) ? String(p.cas) : '60',
     h: n(p.h, 0.25), b: n(p.b, 0.12), cc: n(p.cc, 0.05),
     mac: Math.min(100, Math.max(0, n(p.mac, 15))), kg: Math.max(0, n(p.kg, 15)),
     d: NERV_KG_ML[p.d] ? p.d : 'MAT-003',
-    hor: NERV_HOR.some(h => h[0] === p.hor) ? p.hor : 'MAT-035',
+    // MAT-036 (H21 as. 12,5) se fusionó en MAT-035: mediciones viejas que lo guardaron siguen como H21
+    hor: p.hor === 'MAT-036' ? 'MAT-035' : NERV_HOR.some(h => h[0] === p.hor) ? p.hor : NERV_HOR_DEF,
     vc: n(p.vc, 0), la: n(p.la, 0), lb: n(p.lb, 0), np: n(p.np, 1)
   };
 }
@@ -4517,10 +4540,14 @@ function nervStr(p) {
 function nervDesdeTexto(desc) {
   const m = String(desc || '').match(/(?:e\s*=\s*|esp\.?\s*|^|\s)(\d{2})\s*cm/i);
   const tot = m ? +m[1] : 0;
-  return (tot >= 15 && tot <= 60) ? nervNorm({ h: +(tot / 100 - 0.05).toFixed(2) }) : nervNorm({});
+  const mc = String(desc || '').match(/\b(40|60|80)\s*[xX×]\s*(40|60|80)\b/);
+  const o = {};
+  if (tot >= 15 && tot <= 60) o.h = +(tot / 100 - 0.05).toFixed(2);
+  if (mc && mc[1] === mc[2]) o.cas = mc[1];
+  return nervNorm(o);
 }
 function nervPorM2(p) {
-  const c = p.cas === '80' ? 0.80 : 0.60;
+  const c = (+p.cas || 60) / 100;
   const a = c + p.b, n = 1 / (a * a);
   const ct = Math.max(0.10, c - 2 * 0.04 * (p.h / 0.25));
   const vEst = p.h / 3 * (c * c + ct * ct + c * ct);
@@ -4575,13 +4602,13 @@ function nervModalHTML(pfx, igf, onch) {
       ${igf('dim-lb','Ancho del paño (m)')}
       ${igf('dim-cant-elem','Cantidad de paños','1','1')}
       ${sel('nv-sis','Sistema de casetón',[['rec','Recuperable alquilado'],['prop','Recuperable propio (sin costo)'],['eps','Telgopor perdido (EPS)']],'rec')}
-      ${sel('nv-cas','Casetón',[['60','60 × 60 cm'],['80','80 × 80 cm']],'60')}
+      ${sel('nv-cas','Casetón',[['40','40 × 40 cm'],['60','60 × 60 cm'],['80','80 × 80 cm']],'60')}
       ${igf('nv-h','Alto del casetón (m)','0.25')}
       ${igf('nv-b','Ancho de nervio (m)','0.12')}
       ${igf('dim-ml','Capa de compresión (m)','0.05')}
       ${igf('nv-mac','% macizado (ábacos, bordes)','15','1')}
       ${igf('nv-vc','Vol. casetón de la ficha (m³) — opcional','auto','0.001')}
-      ${sel('nv-hor','Hormigón',NERV_HOR,'MAT-035')}
+      ${sel('nv-hor','Hormigón',NERV_HOR,NERV_HOR_DEF)}
       ${igf('nv-kg','Acero (kg/m²)','15','0.5')}
       ${sel('nv-d','Ø de las barras',[['MAT-002','Ø8'],['MAT-003','Ø10'],['MAT-004','Ø12'],['MAT-005','Ø16']],'MAT-003')}
       <div class="ig-item" style="grid-column:1/-1;">
@@ -4758,7 +4785,7 @@ function formatArmDesc(rawDesc) {
   // Hierros sup/inf (vigas)
   if (d.sup) {
     const ml = num(d.sup);
-    parts.push(`Hierros sup: ${ml.toFixed(1)} ml → ${Math.ceil(ml/12)} barras`);
+    parts.push(`Perchas ${DIAM_LABEL[d.diamSup || d.diamPpal]||''}: ${ml.toFixed(1)} ml → ${Math.ceil(ml/12)} barras${d.iAnc ? ` · anclaje ${num(d.iAnc)*100} cm` : ''}`);
   }
   if (d.inf) {
     const ml = num(d.inf);
@@ -4813,7 +4840,7 @@ function calcDimEstructural() {
   let dims = {};
 
   if (tipo === 'columna') dims = { diamEst:document.getElementById('dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'viga') dims = { diamEst:document.getElementById('dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
+  else if (tipo === 'viga') dims = { diamEst:document.getElementById('dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('dim-diam-ppal')?.value||'MAT-003', diamSup:document.getElementById('dim-diam-sup')?.value||'MAT-002', anc:g('dim-anc'), cantElem:g('dim-cant-elem')||1 };
   else if (tipo === 'zapata') dims = dimsZapataCorrida('');
   else if (tipo === 'zapata_puntual') dims = { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1 };
   else if (tipo === 'zapata_excentrica') dims = dimsZapataExcentrica('');
@@ -4883,7 +4910,7 @@ async function saveMedicion(keepOpen) {
     if (r.mlEstribos) { extras.push(`est:${r.mlEstribos}`); if (r.diamEst) extras.push(`diamEst:${r.diamEst}`); }
     if (r.mlSec) { extras.push(`sec:${r.mlSec}`); extras.push(`diamSec:${r.diamSec}`); }
     if (r.mlPpal) extras.push(`ppal:${r.mlPpal}`);
-    if (r.mlSup) extras.push(`sup:${r.mlSup}`);
+    if (r.mlSup) { extras.push(`sup:${r.mlSup}`); if (r.diamSup) extras.push(`diamSup:${r.diamSup}`); }
     if (r.mlInf) extras.push(`inf:${r.mlInf}`);
     if (r.mlX) extras.push(`x:${r.mlX}`);
     if (r.mlY) extras.push(`y:${r.mlY}`);
@@ -4906,6 +4933,7 @@ async function saveMedicion(keepOpen) {
       if (d.sepY > 0) extras.push(`iSep2:${d.sepY}`);
       if (d.cantPpal > 0) extras.push(`iNp:${d.cantPpal}`);
       if (d.cantSup > 0) extras.push(`iNs:${d.cantSup}`);
+      if (d.anc > 0) extras.push(`iAnc:${d.anc}`);
       if (d.cantInf > 0) extras.push(`iNi:${d.cantInf}`);
       if (d.cantElem > 1) extras.push(`iCant:${d.cantElem}`);
       if (d.cant > 1) extras.push(`iCant:${d.cant}`);
@@ -5025,7 +5053,7 @@ function loadMediciones() {
     <div class="rubro-block">
       <div class="rubro-hdr"><span>${rubro}</span><span style="font-size:10px;color:var(--tx3);">${items.length} ítem${items.length!==1?'s':''}</span></div>
       <div class="rubro-body">
-        <table class="tbl-med"><colgroup><col style="width:64px"><col style="width:50px"><col style="width:20%"><col style="width:92px"><col><col style="width:92px"><col style="width:76px"><col style="width:50px"><col style="width:86px"><col style="width:112px"></colgroup><thead><tr><th title="N° de ítem del Excel / cronograma (vínculo con BuildPlan)">N° ítem</th><th>Cód</th><th>Tarea</th><th>Ubicación</th><th>Designación original / detalle</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
+        <table class="tbl-med"><colgroup><col style="width:64px"><col style="width:26%"><col style="width:50px"><col><col style="width:92px"><col style="width:92px"><col style="width:76px"><col style="width:50px"><col style="width:86px"><col style="width:112px"></colgroup><thead><tr><th title="N° de ítem del Excel / cronograma (vínculo con BuildPlan)">N° ítem</th><th title="Texto del Excel / cómputo original">Designación original / detalle</th><th title="Código de la tarea de la herramienta">Cód</th><th title="Tarea de la herramienta">Tarea</th><th>Ubicación</th><th>Cantidad</th><th>+${desperdicio}%</th><th>Unid.</th><th>Modif.</th><th>Rev / Acciones</th></tr></thead>
         <tbody>${items.map(({med,coef}) => {
           const sinDesp = !aplicaDesperdicio(coef);
           const cantDesp = sinDesp ? num(med.cantidad) : num(med.cantidad)*desp;
@@ -5033,10 +5061,10 @@ function loadMediciones() {
           const nIt = nItemDeMed(med), rawD = med.desc || med.descripcion || '', dOrig = descOriginal(rawD), dArm = rawD.includes('|') ? formatArmDesc(rawD) : '';
           return `<tr${armDef ? ' class="arm-def-row"' : ''}>
           <td style="font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap;${nIt ? '' : 'color:var(--re);'}" title="${nIt ? 'Vínculo con el cronograma / BuildPlan' : 'Sin N° de ítem: no se vincula con el cronograma. Cargalo en Editar medición.'}">${nIt ? _escH(nIt.key) : 's/n'}</td>
+          <td>${dOrig ? _escH(dOrig) : (dArm ? '' : '—')}${dArm && dArm !== '—' ? `<div style="font-size:10px;color:var(--tx3);margin-top:2px;">${dArm}</div>` : ''}</td>
           <td style="font-size:10px;color:var(--tx3);">${coef?coef.cod:''}</td>
           <td class="hi">${coef?coef.nombre:'(eliminada)'}${armDef ? `<br><span class="arm-def" title="Armadura supuesta al importar, no la del cálculo estructural. Editá la medición, ajustá la armadura y guardá para quitar la marca.">⚙ armadura por defecto</span>` : ''}</td>
           <td style="font-size:10px;color:${med.ubicacion && med.ubicacion !== 'Global' ? 'var(--bl)' : 'var(--tx3)'};">${med.ubicacion||'Global'}</td>
-          <td>${dOrig ? _escH(dOrig) : (dArm ? '' : '—')}${dArm && dArm !== '—' ? `<div style="font-size:10px;color:var(--tx3);margin-top:2px;">${dArm}</div>` : ''}</td>
           <td class="num">${num(med.cantidad).toLocaleString('es-AR',{maximumFractionDigits:3})}${med.cant_origen != null && num(med.cant_origen) !== num(med.cantidad) ? `<br><span style="font-size:9px;color:var(--bl);" title="Cantidad original del Excel">${num(med.cant_origen).toLocaleString('es-AR',{maximumFractionDigits:1})} ${med.unidad_origen||''}</span>` : ''}</td>
           <td class="num" style="color:${sinDesp ? 'var(--tx3)' : 'var(--am)'};" title="${sinDesp ? 'Sin desperdicio: el rubro o la tarea están destildados en Consumos' : ''}">${sinDesp ? '—' : cantDesp.toLocaleString('es-AR',{maximumFractionDigits:3})}</td>
           <td>${coef?coef.unidad:'—'}${med.unidad_origen && med.unidad_origen !== (coef?.unidad||'') ? `<br><span style="font-size:9px;color:var(--bl);">${med.unidad_origen}</span>` : ''}</td>
@@ -5194,9 +5222,11 @@ function _buildEditDimsWrap(coef, wrap) {
       ${ige('dim-ml','Longitud libre (m)')}
       ${ige('dim-sep','Sep. estribos (m)','0.25')}
       ${diamEstSelectHtml('e-')}
-      ${ige('dim-ns','Hierros sup. (cant)','2','1')}
+      ${ige('dim-ns','Perchas / hierros sup. (cant)','2','1')}
+      <div class="ig-item"><div class="ig-label">Ø perchas (hierros sup.)</div><select class="ig-input" id="e-dim-diam-sup" onchange="calcEditDimEstructural()" style="font-family:var(--mono);font-size:11px;padding:6px;">${_optsDiam('MAT-002')}</select></div>
       ${ige('dim-ni','Hierros inf. (cant)','2','1')}
       ${diamSelect('dim-diam-ppal')}
+      ${ige('dim-anc','Anclaje por extremo (m) — vacío: luz/6','luz/6','0.05')}
       ${ige('dim-cant-elem','Cantidad de elementos','1','1')}
       ${previewBlock}`;
   }
@@ -5425,7 +5455,8 @@ function renderEditArmDiagrama() {
   const v = {
     la: g('dim-la'), lb: g('dim-lb'), ml: g('dim-ml'), sep: g('dim-sep'), sep2: g('dim-sep2'),
     sepX: g('dim-sep'), sepY: g('dim-sep2'),
-    np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0,
+    np: g('dim-np') || 0, ns: g('dim-ns') || 0, ni: g('dim-ni') || 0, anc: g('dim-anc'),
+    diamSup: document.getElementById('e-dim-diam-sup')?.value || '', diamEst: document.getElementById('e-dim-diam-est')?.value || '',
     diam: document.getElementById('e-dim-diam-ppal')?.value || document.getElementById('e-dim-hierro-diam')?.value || 'MAT-003',
     armTipo: document.getElementById('e-dim-arm-tipo')?.value || 'hierros',
     refMl: g('dim-ref-ml'), refLargo: g('dim-ref-largo'), refSep: g('dim-ref-sep'), cod: coef.cod,
@@ -5453,7 +5484,7 @@ function calcEditDimEstructural() {
   let dims = {};
 
   if (tipo === 'columna') dims = { diamEst:document.getElementById('e-dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||4, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
-  else if (tipo === 'viga') dims = { diamEst:document.getElementById('e-dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', cantElem:g('dim-cant-elem')||1 };
+  else if (tipo === 'viga') dims = { diamEst:document.getElementById('e-dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantSup:g('dim-ns')||2, cantInf:g('dim-ni')||2, diamPpal:document.getElementById('e-dim-diam-ppal')?.value||'MAT-003', diamSup:document.getElementById('e-dim-diam-sup')?.value||'MAT-002', anc:g('dim-anc'), cantElem:g('dim-cant-elem')||1 };
   else if (tipo === 'zapata') dims = dimsZapataCorrida('e-');
   else if (tipo === 'zapata_puntual') dims = { ancho:g('dim-la'), largo:g('dim-lb'), alto:g('dim-ml'), sep:g('dim-sep')||0.20, cant:g('dim-cant')||1 };
   else if (tipo === 'zapata_excentrica') dims = dimsZapataExcentrica('e-');
@@ -5788,6 +5819,11 @@ function openEditMed(medId) {
           document.getElementById('e-dim-np').value = armData.iNp;
         if (armData.iNs && document.getElementById('e-dim-ns'))
           document.getElementById('e-dim-ns').value = armData.iNs;
+        // Perchas: sin dato guardado = mismo Ø que los principales (así se calculaba antes)
+        if (document.getElementById('e-dim-diam-sup'))
+          document.getElementById('e-dim-diam-sup').value = armData.diamSup || armData.diamPpal || 'MAT-002';
+        if (armData.iAnc && document.getElementById('e-dim-anc'))
+          document.getElementById('e-dim-anc').value = armData.iAnc;
         if (armData.iNi && document.getElementById('e-dim-ni'))
           document.getElementById('e-dim-ni').value = armData.iNi;
         if (armData.iCant && document.getElementById('e-dim-cant-elem'))
@@ -6035,7 +6071,7 @@ async function saveEditMed() {
     if (r.mlEstribos) { extras.push(`est:${r.mlEstribos}`); if (r.diamEst) extras.push(`diamEst:${r.diamEst}`); }
     if (r.mlSec) { extras.push(`sec:${r.mlSec}`); extras.push(`diamSec:${r.diamSec}`); }
     if (r.mlPpal) extras.push(`ppal:${r.mlPpal}`);
-    if (r.mlSup) extras.push(`sup:${r.mlSup}`);
+    if (r.mlSup) { extras.push(`sup:${r.mlSup}`); if (r.diamSup) extras.push(`diamSup:${r.diamSup}`); }
     if (r.mlInf) extras.push(`inf:${r.mlInf}`);
     if (r.mlX) extras.push(`x:${r.mlX}`);
     if (r.mlY) extras.push(`y:${r.mlY}`);
@@ -6058,6 +6094,7 @@ async function saveEditMed() {
       if (d.sepY > 0) extras.push(`iSep2:${d.sepY}`);
       if (d.cantPpal > 0) extras.push(`iNp:${d.cantPpal}`);
       if (d.cantSup > 0) extras.push(`iNs:${d.cantSup}`);
+      if (d.anc > 0) extras.push(`iAnc:${d.anc}`);
       if (d.cantInf > 0) extras.push(`iNi:${d.cantInf}`);
       if (d.cantElem > 1) extras.push(`iCant:${d.cantElem}`);
       if (d.cant > 1) extras.push(`iCant:${d.cant}`);
@@ -6993,7 +7030,7 @@ function consolidarMateriales(obraId, medsFiltro) {
       if (pMat) addConsolidado(pMat, num(armData.ppal), '');
     }
     if (armData.sup && !armData.armTipo) {
-      const sMat = matPorCod((armData.diamPpal||'MAT-003'));
+      const sMat = matPorCod((armData.diamSup||armData.diamPpal||'MAT-003'));
       if (sMat) addConsolidado(sMat, num(armData.sup), '(sup)');
     }
     if (armData.inf && !armData.armTipo) {
@@ -10615,7 +10652,7 @@ function impArmaduraDefecto(item, coef, calc) {
     else { if (tieneUnid) return null; L = item.cant; n = 1; }          // sin largo en el texto: la cantidad del Excel es el largo total
     if (!(L > 0 && n > 0)) return null;
     if (tipo === 'columna') dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantPpal: 4, diamPpal: 'MAT-003', cantElem: n };
-    else if (tipo === 'viga') dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantSup: 2, cantInf: 2, diamPpal: 'MAT-003', cantElem: n };
+    else if (tipo === 'viga') dims = { ladoA: d.la, ladoB: d.lb, ml: L, sepEst: 0.25, cantSup: 2, cantInf: 2, diamPpal: 'MAT-003', diamSup: 'MAT-002', cantElem: n };
     else if (tipo === 'zapata') { if (n !== 1) return null; dims = { ladoA: d.la, ladoB: d.lb, ml: L, sep: 0.20, cantPpal: 4, diamPpal: 'MAT-003', diamSec: 'MAT-002', ala: 0.10, nAla: 2 }; }
     else if (tipo === 'zapata_puntual') dims = { ancho: d.la, largo: d.lb, alto: L, sep: 0.20, cant: n };
   }
@@ -10628,7 +10665,7 @@ function impArmaduraDefecto(item, coef, calc) {
   if (r.mlEstribos) { ex.push(`est:${r.mlEstribos}`); if (r.diamEst) ex.push(`diamEst:${r.diamEst}`); }
   if (r.mlSec) { ex.push(`sec:${r.mlSec}`); ex.push(`diamSec:${r.diamSec}`); }
   if (r.mlPpal) ex.push(`ppal:${r.mlPpal}`);
-  if (r.mlSup) ex.push(`sup:${r.mlSup}`);
+  if (r.mlSup) { ex.push(`sup:${r.mlSup}`); if (r.diamSup) ex.push(`diamSup:${r.diamSup}`); }
   if (r.mlInf) ex.push(`inf:${r.mlInf}`);
   if (r.mlX) ex.push(`x:${r.mlX}`);
   if (r.mlY) ex.push(`y:${r.mlY}`);
