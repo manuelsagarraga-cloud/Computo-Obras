@@ -1,4 +1,4 @@
--- 2026-11-12 · Hormigones sin asentamiento + H25 con binder en losas y muros + casetones 40x40
+-- 2026-11-12 · Hormigones sin asentamiento + versión con binder de cada tipo + H25 con binder en losas y muros + casetones 40x40
 -- Correr POR PASOS. Cada paso de escritura tiene antes su SELECT de verificación.
 -- Los materiales se referencian por NOMBRE en coeficientes.mats[].matRef y como CLAVE en mediciones.mat_overrides:
 -- el renombre y la actualización de referencias van en la misma transacción.
@@ -32,7 +32,7 @@ begin;
 update materiales set nombre = 'Hormigón elaborado H17' where cod = 'MAT-034' and nombre = 'Hormigón elaborado H17 asentamiento 8';
 update materiales set nombre = 'Hormigón elaborado H21' where cod = 'MAT-035' and nombre = 'Hormigón elaborado H21 asentamiento 8';
 update materiales set nombre = 'Hormigón elaborado H8'  where cod = 'MAT-160' and nombre = 'Hormigón elaborado H8 asentamiento 8';
-update materiales set nombre = 'Hormigón elaborado H25 con binder' where cod = 'MAT-161' and nombre = 'Hormigón elaborado H25 asentamiento 8';
+update materiales set nombre = 'Hormigón elaborado H25'  where cod = 'MAT-161' and nombre = 'Hormigón elaborado H25 asentamiento 8';
 
 -- 2b. Tareas que apuntan a los nombres viejos
 update coeficientes c set mats = (
@@ -41,15 +41,14 @@ update coeficientes c set mats = (
       when 'Hormigón elaborado H21 asentamiento 8'   then jsonb_set(m, '{matRef}', '"Hormigón elaborado H21"')
       when 'Hormigón elaborado H21 asentamiento 12,5' then jsonb_set(m, '{matRef}', '"Hormigón elaborado H21"')
       when 'Hormigón elaborado H8 asentamiento 8'    then jsonb_set(m, '{matRef}', '"Hormigón elaborado H8"')
-      when 'Hormigón elaborado H25 asentamiento 8'   then jsonb_set(m, '{matRef}', '"Hormigón elaborado H25 con binder"')
+      when 'Hormigón elaborado H25 asentamiento 8'   then jsonb_set(m, '{matRef}', '"Hormigón elaborado H25"')
       else m end order by ord)
   from jsonb_array_elements(c.mats) with ordinality as t(m, ord))
 where c.mats::text ilike '%asentamiento%';
 
 -- 2c. Claves de mat_overrides (nombre del material base) y valor MAT-036 → MAT-035
 update mediciones set mat_overrides = (
-  select jsonb_object_agg(replace(replace(replace(replace(k,
-           ' asentamiento 12,5',''),' asentamiento 8',''),'H25','H25 con binder'),'H25 con binder con binder','H25 con binder'),
+  select jsonb_object_agg(replace(replace(k, ' asentamiento 12,5', ''), ' asentamiento 8', ''),
          case when v = to_jsonb((select id::text from materiales where cod='MAT-036'))
               then to_jsonb((select id::text from materiales where cod='MAT-035')) else v end)
   from jsonb_each(mat_overrides) as e(k, v))
@@ -67,11 +66,17 @@ commit;
 -- delete from materiales where cod = 'MAT-036' and nombre = 'Hormigón elaborado H21 asentamiento 12,5';
 
 -- =====================================================================
--- PASO 3 · H25 con binder por defecto en losas y muros
--- ⚠ MAT-161 hoy tiene precio 0: cargar el precio ANTES, o las 24 mediciones de losas/muros
---   quedan con el hormigón a $0 en el presupuesto.
+-- PASO 3 · Versión con binder de cada hormigón (piedra más fina) + H25 con binder por defecto en losas y muros
+-- Sin sufijo "— a definir" en el nombre a propósito: estos nombres los referencian las tareas (matRef)
+-- y renombrar después rompe el vínculo. El precio 0 se ve igual en Materiales.
+-- ⚠ Cargar los precios ANTES del update de tareas, o las 24 mediciones de losas/muros quedan con el Hº a $0.
 -- =====================================================================
--- update materiales set precio = <PRECIO>, prov = '<PROVEEDOR>', fecha = current_date::text where cod = 'MAT-161';
+select cod from materiales where cod in ('MAT-173','MAT-174','MAT-175');   -- esperado: 0 filas
+insert into materiales (cod, nombre, unidad, cat, precio, prov) values
+  ('MAT-173', 'Hormigón elaborado H25 con binder', 'm³', 'Estructural', 0, null),
+  ('MAT-174', 'Hormigón elaborado H17 con binder', 'm³', 'Estructural', 0, null),
+  ('MAT-175', 'Hormigón elaborado H21 con binder', 'm³', 'Estructural', 0, null);
+-- update materiales set precio = <PRECIO>, prov = '<PROVEEDOR>', fecha = current_date::text where cod = 'MAT-173';  -- y 161, 174, 175
 select cod, nombre, mats from coeficientes
  where rubro = 'Hormigón Armado' and cod in ('4.19','4.28','4.29','4.31');
 begin;
@@ -82,7 +87,7 @@ update coeficientes c set mats = (
 where c.rubro = 'Hormigón Armado' and c.cod in ('4.19','4.28','4.29','4.31');
 -- Losas nervuradas ya cargadas (4 mediciones, todas con hor=MAT-035 = el default viejo H21):
 -- solo correr si se quiere pasarlas a H25 con binder.
--- update mediciones set descripcion = replace(descripcion, 'hor=MAT-035', 'hor=MAT-161') where descripcion like '%nv:%hor=MAT-035%';
+-- update mediciones set descripcion = replace(descripcion, 'hor=MAT-035', 'hor=MAT-173') where descripcion like '%nv:%hor=MAT-035%';
 commit;
 
 -- =====================================================================
