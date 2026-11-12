@@ -436,9 +436,7 @@ tr.arm-def-row td:first-child{box-shadow:inset 3px 0 0 #f0a020;}
           <div class="fg"><label>Rubro</label><select id="fil-rubro-med" onchange="loadMediciones()"><option value="">Todos</option></select></div>
           <div class="fg"><label>Piso / Ubicación</label>
             <select id="fil-piso-med" onchange="loadMediciones()">
-              <option value="">Todos</option>
-              <option>Global</option><option>Subsuelo</option>
-              <option>Planta Baja</option><option>Planta Alta</option><option>Azotea</option>
+              <option value="">Todas</option>
             </select>
           </div>
           <div style="display:flex;align-items:flex-end;gap:6px;">
@@ -1486,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-10.2';
+const APP_BUILD = '2026-11-12.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -4985,9 +4983,22 @@ function loadMediciones() {
     const curVal = selRub.value;
     selRub.innerHTML = '<option value="">Todos los rubros</option>' + rubrosDisp.map(r=>`<option ${r===curVal?'selected':''}>${r}</option>`).join('');
   }
+  // Poblar filtro de ubicaciones con las reales de la obra (config + las que usan sus mediciones).
+  // Antes eran opciones fijas ("Subsuelo", "Azotea") que no coincidían con lo guardado ("Subsuelo 1", "Piso 2").
+  const selPiso = document.getElementById('fil-piso-med');
+  if (selPiso) {
+    const obraSel = obras.find(o => o.id === obraId);
+    const usadas = obsMeds.map(m => m.ubicacion || 'Global');
+    const ubics = [...new Set([...getUbicaciones(obraSel), ...usadas])].sort((a, b) => _ordenUbic(a) - _ordenUbic(b));
+    if (usadas.includes('Global')) { ubics.splice(ubics.indexOf('Global'), 1); ubics.unshift('Global'); }
+    const curPiso = ubics.includes(filPiso) ? filPiso : '';
+    selPiso.innerHTML = '<option value="">Todas</option>' + ubics.map(u => `<option ${u === curPiso ? 'selected' : ''}>${u}</option>`).join('');
+    selPiso.value = curPiso;
+  }
+  const filPisoOk = selPiso ? selPiso.value : filPiso;
   // Aplicar filtros
   if (filRubro) obsMeds = obsMeds.filter(m => { const c=coefs.find(x=>x.id===(m.coefId||m.coef_id)); return (c?.rubro||'Sin rubro')===filRubro; });
-  if (filPiso)  obsMeds = obsMeds.filter(m => (m.ubicacion||'Global')===filPiso);
+  if (filPisoOk) obsMeds = obsMeds.filter(m => (m.ubicacion||'Global')===filPisoOk);
   // Armadura por defecto del import, todavía sin detallar
   const esArmDef = m => /armDef\s*:\s*import/.test(m.desc || m.descripcion || '');
   const nArmDef = meds.filter(m => (m.obraId||m.obra_id) === obraId && esArmDef(m)).length;
