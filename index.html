@@ -1484,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-12.3';
+const APP_BUILD = '2026-11-12.4';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -2810,7 +2810,15 @@ function computeObra(obraId) {
       if (xMat && barras > 0) matItems.push({ nombre: xMat.nombre + ' (hierros extra)', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
         cantidadBase: ml, cantidadComercial: barras, precioUnit: xMat.precio, subtotal: barras * xMat.precio, matFound: true });
     });
-    const mlXhTot = Object.values(xhMl).reduce((a, b) => a + b, 0);
+    const mlXhTot0 = Object.values(xhMl).reduce((a, b) => a + b, 0);
+    // Bastones de losas por paños (pueden tener Ø distintos)
+    const refXd = xhMlParse(armData.refXd);
+    Object.entries(refXd).forEach(([cod, ml]) => {
+      const rMat = matPorCod(cod), barras = Math.ceil(ml / 12);
+      if (rMat && barras > 0) matItems.push({ nombre: rMat.nombre + ' (refuerzo)', unidad: 'barra', unComercial: 'barras 12m', divisor: 1,
+        cantidadBase: ml, cantidadComercial: barras, precioUnit: rMat.precio, subtotal: barras * rMat.precio, matFound: true });
+    });
+    const mlXhTot = mlXhTot0 + Object.values(refXd).reduce((a, b) => a + b, 0);
     // Alambre para ataduras en cualquier elemento con hierros
     if ((armData.est || armData.sec || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y || mlXhTot) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
@@ -4350,6 +4358,7 @@ function onTareaChange() {
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
         ${tipo === 'platea' ? 'Platea de fundación' : 'Losa maciza'} · Long. hierro = luz + luz/6 (Chandías)
       </div>
+      ${panosHTML('', 'losa')}
       ${ig('dim-la','Lado X (m)')}
       ${ig('dim-lb','Lado Y (m)')}
       ${ig('dim-ml','Espesor (m)','0.20','0.01')}
@@ -4580,30 +4589,35 @@ function _nervMat(cod) {
 // Materiales de una medición de losa nervurada (m² = cantidad de la medición). Sin datos guardados: valores típicos.
 function nervMatItems(coef, med, desp) {
   if (!coef || tipoEstructural(coef.cod) !== 'losa_nervurada') return [];
-  const m2 = num(med.cantidad);
-  if (!(m2 > 0)) return [];
+  const m2Med = num(med.cantidad);
+  if (!(m2Med > 0)) return [];
   const desc = med.desc || med.descripcion || '';
-  const mNv = desc.match(/(?:^|\|)\s*nv:([^|]*)/);
-  const p = mNv ? nervParse(mNv[1]) : nervDesdeTexto(desc);
-  const k = nervPorM2(p), dsp = desp || 1;
-  const out = [];
+  // Paños: cada uno con sus datos y su superficie (largo × ancho × paños iguales). Sin paños: un solo juego de datos × m² de la medición.
+  const pn = panosParseDesc(desc);
+  let grupos;
+  if (pn && pn.length > 1) grupos = pn.map(o => { const p = nervParse(o.nv || ''); return { p, m2: p.la * p.lb * (p.np || 1) }; }).filter(g => g.m2 > 0);
+  else { const mNv = desc.match(/(?:^|\|)\s*nv:([^|]*)/); grupos = [{ p: mNv ? nervParse(mNv[1]) : nervDesdeTexto(desc), m2: m2Med }]; }
+  const dsp = desp || 1, acc = {};
   const add = (cod, base, unidad, unComercial, divisor, ceilCom) => {
     if (!(base > 0)) return;
-    const mat = _nervMat(cod);
-    const com = ceilCom ? Math.ceil(base / divisor) : base / divisor;
-    const precio = mat ? num(mat.precio) : 0;
-    out.push({ nombre: mat ? mat.nombre : cod, unidad, unComercial, divisor, cantidadBase: +base.toFixed(4),
-               cantidadComercial: com, precioUnit: precio, subtotal: com * precio, matFound: !!mat });
+    const a = acc[cod] || (acc[cod] = { base: 0, unidad, unComercial, divisor, ceilCom });
+    a.base += base;
   };
-  add(p.hor, m2 * k.hor * dsp, 'm³', 'm³', 1);
-  if (p.sis === 'rec') add(NERV_MAT['rec' + p.cas], m2 * k.casM2, 'm²', 'm²', 1);
-  if (p.sis === 'eps') add(NERV_MAT['eps' + p.cas], m2 * k.casU, 'u', 'u', 1, true);
-  add(NERV_MAT.malla, m2 * 1.10, 'm²', 'hojas 3×2,4m', 7.2);
-  const ml = m2 * p.kg / NERV_KG_ML[p.d];
-  add(p.d, ml, 'ml', 'barras 12m', 12, true);
-  add(NERV_MAT.alambre, m2 * 0.20, 'kg', 'kg', 1);
-  add(NERV_MAT.separador, m2 * 1.2 * dsp, 'u', 'u', 1, true);
-  return out;
+  grupos.forEach(({ p, m2 }) => {
+    const k = nervPorM2(p);
+    add(p.hor, m2 * k.hor * dsp, 'm³', 'm³', 1);
+    if (p.sis === 'rec') add(NERV_MAT['rec' + p.cas], m2 * k.casM2, 'm²', 'm²', 1);
+    if (p.sis === 'eps') add(NERV_MAT['eps' + p.cas], m2 * k.casU, 'u', 'u', 1, true);
+    add(NERV_MAT.malla, m2 * 1.10, 'm²', 'hojas 3×2,4m', 7.2);
+    add(p.d, m2 * p.kg / NERV_KG_ML[p.d], 'ml', 'barras 12m', 12, true);
+    add(NERV_MAT.alambre, m2 * 0.20, 'kg', 'kg', 1);
+    add(NERV_MAT.separador, m2 * 1.2 * dsp, 'u', 'u', 1, true);
+  });
+  return Object.entries(acc).map(([cod, a]) => {
+    const mat = _nervMat(cod), com = a.ceilCom ? Math.ceil(a.base / a.divisor) : a.base / a.divisor, precio = mat ? num(mat.precio) : 0;
+    return { nombre: mat ? mat.nombre : cod, unidad: a.unidad, unComercial: a.unComercial, divisor: a.divisor, cantidadBase: +a.base.toFixed(4),
+             cantidadComercial: com, precioUnit: precio, subtotal: com * precio, matFound: !!mat };
+  });
 }
 
 
@@ -4662,6 +4676,153 @@ function xhDesgloseLineas(arr, mult, multTxt) {
   });
 }
 
+
+// ── Paños: un mismo ítem de losa repartido en paños con medidas y armadura propias ──
+// El formulario edita el paño activo; las pestañas cambian de paño. Con 1 paño todo funciona como antes.
+// Con 2 o más, la cantidad del ítem es la suma de los paños y se guarda pn:<JSON codificado> en la descripción.
+var PANOS = {};
+function panosHTML(pfx, tipo) {
+  PANOS[pfx] = { list: [], idx: 0, tipo };
+  return `<div id="${pfx}pn-bar" style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;background:var(--bg);border:1px solid var(--bd,#ddd);border-radius:4px;margin-bottom:4px;">${panosBarInner(pfx)}</div>`;
+}
+function panosBarInner(pfx) {
+  const st = PANOS[pfx] || { list: [], idx: 0 };
+  const list = st.list.length ? st.list : [{ nom: 'Paño 1' }];
+  const tabs = list.map((o, i) => `<button type="button" class="btn${i === st.idx ? ' btn-primary' : ''}" style="padding:3px 10px;font-size:11px;" onclick="panoIr('${pfx}',${i})"><span id="${pfx}pn-tab-${i}">${_escH(o.nom || 'Paño ' + (i + 1))}</span></button>`).join('');
+  const act = list[st.idx] || list[0];
+  return `<span style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;">Paños</span>${tabs}
+    <button type="button" class="btn" style="padding:3px 10px;font-size:11px;" onclick="panoAgregar('${pfx}')">+ Agregar paño</button>
+    <span style="flex:1"></span>
+    <input class="ig-input" id="${pfx}pn-nom" value="${_escH(act.nom || 'Paño ' + (st.idx + 1))}" oninput="panoNom('${pfx}',this.value)" title="Nombre del paño (ej. L1, losa tanque)" style="width:150px;padding:4px 6px;font-size:11px;">
+    ${list.length > 1 ? `<button type="button" class="btn-icon" title="Quitar este paño" onclick="panoQuitar('${pfx}')">✕</button>` : ''}`;
+}
+function panosRender(pfx) { const b = document.getElementById(pfx + 'pn-bar'); if (b) b.innerHTML = panosBarInner(pfx); }
+function _pnG(pfx, id) { return num(document.getElementById(pfx + id)?.value); }
+function panoLeer(pfx) {
+  const st = PANOS[pfx]; if (!st) return null;
+  const nom = (document.getElementById(pfx + 'pn-nom')?.value || '').trim() || `Paño ${st.idx + 1}`;
+  if (st.tipo === 'nerv') return { nom, nv: nervStr(nervLeerUI(pfx)), xh: xhLeer(pfx) };
+  return { nom, la: _pnG(pfx, 'dim-la'), lb: _pnG(pfx, 'dim-lb'), e: _pnG(pfx, 'dim-ml'), sx: _pnG(pfx, 'dim-sep'), sy: _pnG(pfx, 'dim-sep2'),
+           refMl: _pnG(pfx, 'dim-ref-ml'), refLargo: _pnG(pfx, 'dim-ref-largo'), refSep: _pnG(pfx, 'dim-ref-sep'),
+           refDiam: document.getElementById(pfx + 'dim-ref-diam')?.value || 'MAT-003', xh: xhLeer(pfx) };
+}
+function panoCargar(pfx, o) {
+  const st = PANOS[pfx]; if (!st || !o) return;
+  const set = (id, v) => { const el = document.getElementById(pfx + id); if (el) el.value = (v === undefined || v === null || v === 0) ? '' : v; };
+  if (st.tipo === 'nerv') nervCargarUI(pfx, nervParse(o.nv || ''));
+  else {
+    set('dim-la', o.la); set('dim-lb', o.lb); set('dim-ml', o.e || 0.20); set('dim-sep', o.sx || 0.20); set('dim-sep2', o.sy || 0.20);
+    set('dim-ref-ml', o.refMl); set('dim-ref-largo', o.refLargo); set('dim-ref-sep', o.refSep || 0.20);
+    const rd = document.getElementById(pfx + 'dim-ref-diam'); if (rd) rd.value = o.refDiam || 'MAT-003';
+  }
+  xhCargar(pfx, o.xh || []);
+}
+function panoSync(pfx) {
+  const st = PANOS[pfx]; if (!st) return;
+  const o = panoLeer(pfx); if (o) st.list[st.idx] = o;
+}
+function panoIr(pfx, i) {
+  const st = PANOS[pfx]; if (!st || i === st.idx) return;
+  panoSync(pfx); st.idx = i; panoCargar(pfx, st.list[i]); panosRender(pfx); xhCambio(pfx);
+}
+function panoAgregar(pfx) {
+  const st = PANOS[pfx]; if (!st) return;
+  panoSync(pfx);
+  const cur = st.list[st.idx] || {};
+  // El paño nuevo hereda espesor, separaciones y tipo de losa; medidas, bastones y hierros extra arrancan vacíos
+  let nuevo;
+  if (st.tipo === 'nerv') { const p = nervParse(cur.nv || ''); p.la = 0; p.lb = 0; p.np = 1; nuevo = { nv: nervStr(p), xh: [] }; }
+  else nuevo = { la: 0, lb: 0, e: cur.e, sx: cur.sx, sy: cur.sy, refMl: 0, refLargo: 0, refSep: cur.refSep, refDiam: cur.refDiam, xh: [] };
+  nuevo.nom = `Paño ${st.list.length + 1}`;
+  st.list.push(nuevo); st.idx = st.list.length - 1;
+  panoCargar(pfx, nuevo); panosRender(pfx); xhCambio(pfx);
+  document.getElementById(pfx + 'dim-la')?.focus();
+}
+function panoQuitar(pfx) {
+  const st = PANOS[pfx]; if (!st || st.list.length <= 1) return;
+  st.list.splice(st.idx, 1); st.idx = Math.max(0, st.idx - 1);
+  panoCargar(pfx, st.list[st.idx]); panosRender(pfx); xhCambio(pfx);
+}
+function panoNom(pfx, v) {
+  const st = PANOS[pfx]; if (!st) return;
+  if (st.list[st.idx]) st.list[st.idx].nom = v;
+  const t = document.getElementById(`${pfx}pn-tab-${st.idx}`); if (t) t.textContent = v || `Paño ${st.idx + 1}`;
+}
+function panosCargarTodo(pfx, arr) {
+  const st = PANOS[pfx]; if (!st || !Array.isArray(arr) || !arr.length) return;
+  st.list = arr; st.idx = 0; panoCargar(pfx, arr[0]); panosRender(pfx); xhCambio(pfx);
+}
+function panosMulti(pfx) { const st = PANOS[pfx]; if (!st) return false; panoSync(pfx); return st.list.length > 1; }
+function panosParseDesc(desc) {
+  const m = String(desc || '').match(/(?:^|\|)\s*pn:([^|]*)/);
+  if (!m) return null;
+  try { const a = JSON.parse(decodeURIComponent(m[1])); return Array.isArray(a) && a.length ? a : null; } catch { return null; }
+}
+const _sumMap = (a, b) => { Object.entries(b || {}).forEach(([k, v]) => { a[k] = +((a[k] || 0) + v).toFixed(3); }); return a; };
+
+// Losa maciza / platea con varios paños: suma de cada paño calculado como antes
+function losaPanosCalc(pfx, tipo) {
+  const st = PANOS[pfx];
+  const per = st.list.map(o => {
+    const dims = { ladoA: num(o.la), ladoB: num(o.lb), ml: num(o.e) || 0.20, sepX: num(o.sx) || 0.20, sepY: num(o.sy) || 0.20,
+                   refMl: num(o.refMl), refLargo: num(o.refLargo), refSep: num(o.refSep) || 0.20, refDiam: o.refDiam || 'MAT-003', xh: o.xh || [] };
+    return { o, dims, r: calcArmadura(tipo, dims) };
+  });
+  const R = { m3: 0, mlX: 0, mlY: 0, cantX: 0, cantY: 0, refXd: {}, xhMl: {}, panos: st.list };
+  per.forEach(({ r }) => {
+    R.m3 += num(r.m3); R.mlX += num(r.mlX); R.mlY += num(r.mlY); R.cantX += num(r.cantX); R.cantY += num(r.cantY);
+    if (r.mlRef) _sumMap(R.refXd, { [r.refDiam]: r.mlRef });
+    _sumMap(R.xhMl, r.xhMl);
+  });
+  R.m3 = +R.m3.toFixed(4); R.mlX = +R.mlX.toFixed(3); R.mlY = +R.mlY.toFixed(3);
+  R.resumen = `${per.length} paños: ` + per.map(({ o, dims }) => `${o.nom} ${_fm(dims.ladoA)}×${_fm(dims.ladoB)} e${_fm(dims.ml * 100, 0)}`).join(' · ');
+  return { R, per };
+}
+function losaPanosHTML(tipo, R, per) {
+  const f = (x, k = 2) => _fm(+x, k);
+  let h = `<b>Total ${per.length} paños:</b> Hº ${f(R.m3, 3)} m³ · hierros X ${f(R.mlX)} ml · Y ${f(R.mlY)} ml`;
+  const refT = Object.values(R.refXd).reduce((a, b) => a + b, 0), xhT = Object.values(R.xhMl).reduce((a, b) => a + b, 0);
+  if (refT) h += ` · bastones ${f(refT)} ml`;
+  if (xhT) h += ` · extra ${f(xhT)} ml`;
+  per.forEach(({ o, dims, r }) => {
+    h += `<div style="margin-top:6px;padding-top:4px;border-top:1px solid var(--gr);"><b>${_escH(o.nom)}</b> — ${f(dims.ladoA)} × ${f(dims.ladoB)} m, e ${f(dims.ml)} m: ${f(r.m3 || 0, 3)} m³${r.m3 ? '' : ' <span style="color:var(--re);">(faltan medidas)</span>'}</div>`;
+    if (r.m3) h += armDesgloseHTML(tipo, dims, r);
+  });
+  return h;
+}
+// Aplica el cálculo por paños al formulario (pfx '' = nueva medición, 'e-' = editar)
+function losaPanosAplicar(pfx, tipo) {
+  const { R, per } = losaPanosCalc(pfx, tipo);
+  const prev = document.getElementById(pfx + 'arm-preview'), res = document.getElementById(pfx + 'dim-res');
+  if (prev) prev.innerHTML = losaPanosHTML(tipo, R, per);
+  if (res) res.value = R.m3 || '';
+  const dims = { panos: PANOS[pfx].list };
+  if (pfx === 'e-') {
+    if (R.m3 > 0) document.getElementById('edit-med-cant').value = R.m3;
+    window._editArmResult = R.m3 > 0 ? R : null; window._editArmDims = dims;
+  } else { window._armResult = R.m3 > 0 ? R : null; window._armTipo = tipo; window._armDims = dims; }
+}
+// Losa nervurada con varios paños (cada uno con su sistema, casetón, alto, Hº, acero y hierros extra)
+function nervPanosAplicar(pfx) {
+  const st = PANOS[pfx], f = (x, k = 2) => _fm(+x, k);
+  let m2T = 0, horT = 0; const xhMl = {}; let h = '';
+  st.list.forEach(o => {
+    const p = nervParse(o.nv || ''), k = nervPorM2(p), m2 = p.la * p.lb * (p.np || 1);
+    m2T += m2; horT += m2 * k.hor; _sumMap(xhMl, xhMlPorDiam(o.xh, p.np || 1));
+    const horNom = (NERV_HOR.find(x => x[0] === p.hor) || [, ''])[1];
+    h += `<div style="margin-top:4px;"><b>${_escH(o.nom)}</b> — ${f(p.la)} × ${f(p.lb)} m${p.np > 1 ? ` × ${p.np}` : ''} = ${f(m2)} m² · casetón ${p.cas}×${p.cas} h ${f(p.h)} + ${f(p.cc)} · Hº ${f(m2 * k.hor)} m³ ${horNom} · acero ${f(m2 * p.kg, 0)} kg${m2 > 0 ? '' : ' <span style="color:var(--re);">(faltan medidas)</span>'}</div>`;
+    if ((o.xh || []).length) h += '<div style="padding-left:10px;">' + xhDesgloseLineas(o.xh, p.np || 1, 'paños').join('<br>') + '</div>';
+  });
+  h = `<b>Total ${st.list.length} paños: ${f(m2T)} m²</b> · Hº ${f(horT)} m³` + h;
+  const prev = document.getElementById(pfx + 'arm-preview'), res = document.getElementById(pfx + 'dim-res');
+  if (prev) prev.innerHTML = h;
+  if (res) res.value = m2T > 0 ? +m2T.toFixed(2) : '';
+  const cur = nervLeerUI(pfx);
+  const d = m2T > 0 ? { largo: cur.la, ancho: cur.lb, espCC: cur.cc, cantElem: 1, nv: nervStr(cur), resumen: `${st.list.length} paños · ${f(m2T)} m²`, panos: st.list, xhMl } : null;
+  if (pfx === 'e-') { if (m2T > 0) document.getElementById('edit-med-cant').value = +m2T.toFixed(2); window._editArmResult = null; window._editArmDims = d; }
+  else { window._armResult = null; if (d) { window._armTipo = 'losa_nervurada'; window._armDims = d; } }
+}
+
 // ── Desarrollo del cálculo ("esqueleto"): de dónde sale cada número ───────
 function armDesgloseHTML(tipo, d, r) {
   const f = (x, k = 2) => _fm(+x, k), L = [];
@@ -4706,9 +4867,10 @@ function nervModalHTML(pfx, igf, onch) {
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
         Losa nervurada con casetones · Hº por m² = (alto casetón + capa) − casetones × volumen del casetón, más el % macizado
       </div>
+      ${panosHTML(pfx, 'nerv')}
       ${igf('dim-la','Largo del paño (m)')}
       ${igf('dim-lb','Ancho del paño (m)')}
-      ${igf('dim-cant-elem','Cantidad de paños','1','1')}
+      ${igf('dim-cant-elem','Paños iguales a este','1','1')}
       ${sel('nv-sis','Sistema de casetón',[['rec','Recuperable alquilado'],['prop','Recuperable propio (sin costo)'],['eps','Telgopor perdido (EPS)']],'rec')}
       ${sel('nv-cas','Casetón',[['40','40 × 40 cm'],['60','60 × 60 cm'],['80','80 × 80 cm']],'60')}
       ${igf('nv-h','Alto del casetón (m)','0.25')}
@@ -4764,6 +4926,7 @@ function nervActualizarUI(pfx) {
 
 function calcDimLosaNervurada() {
   const { m2, p, resumen } = nervActualizarUI('');
+  if (panosMulti('')) { nervPanosAplicar(''); return; }
   window._armResult = null;
   if (m2 > 0) {
     window._armTipo = 'losa_nervurada';
@@ -4965,6 +5128,7 @@ function calcDimEstructural() {
   else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('dim-ref-diam')?.value||'MAT-003' , xh: xhLeer('') };
   else if (tipo === 'losa_vigueta') { calcDimLosaVigueta(); return; }
   else if (tipo === 'losa_nervurada') { calcDimLosaNervurada(); return; }
+  if ((tipo === 'platea' || tipo === 'losa_maciza') && panosMulti('')) { losaPanosAplicar('', tipo); return; }
   else if (tipo === 'cubierta_teja' || tipo === 'cubierta_alivianado') return; // sin armadura, usa dimsConfig
 
   const r = calcArmadura(tipo, dims);
@@ -5027,7 +5191,10 @@ async function saveMedicion(keepOpen) {
     if (r.mlX) extras.push(`x:${r.mlX}`);
     if (r.mlY) extras.push(`y:${r.mlY}`);
     if (r.mlRef) { extras.push(`ref:${r.mlRef}`); extras.push(`refDiam:${r.refDiam}`); }
-    if (r.xh && r.xh.length) { extras.push(`xh:${xhStr(r.xh)}`); extras.push(`xhMl:${xhMlStr(r.xhMl)}`); }
+    if (r.xh && r.xh.length) extras.push(`xh:${xhStr(r.xh)}`);
+    if (r.xhMl && xhMlStr(r.xhMl)) extras.push(`xhMl:${xhMlStr(r.xhMl)}`);
+    if (r.refXd && xhMlStr(r.refXd)) extras.push(`refXd:${xhMlStr(r.refXd)}`);
+    if (r.panos && r.panos.length > 1) extras.push(`pn:${encodeURIComponent(JSON.stringify(r.panos))}`);
     if (r.mlTotal) extras.push(`mlTotal:${r.mlTotal}`);
     if (r.barras12m) extras.push(`barras:${r.barras12m}`);
     if (r.armTipo) extras.push(`armTipo:${r.armTipo}`);
@@ -5071,7 +5238,8 @@ async function saveMedicion(keepOpen) {
     if (d.espCC > 0) extras2.push(`iEspCC:${d.espCC}`);
     if (d.cantElem > 1) extras2.push(`iCant:${d.cantElem}`);
     if (d.nv) { extras2.push(`nv:${d.nv}`); extras2.push(`res:${d.resumen}`); }
-    if (d.xh && d.xh.length) { extras2.push(`xh:${xhStr(d.xh)}`); extras2.push(`xhMl:${xhMlStr(xhMlPorDiam(d.xh, d.cantElem || 1))}`); }
+    if (d.panos && d.panos.length > 1) { extras2.push(`pn:${encodeURIComponent(JSON.stringify(d.panos))}`); if (xhMlStr(d.xhMl)) extras2.push(`xhMl:${xhMlStr(d.xhMl)}`); }
+    else if (d.xh && d.xh.length) { extras2.push(`xh:${xhStr(d.xh)}`); extras2.push(`xhMl:${xhMlStr(xhMlPorDiam(d.xh, d.cantElem || 1))}`); }
     if (extras2.length) descFinal = (descFinal ? descFinal + ' | ' : '') + extras2.join('|');
   }
 
@@ -5456,6 +5624,7 @@ function _buildEditDimsWrap(coef, wrap) {
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
         ${tipo === 'platea' ? 'Platea de fundación' : 'Losa maciza'} · Long. hierro = luz + luz/6 (Chandías)
       </div>
+      ${panosHTML('e-', 'losa')}
       ${ige('dim-la','Lado X (m)')}
       ${ige('dim-lb','Lado Y (m)')}
       ${ige('dim-ml','Espesor (m)','0.20','0.01')}
@@ -5616,6 +5785,7 @@ function calcEditDimEstructural() {
   }
   else if (tipo === 'pozo') dims = { diamEst:document.getElementById('e-dim-diam-est')?.value||'MAT-001', ladoA:g('dim-la'), ladoB:g('dim-la'), ml:g('dim-ml'), sepEst:g('dim-sep')||0.25, cantPpal:g('dim-np')||6 };
   else if (tipo === 'platea' || tipo === 'losa_maciza') dims = { ladoA:g('dim-la'), ladoB:g('dim-lb'), ml:g('dim-ml')||0.20, sepX:g('dim-sep')||0.20, sepY:g('dim-sep2')||0.20, refMl:g('dim-ref-ml'), refLargo:g('dim-ref-largo'), refSep:g('dim-ref-sep')||0.20, refDiam:document.getElementById('e-dim-ref-diam')?.value||'MAT-003' , xh: xhLeer('e-') };
+  if ((tipo === 'platea' || tipo === 'losa_maciza') && panosMulti('e-')) { losaPanosAplicar('e-', tipo); return; }
   else if (tipo === 'losa_vigueta') {
     const largo = g('dim-la'), ancho = g('dim-lb'), sep = g('dim-sep') || 0.50;
     const espCC = g('dim-ml') || 0.05, cantP = g('dim-cant-elem') || 1;
@@ -5636,6 +5806,7 @@ function calcEditDimEstructural() {
   }
   else if (tipo === 'losa_nervurada') {
     const { m2, p, resumen } = nervActualizarUI('e-');
+    if (panosMulti('e-')) { nervPanosAplicar('e-'); return; }
     if (m2 > 0) document.getElementById('edit-med-cant').value = +m2.toFixed(2);
     window._editArmResult = null;
     window._editArmDims = m2 > 0 ? { largo: p.la, ancho: p.lb, espCC: p.cc, cantElem: p.np, nv: nervStr(p), resumen, xh: xhLeer('e-') } : null;
@@ -5886,6 +6057,8 @@ function openEditMed(medId) {
       }
     }
     if (armData.xh) setTimeout(() => { xhCargar('e-', xhParse(armData.xh)); calcEditDimEstructural(); }, 60);
+    const _pnGuard = panosParseDesc(desc);
+    if (_pnGuard) setTimeout(() => panosCargarTodo('e-', _pnGuard), 90);
     // Media zapata de medianera: sus inputs viajan guardados en la descripción (iLa, iLb, iMl, iE…); el texto solo es respaldo.
     // Va aparte del bloque de dims: la heurística de abajo asume m³ = la×lb×ml y acá la sección no es un rectángulo.
     if (tipo === 'zapata_excentrica') {
@@ -6198,7 +6371,7 @@ async function saveEditMed() {
 
   // Reconstruir descripción con datos de armadura (como saveMedicion)
   // 1) Quitar pipe-data anterior de la descripción
-  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:','esc:','iLa:','iLb:','iMl:','iE:','iBw:','iD:','iN8:','iNd:','sec:','diamSec:','diamEst:','iAla:','iNAla:','diamSup:','iAnc:','xh:','xhMl:'];
+  const armKeys = ['est:','ppal:','sup:','inf:','x:','y:','ref:','refDiam:','mlTotal:','barras:','armTipo:','hierroDiam:','diamPpal:','m2Malla:','cantHojas:','mallaTipo:','res:','iSep:','iSep2:','iNp:','iNs:','iNi:','iCant:','iRefMl:','iRefLargo:','iRefSep:','armDef:','iEspCC:','nv:','esc:','iLa:','iLb:','iMl:','iE:','iBw:','iD:','iN8:','iNd:','sec:','diamSec:','diamEst:','iAla:','iNAla:','diamSup:','iAnc:','xh:','xhMl:','pn:','refXd:'];
   const pipeIdx = newDesc.lastIndexOf(' | ');
   if (pipeIdx >= 0) {
     const tail = newDesc.slice(pipeIdx + 3);
@@ -6216,7 +6389,10 @@ async function saveEditMed() {
     if (r.mlX) extras.push(`x:${r.mlX}`);
     if (r.mlY) extras.push(`y:${r.mlY}`);
     if (r.mlRef) { extras.push(`ref:${r.mlRef}`); extras.push(`refDiam:${r.refDiam}`); }
-    if (r.xh && r.xh.length) { extras.push(`xh:${xhStr(r.xh)}`); extras.push(`xhMl:${xhMlStr(r.xhMl)}`); }
+    if (r.xh && r.xh.length) extras.push(`xh:${xhStr(r.xh)}`);
+    if (r.xhMl && xhMlStr(r.xhMl)) extras.push(`xhMl:${xhMlStr(r.xhMl)}`);
+    if (r.refXd && xhMlStr(r.refXd)) extras.push(`refXd:${xhMlStr(r.refXd)}`);
+    if (r.panos && r.panos.length > 1) extras.push(`pn:${encodeURIComponent(JSON.stringify(r.panos))}`);
     if (r.mlTotal) extras.push(`mlTotal:${r.mlTotal}`);
     if (r.barras12m) extras.push(`barras:${r.barras12m}`);
     if (r.armTipo) extras.push(`armTipo:${r.armTipo}`);
@@ -6263,7 +6439,8 @@ async function saveEditMed() {
       if (d.espCC > 0) extras2.push(`iEspCC:${d.espCC}`);
       if (d.cantElem > 1) extras2.push(`iCant:${d.cantElem}`);
       if (d.nv) { extras2.push(`nv:${d.nv}`); extras2.push(`res:${d.resumen}`); }
-      if (d.xh && d.xh.length) { extras2.push(`xh:${xhStr(d.xh)}`); extras2.push(`xhMl:${xhMlStr(xhMlPorDiam(d.xh, d.cantElem || 1))}`); }
+      if (d.panos && d.panos.length > 1) { extras2.push(`pn:${encodeURIComponent(JSON.stringify(d.panos))}`); if (xhMlStr(d.xhMl)) extras2.push(`xhMl:${xhMlStr(d.xhMl)}`); }
+      else if (d.xh && d.xh.length) { extras2.push(`xh:${xhStr(d.xh)}`); extras2.push(`xhMl:${xhMlStr(xhMlPorDiam(d.xh, d.cantElem || 1))}`); }
       if (extras2.length) newDesc = (newDesc ? newDesc + ' | ' : '') + extras2.join('|');
     }
   }
@@ -7193,7 +7370,9 @@ function consolidarMateriales(obraId, medsFiltro) {
     }
     const xhMlC = xhMlParse(armData.xhMl);
     if (!armData.armTipo) Object.entries(xhMlC).forEach(([cod, ml]) => { const xMat = matPorCod(cod); if (xMat) addConsolidado(xMat, ml, '(hierros extra)'); });
-    const mlXhTotC = Object.values(xhMlC).reduce((a, b) => a + b, 0);
+    const refXdC = xhMlParse(armData.refXd);
+    if (!armData.armTipo) Object.entries(refXdC).forEach(([cod, ml]) => { const rMat = matPorCod(cod); if (rMat) addConsolidado(rMat, ml, '(refuerzo)'); });
+    const mlXhTotC = Object.values(xhMlC).reduce((a, b) => a + b, 0) + Object.values(refXdC).reduce((a, b) => a + b, 0);
     if ((armData.est || armData.sec || armData.ppal || armData.sup || armData.inf || armData.ref || armData.x || armData.y || mlXhTotC) && !armData.armTipo) {
       const alMat = findMat('Alambre negro nº17');
       if (alMat) {
