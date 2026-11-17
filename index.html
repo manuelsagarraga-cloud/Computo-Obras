@@ -1484,7 +1484,7 @@ function togglePass() {
   else { p.type = 'password'; e.textContent = '👁'; }
 }
 
-const APP_BUILD = '2026-11-12.4';
+const APP_BUILD = '2026-11-17.1';
 console.log('Cómputo de Obras — build', APP_BUILD);
 document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('app-build-label');if(b)b.textContent='build '+APP_BUILD;});
 // Red de seguridad: ninguna promesa sin capturar puede dejar el spinner colgado
@@ -3986,28 +3986,38 @@ function armDiagramaSVG(tipo, v) {
   }
 
   else if (tipo === 'losa_nervurada') {
-    const p = v.nv || nervNorm({}), k = nervPorM2(p);
-    const c = (+p.cas || 60) / 100, sc = 300 / (2 * k.intereje + p.b);
+    const p = v.nv || nervNorm({}), k = nervPorM2(p), mol = !!NERV_MOLON[p.cas];
+    const c = k.ancho, sc = 300 / (2 * k.intereje + p.b);
     const x0 = 30, yTop = 70, hcc = Math.max(8, p.cc * sc), hcas = Math.max(24, p.h * sc), base = yTop + hcc + hcas;
-    b += _S.text(8, 14, 'Losa nervurada con casetones — corte', {size:10,b:true,c:'var(--tx)'});
+    b += _S.text(8, 14, `Losa nervurada con ${mol ? 'molones' : 'casetones'} — corte transversal a los nervios · ${p.dir === '1' ? 'nervios en un sentido' : 'nervios en dos sentidos'}`, {size:10,b:true,c:'var(--tx)'});
     b += _S.rect(x0, yTop, 2 * k.intereje * sc + p.b * sc, hcc + hcas, _cHor, 'var(--bg)');
-    const con = Math.min(0.04 * (p.h / 0.25) * sc, c * sc / 4);
+    const con = mol ? 0 : Math.min(0.04 * (p.h / 0.25) * sc, c * sc / 4);
     for (let i = 0; i < 2; i++) {
       const xa = x0 + p.b * sc + i * k.intereje * sc, w = c * sc;
       b += _S.path(`M${xa} ${base} L${xa+con} ${yTop+hcc} L${xa+w-con} ${yTop+hcc} L${xa+w} ${base} Z`, 'var(--tx3)', 1.2, 'var(--surf, #eee)', p.sis === 'eps' ? '' : '4 3');
-      b += _S.text(xa + w/2, yTop + hcc + hcas/2 + 4, p.sis === 'eps' ? 'EPS' : 'casetón', {a:'middle',c:'var(--tx3)',size:9});
+      b += _S.text(xa + w/2, yTop + hcc + hcas/2 + 4, mol ? 'molón EPS' : p.sis === 'eps' ? 'EPS' : 'casetón', {a:'middle',c:'var(--tx3)',size:9});
     }
-    for (let i = 0; i < 3; i++) { const xn = x0 + p.b*sc/2 + i*k.intereje*sc; b += _S.dot(xn, base-7, 3.5, _cMain); }
+    // Barras de cada nervio: inferiores abajo, superiores arriba (en la capa)
+    const _barras = (xn, y, cant, col) => { const nb = Math.min(cant, 4), sp = Math.min(6, (p.b * sc - 6) / Math.max(1, nb - 1));
+      for (let j = 0; j < nb; j++) b += _S.dot(xn - (nb - 1) * sp / 2 + j * sp, y, 3, col); };
+    for (let i = 0; i < 3; i++) {
+      const xn = x0 + p.b*sc/2 + i*k.intereje*sc;
+      if (p.ar === 'nv') { _barras(xn, base - 7, p.ni, _cMain); _barras(xn, yTop + 7, p.ns, _cRef); }
+      else b += _S.dot(xn, base-7, 3.5, _cMain);
+    }
     b += _S.line(x0+3, yTop+hcc/2, x0 + 2*k.intereje*sc + p.b*sc - 3, yTop+hcc/2, _cRef, 1.4, '3 2');
     b += _dimH(x0 + p.b*sc/2, x0 + p.b*sc/2 + k.intereje*sc, base + 24, `intereje ${_fm(k.intereje)} m`);
     const xr = x0 + 2*k.intereje*sc + p.b*sc + 14;
-    b += _dimV(xr, yTop, yTop+hcc, `capa ${_fm(p.cc*100,0)} cm`, false) + _dimV(xr, yTop+hcc, base, `casetón ${_fm(p.h*100,0)} cm`, false);
+    b += _dimV(xr, yTop, yTop+hcc, `capa ${_fm(p.cc*100,0)} cm`, false) + _dimV(xr, yTop+hcc, base, `${mol ? 'molón' : 'casetón'} ${_fm(p.h*100,0)} cm`, false);
     b += _S.text(x0 + p.b*sc/2, yTop - 8, `nervio ${_fm(p.b*100,0)} cm`, {a:'middle',size:9,c:_cMain});
-    b += _leyenda(30, 212, [{c:_cMain,t:'barras de nervio',dot:true},{c:_cRef,t:'malla en capa de compresión',dash:'3 2'}]);
+    b += _leyenda(30, 212, p.ar === 'nv'
+      ? [{c:_cMain,t:`${p.ni} ${DIAM_LABEL[p.di] || ''} inferiores por nervio`,dot:true},{c:_cRef,t:`${p.ns} ${DIAM_LABEL[p.ds] || ''} superiores + malla en capa`,dot:true}]
+      : [{c:_cMain,t:'barras de nervio',dot:true},{c:_cRef,t:'malla en capa de compresión',dash:'3 2'}]);
     b += _S.text(300, 212, `Hº ${_fm(k.hor,3)} m³/m² (macizado ${_fm(p.mac,0)} %)`, {size:10,b:true});
-    b += _S.text(300, 227, `${_fm(k.nCas)} casetones ${p.cas}×${p.cas}/m²`, {size:10});
+    b += _S.text(300, 227, `${_fm(k.nCas)} ${mol ? 'molones' : 'casetones'}/m² · ${nervCasNom(p)}`, {size:10});
     b += _S.text(300, 242, (v.la > 0 && v.lb > 0) ? `Paño ${_fm(v.la)} × ${_fm(v.lb)} m · ${ne} ${ne === 1 ? 'paño' : 'paños'}` : '<tspan style="fill:var(--am);font-style:italic">Paño sin medidas: cargá ancho y alto</tspan>', {size:10,b:true});
-    notas = [`Hº por m² = (alto casetón + capa) − casetones/m² × volumen del casetón · casetones/m² = 1 / intereje²`,
+    notas = [`Hº por m² = (alto del bloque + capa) − bloques/m² × volumen del bloque · bloques/m² = ${p.dir === '1' ? '1 / (intereje × largo del bloque)' : '1 / intereje²'}`,
+             p.ar === 'nv' ? `Barras de nervio: metros de nervio por m² (${p.dir === '1' ? '1 / intereje' : 'las dos direcciones'}) × cantidad × (luz + luz/6, Chandías)` : 'Acero tomado como kg/m² global',
              k.vEstimado ? 'Volumen del casetón estimado (tronco de pirámide). Si tenés la ficha del proveedor, cargalo: es lo que más mueve el hormigón' : 'Volumen del casetón tomado de la ficha'];
   }
 
@@ -4532,7 +4542,11 @@ function calcDimLosaVigueta() {
 // salvo que se cargue el de la ficha del fabricante. Acero: kg/m² editable (no hay cálculo de nervios).
 // Contraste: CYPE, losa 25+5 intereje 70 nervio 12 → 0,189 m³/m² con macizados, 19,95 kg/m², malla 1,10 m²/m².
 var NERV_KG_ML = { 'MAT-001':0.222, 'MAT-002':0.395, 'MAT-003':0.617, 'MAT-004':0.888, 'MAT-005':1.578, 'MAT-006':2.466 };
-var NERV_MAT = { rec40:'MAT-171', rec60:'MAT-164', rec80:'MAT-165', eps40:'MAT-172', eps60:'MAT-166', eps80:'MAT-167', separador:'MAT-168', malla:'MAT-007', alambre:'MAT-010' };
+var NERV_MAT = { rec40:'MAT-171', rec60:'MAT-164', rec80:'MAT-165', eps40:'MAT-172', eps60:'MAT-166', eps80:'MAT-167',
+                 epsm4030:'MAT-176', epsm4040:'MAT-177', separador:'MAT-168', malla:'MAT-007', alambre:'MAT-010' };
+// Molones (bloques de EPS perdidos, prismáticos, alto fijo): ancho entre nervios × largo a lo largo del nervio × alto
+var NERV_MOLON = { m4030: { w: 0.40, l: 0.30, h: 0.25, nom: 'Molón 40 × 30 × 25' }, m4040: { w: 0.40, l: 0.40, h: 0.30, nom: 'Molón 40 × 40 × 30' } };
+function nervCasNom(p) { return NERV_MOLON[p.cas] ? NERV_MOLON[p.cas].nom : `Casetón ${p.cas} × ${p.cas}`; }
 // Sin asentamiento (no cambia el presupuesto; se define por obra). Losas: H25 con binder por defecto.
 // Binder = piedra de granulometría más fina: mejor terminación. Disponible en todos los tipos.
 var NERV_HOR = [['MAT-173','H25 con binder'],['MAT-161','H25'],['MAT-175','H21 con binder'],['MAT-035','H21'],['MAT-174','H17 con binder'],['MAT-034','H17']];
@@ -4541,16 +4555,26 @@ var NERV_HOR_DEF = 'MAT-173';
 function nervNorm(p) {
   p = p || {};
   const n = (v, d) => (v === undefined || v === null || v === '' || isNaN(parseFloat(v))) ? d : parseFloat(v);
-  return {
+  const o = {
     sis: ['rec','prop','eps'].includes(p.sis) ? p.sis : 'rec',
-    cas: ['40','60','80'].includes(String(p.cas)) ? String(p.cas) : '60',
+    cas: ['40','60','80','m4030','m4040'].includes(String(p.cas)) ? String(p.cas) : '60',
     h: n(p.h, 0.25), b: n(p.b, 0.12), cc: n(p.cc, 0.05),
+    // Sentido de los nervios: '1' = en un solo sentido, '2' = en dos (cuadrícula). Sin dato: '2' (como se calculaba antes)
+    dir: String(p.dir) === '1' ? '1' : '2',
+    // Armadura: 'nv' = barras del nervio (inferiores, superiores, estribos); 'kg' = kg/m² global (como antes)
+    ar: p.ar === 'nv' ? 'nv' : 'kg',
+    ni: Math.max(0, n(p.ni, 2)), di: NERV_KG_ML[p.di] ? p.di : 'MAT-003',
+    ns: Math.max(0, n(p.ns, 2)), ds: NERV_KG_ML[p.ds] ? p.ds : 'MAT-002',
+    se: Math.max(0, n(p.se, 0)),
     mac: Math.min(100, Math.max(0, n(p.mac, 15))), kg: Math.max(0, n(p.kg, 15)),
     d: NERV_KG_ML[p.d] ? p.d : 'MAT-003',
     // MAT-036 (H21 as. 12,5) se fusionó en MAT-035: mediciones viejas que lo guardaron siguen como H21
     hor: p.hor === 'MAT-036' ? 'MAT-035' : NERV_HOR.some(h => h[0] === p.hor) ? p.hor : NERV_HOR_DEF,
     vc: n(p.vc, 0), la: n(p.la, 0), lb: n(p.lb, 0), np: n(p.np, 1)
   };
+  const mol = NERV_MOLON[o.cas];
+  if (mol) { o.h = mol.h; if (o.sis === 'rec') o.sis = 'eps'; }   // el molón tiene alto fijo y queda perdido en la losa
+  return o;
 }
 function nervParse(str) {
   const o = {};
@@ -4558,30 +4582,48 @@ function nervParse(str) {
   return nervNorm(o);
 }
 function nervStr(p) {
-  return ['sis','cas','h','b','cc','mac','kg','d','hor','vc','la','lb','np']
-    .filter(k => !(k === 'vc' && !(p.vc > 0)))
+  return ['sis','cas','h','b','cc','mac','kg','d','hor','vc','la','lb','np','dir','ar','ni','di','ns','ds','se']
+    .filter(k => !(k === 'vc' && !(p.vc > 0)) && !(k === 'se' && !(p.se > 0)))
     .map(k => `${k}=${p[k]}`).join(';');
 }
 // Altura total en la descripción ("Losa nervurada 35 cm", "e=20cm") → altura de casetón = total − 5 cm de capa
 function nervDesdeTexto(desc) {
   const m = String(desc || '').match(/(?:e\s*=\s*|esp\.?\s*|^|\s)(\d{2})\s*cm/i);
   const tot = m ? +m[1] : 0;
-  const mc = String(desc || '').match(/\b(40|60|80)\s*[xX×]\s*(40|60|80)\b/);
+  const t = String(desc || '');
+  const mc = t.match(/\b(40|60|80)\s*[xX×]\s*(40|60|80)\b(?!\s*[xX×])/);
   const o = {};
   if (tot >= 15 && tot <= 60) o.h = +(tot / 100 - 0.05).toFixed(2);
-  if (mc && mc[1] === mc[2]) o.cas = mc[1];
+  if (/\b40\s*[xX×]\s*30\s*[xX×]\s*25\b/.test(t)) { o.cas = 'm4030'; o.dir = '1'; }
+  else if (/\b40\s*[xX×]\s*40\s*[xX×]\s*30\b/.test(t)) { o.cas = 'm4040'; o.dir = '1'; }
+  else if (mc && mc[1] === mc[2]) o.cas = mc[1];
+  if (/UN SENTIDO|UNIDIRECC|MOL[OÓ]N/i.test(t)) o.dir = '1';
   return nervNorm(o);
 }
 function nervPorM2(p) {
-  const c = (+p.cas || 60) / 100;
-  const a = c + p.b, n = 1 / (a * a);
-  const ct = Math.max(0.10, c - 2 * 0.04 * (p.h / 0.25));
-  const vEst = p.h / 3 * (c * c + ct * ct + c * ct);
+  const mol = NERV_MOLON[p.cas];
+  const w = mol ? mol.w : (+p.cas || 60) / 100;          // ancho del bloque entre nervios
+  const l = mol ? mol.l : w;                              // largo del bloque a lo largo del nervio
+  const a = w + p.b;                                      // intereje (separación entre ejes de nervios)
+  const a2 = p.dir === '1' ? l : l + p.b;                 // en un sentido los bloques van pegados a lo largo del nervio
+  const n = 1 / (a * a2);
+  let vEst;
+  if (mol) vEst = w * l * p.h;                            // molón: prisma
+  else { const ct = Math.max(0.10, w - 2 * 0.04 * (p.h / 0.25)); vEst = p.h / 3 * (w * w + ct * ct + w * ct); }   // casetón: tronco de pirámide
   const v = p.vc > 0 ? p.vc : vEst;
   const f = p.mac / 100;
   const horAlig = Math.max(0, (p.h + p.cc) - n * v);
-  return { intereje: a, nCas: n, vCas: v, vEstimado: !(p.vc > 0), horAlig, f,
-           hor: (1 - f) * horAlig + f * (p.h + p.cc), casU: (1 - f) * n * 1.03, casM2: 1 - f };
+  // Metros de nervio por m² de losa: 1/intereje en un sentido; en dos sentidos se suman las dos direcciones
+  const mlNervio = p.dir === '1' ? 1 / a : 1 / a + 1 / a2;
+  // Barras del nervio (Chandías: cada hierro = luz + luz/6 → × 7/6)
+  const LF = 7 / 6;
+  const mlInf = mlNervio * p.ni * LF, mlSup = mlNervio * p.ns * LF;
+  const perEst = 2 * Math.max(0.02, p.b - 2 * RECUB) + 2 * Math.max(0.05, p.h + p.cc - 2 * RECUB) + 0.125;
+  const nEst = p.se > 0 ? mlNervio / p.se : 0, mlEst = nEst * perEst;
+  const kgBarras = mlInf * (NERV_KG_ML[p.di] || 0) + mlSup * (NERV_KG_ML[p.ds] || 0) + mlEst * (NERV_KG_ML['MAT-001'] || 0.222);
+  return { intereje: a, intereje2: a2, ancho: w, largo: l, nCas: n, vCas: v, vEstimado: !(p.vc > 0) && !mol, horAlig, f,
+           hor: (1 - f) * horAlig + f * (p.h + p.cc), casU: (1 - f) * n * 1.03, casM2: 1 - f,
+           mlNervio, mlInf, mlSup, nEst, perEst, mlEst, kgM2: p.ar === 'nv' ? kgBarras : p.kg };
 }
 function _nervMat(cod) {
   return matPorCod(cod) || null;
@@ -4606,10 +4648,14 @@ function nervMatItems(coef, med, desp) {
   grupos.forEach(({ p, m2 }) => {
     const k = nervPorM2(p);
     add(p.hor, m2 * k.hor * dsp, 'm³', 'm³', 1);
-    if (p.sis === 'rec') add(NERV_MAT['rec' + p.cas], m2 * k.casM2, 'm²', 'm²', 1);
-    if (p.sis === 'eps') add(NERV_MAT['eps' + p.cas], m2 * k.casU, 'u', 'u', 1, true);
+    if (p.sis === 'rec' && NERV_MAT['rec' + p.cas]) add(NERV_MAT['rec' + p.cas], m2 * k.casM2, 'm²', 'm²', 1);
+    if (p.sis === 'eps' && NERV_MAT['eps' + p.cas]) add(NERV_MAT['eps' + p.cas], m2 * k.casU, 'u', 'u', 1, true);
     add(NERV_MAT.malla, m2 * 1.10, 'm²', 'hojas 3×2,4m', 7.2);
-    add(p.d, m2 * p.kg / NERV_KG_ML[p.d], 'ml', 'barras 12m', 12, true);
+    if (p.ar === 'nv') {
+      add(p.di, m2 * k.mlInf, 'ml', 'barras 12m', 12, true);
+      add(p.ds, m2 * k.mlSup, 'ml', 'barras 12m', 12, true);
+      add('MAT-001', m2 * k.mlEst, 'ml', 'barras 12m', 12, true);
+    } else add(p.d, m2 * p.kg / NERV_KG_ML[p.d], 'ml', 'barras 12m', 12, true);
     add(NERV_MAT.alambre, m2 * 0.20, 'kg', 'kg', 1);
     add(NERV_MAT.separador, m2 * 1.2 * dsp, 'u', 'u', 1, true);
   });
@@ -4810,7 +4856,7 @@ function nervPanosAplicar(pfx) {
     const p = nervParse(o.nv || ''), k = nervPorM2(p), m2 = p.la * p.lb * (p.np || 1);
     m2T += m2; horT += m2 * k.hor; _sumMap(xhMl, xhMlPorDiam(o.xh, p.np || 1));
     const horNom = (NERV_HOR.find(x => x[0] === p.hor) || [, ''])[1];
-    h += `<div style="margin-top:4px;"><b>${_escH(o.nom)}</b> — ${f(p.la)} × ${f(p.lb)} m${p.np > 1 ? ` × ${p.np}` : ''} = ${f(m2)} m² · casetón ${p.cas}×${p.cas} h ${f(p.h)} + ${f(p.cc)} · Hº ${f(m2 * k.hor)} m³ ${horNom} · acero ${f(m2 * p.kg, 0)} kg${m2 > 0 ? '' : ' <span style="color:var(--re);">(faltan medidas)</span>'}</div>`;
+    h += `<div style="margin-top:4px;"><b>${_escH(o.nom)}</b> — ${f(p.la)} × ${f(p.lb)} m${p.np > 1 ? ` × ${p.np}` : ''} = ${f(m2)} m² · ${nervCasNom(p)} h ${f(p.h)} + ${f(p.cc)} · ${p.dir === '1' ? '1 sentido' : '2 sentidos'} · Hº ${f(m2 * k.hor)} m³ ${horNom} · acero ${f(m2 * k.kgM2, 0)} kg${m2 > 0 ? '' : ' <span style="color:var(--re);">(faltan medidas)</span>'}</div>`;
     if ((o.xh || []).length) h += '<div style="padding-left:10px;">' + xhDesgloseLineas(o.xh, p.np || 1, 'paños').join('<br>') + '</div>';
   });
   h = `<b>Total ${st.list.length} paños: ${f(m2T)} m²</b> · Hº ${f(horT)} m³` + h;
@@ -4865,22 +4911,33 @@ function nervModalHTML(pfx, igf, onch) {
     ${opts.map(o => `<option value="${o[0]}"${o[0] === def ? ' selected' : ''}>${o[1]}</option>`).join('')}</select></div>`;
   return `
       <div style="grid-column:1/-1;font-size:10px;color:var(--bl);background:var(--bl-l);padding:6px 10px;border-radius:4px;margin-bottom:4px;">
-        Losa nervurada con casetones · Hº por m² = (alto casetón + capa) − casetones × volumen del casetón, más el % macizado
+        Losa nervurada con casetones o molones · Hº por m² = (alto del bloque + capa) − bloques × volumen del bloque, más el % macizado
       </div>
       ${panosHTML(pfx, 'nerv')}
       ${igf('dim-la','Largo del paño (m)')}
       ${igf('dim-lb','Ancho del paño (m)')}
       ${igf('dim-cant-elem','Paños iguales a este','1','1')}
-      ${sel('nv-sis','Sistema de casetón',[['rec','Recuperable alquilado'],['prop','Recuperable propio (sin costo)'],['eps','Telgopor perdido (EPS)']],'rec')}
-      ${sel('nv-cas','Casetón',[['40','40 × 40 cm'],['60','60 × 60 cm'],['80','80 × 80 cm']],'60')}
-      ${igf('nv-h','Alto del casetón (m)','0.25')}
+      ${sel('nv-dir','Sentido de los nervios',[['1','En un solo sentido'],['2','En dos sentidos (cuadrícula)']],'1')}
+      ${sel('nv-sis','Sistema',[['rec','Casetón recuperable alquilado'],['prop','Casetón recuperable propio (sin costo)'],['eps','Telgopor perdido (EPS)']],'rec')}
+      ${sel('nv-cas','Casetón / molón',[['40','Casetón 40 × 40 cm'],['60','Casetón 60 × 60 cm'],['80','Casetón 80 × 80 cm'],['m4030','Molón 40 × 30 × 25 cm'],['m4040','Molón 40 × 40 × 30 cm']],'60')}
+      ${igf('nv-h','Alto del casetón (m) — molón: fijo','0.25')}
       ${igf('nv-b','Ancho de nervio (m)','0.12')}
       ${igf('dim-ml','Capa de compresión (m)','0.05')}
       ${igf('nv-mac','% macizado (ábacos, bordes)','15','1')}
       ${igf('nv-vc','Vol. casetón de la ficha (m³) — opcional','auto','0.001')}
       ${sel('nv-hor','Hormigón',NERV_HOR,NERV_HOR_DEF)}
+      ${sel('nv-ar','Armadura de los nervios',[['nv','Barras por nervio (inferiores + superiores)'],['kg','Acero global en kg/m²']],'nv')}
+      <div id="${pfx}nv-g-nv" style="display:contents">
+      ${igf('nv-ni','Hierros inferiores por nervio (cant)','2','1')}
+      ${sel('nv-di','Ø inferiores',[['MAT-002','Ø8'],['MAT-003','Ø10'],['MAT-004','Ø12'],['MAT-005','Ø16']],'MAT-003')}
+      ${igf('nv-ns','Hierros superiores por nervio (cant)','2','1')}
+      ${sel('nv-ds','Ø superiores',[['MAT-002','Ø8'],['MAT-003','Ø10'],['MAT-004','Ø12'],['MAT-005','Ø16']],'MAT-002')}
+      ${igf('nv-se','Estribos Ø6 en nervios: separación (m) — vacío: sin estribos','sin','0.05')}
+      </div>
+      <div id="${pfx}nv-g-kg" style="display:contents">
       ${igf('nv-kg','Acero (kg/m²)','15','0.5')}
       ${sel('nv-d','Ø de las barras',[['MAT-002','Ø8'],['MAT-003','Ø10'],['MAT-004','Ø12'],['MAT-005','Ø16']],'MAT-003')}
+      </div>
       ${xhHTML(pfx)}
       <div class="ig-item" style="grid-column:1/-1;">
         <div class="ig-label">Resultado calculado</div>
@@ -4892,35 +4949,56 @@ function nervLeerUI(pfx) {
   const el = id => document.getElementById(pfx + id);
   const v = id => { const x = el(id); return x && x.value !== '' ? x.value : undefined; };
   return nervNorm({ sis: v('nv-sis'), cas: v('nv-cas'), h: v('nv-h'), b: v('nv-b'), cc: v('dim-ml'), mac: v('nv-mac'),
-                    kg: v('nv-kg'), d: v('nv-d'), hor: v('nv-hor'), vc: v('nv-vc'), la: v('dim-la'), lb: v('dim-lb'), np: v('dim-cant-elem') });
+                    kg: v('nv-kg'), d: v('nv-d'), hor: v('nv-hor'), vc: v('nv-vc'), la: v('dim-la'), lb: v('dim-lb'), np: v('dim-cant-elem'),
+                    dir: v('nv-dir'), ar: v('nv-ar'), ni: v('nv-ni'), di: v('nv-di'), ns: v('nv-ns'), ds: v('nv-ds'), se: v('nv-se') });
 }
 function nervCargarUI(pfx, p) {
   const set = (id, val) => { const x = document.getElementById(pfx + id); if (x != null && val !== undefined) x.value = val; };
   set('nv-sis', p.sis); set('nv-cas', p.cas); set('nv-h', p.h); set('nv-b', p.b); set('dim-ml', p.cc); set('nv-mac', p.mac);
   set('nv-kg', p.kg); set('nv-d', p.d); set('nv-hor', p.hor); set('nv-vc', p.vc > 0 ? p.vc : '');
+  set('nv-dir', p.dir); set('nv-ar', p.ar); set('nv-ni', p.ni); set('nv-di', p.di); set('nv-ns', p.ns); set('nv-ds', p.ds); set('nv-se', p.se > 0 ? p.se : '');
   if (p.la > 0) set('dim-la', p.la); if (p.lb > 0) set('dim-lb', p.lb); set('dim-cant-elem', p.np || 1);
 }
 // Calcula, muestra el preview y devuelve { m2, p, resumen }
 function nervActualizarUI(pfx) {
   const p = nervLeerUI(pfx), k = nervPorM2(p);
+  // Mostrar solo los campos del modo de armadura elegido; el molón fija alto y sistema
+  const gNv = document.getElementById(pfx + 'nv-g-nv'), gKg = document.getElementById(pfx + 'nv-g-kg');
+  if (gNv) gNv.style.display = p.ar === 'nv' ? 'contents' : 'none';
+  if (gKg) gKg.style.display = p.ar === 'kg' ? 'contents' : 'none';
+  const hEl = document.getElementById(pfx + 'nv-h'), sEl = document.getElementById(pfx + 'nv-sis');
+  if (NERV_MOLON[p.cas]) { if (hEl) { hEl.value = p.h; hEl.readOnly = true; } if (sEl && sEl.value !== p.sis) sEl.value = p.sis; }
+  else if (hEl) hEl.readOnly = false;
   const m2 = p.la * p.lb * (p.np || 1);          // antes los casetones se multiplicaban dos veces por los paños
   const f2 = (x, d = 2) => (+x).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
   const horNom = (NERV_HOR.find(h => h[0] === p.hor) || [, ''])[1];
   const prev = document.getElementById(pfx + 'arm-preview');
   if (prev) {
     const casTxt = p.sis === 'eps' ? `${f2(k.casU)} u/m² (incl. 3 % roturas)` : p.sis === 'rec' ? `alquiler ${f2(k.casM2)} m²/m²` : 'propios — sin costo de material';
-    let h = `<b>Por m²:</b> Hº ${f2(k.hor,3)} m³ ${horNom} · casetones ${casTxt} · acero ${f2(p.kg,1)} kg · malla 1,10 m² · separadores 1,2 u<br>` +
-            `<span style="color:var(--tx3);">Intereje ${f2(k.intereje)} m · ${f2(k.nCas)} casetones/m² · zona aligerada ${f2(k.horAlig,3)} m³/m² · volumen casetón ${f2(k.vCas,4)} m³${k.vEstimado ? ' (estimado — cargá el de la ficha si lo tenés)' : ' (ficha)'}</span>`;
+    const bloque = NERV_MOLON[p.cas] ? 'molones' : 'casetones';
+    let h = `<b>${nervCasNom(p)} · nervios en ${p.dir === '1' ? 'un sentido' : 'dos sentidos'}</b><br>` +
+            `<b>Por m²:</b> Hº ${f2(k.hor,3)} m³ ${horNom} · ${bloque} ${casTxt} · acero ${f2(k.kgM2,1)} kg · malla 1,10 m² · separadores 1,2 u<br>` +
+            `<span style="color:var(--tx3);">Intereje ${f2(k.intereje)} m · ${f2(k.nCas)} ${bloque}/m² · zona aligerada ${f2(k.horAlig,3)} m³/m² · volumen ${NERV_MOLON[p.cas] ? 'molón' : 'casetón'} ${f2(k.vCas,4)} m³${k.vEstimado ? ' (estimado — cargá el de la ficha si lo tenés)' : NERV_MOLON[p.cas] && !(p.vc > 0) ? ' (medidas del molón)' : ' (ficha)'}</span>`;
     if (m2 > 0) h += `<br><b>Total ${f2(m2)} m²:</b> Hº ${f2(m2 * k.hor,2)} m³ · ` +
-      (p.sis === 'eps' ? `${Math.ceil(m2 * k.casU)} casetones · ` : p.sis === 'rec' ? `${f2(m2 * k.casM2)} m² de alquiler · ` : '') +
-      `acero ${f2(m2 * p.kg,0)} kg (≈ ${Math.ceil(m2 * p.kg / NERV_KG_ML[p.d] / 12)} barras) · malla ${Math.ceil(m2 * 1.10 / 7.2)} hojas`;
+      (p.sis === 'eps' ? `${Math.ceil(m2 * k.casU)} ${bloque} · ` : p.sis === 'rec' ? `${f2(m2 * k.casM2)} m² de alquiler · ` : '') +
+      (p.ar === 'nv' ? `acero ${f2(m2 * k.kgM2,0)} kg` : `acero ${f2(m2 * p.kg,0)} kg (≈ ${Math.ceil(m2 * p.kg / NERV_KG_ML[p.d] / 12)} barras)`) + ` · malla ${Math.ceil(m2 * 1.10 / 7.2)} hojas`;
+    if (p.ar === 'nv') {
+      const DL = c => DIAM_LABEL[c] || '';
+      h += `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--gr);color:var(--tx);font-size:11px;line-height:1.7;"><div style="font-size:10px;letter-spacing:.05em;color:var(--tx3);text-transform:uppercase;">Cómo se calcula (por m²)</div>` +
+        `Metros de nervio = ${p.dir === '1' ? `1 / intereje ${f2(k.intereje)}` : `1 / ${f2(k.intereje)} + 1 / ${f2(k.intereje2)}`} = <b>${f2(k.mlNervio,3)} ml/m²</b><br>` +
+        `<b>Inferiores ${DL(p.di)}:</b> ${p.ni} × ${f2(k.mlNervio,3)} × (luz + luz/6 → 7/6) = <b>${f2(k.mlInf,3)} ml/m²</b>${m2 > 0 ? ` → ${f2(m2 * k.mlInf,1)} ml (${Math.ceil(m2 * k.mlInf / 12)} barras)` : ''}<br>` +
+        `<b>Superiores ${DL(p.ds)}:</b> ${p.ns} × ${f2(k.mlNervio,3)} × 7/6 = <b>${f2(k.mlSup,3)} ml/m²</b>${m2 > 0 ? ` → ${f2(m2 * k.mlSup,1)} ml (${Math.ceil(m2 * k.mlSup / 12)} barras)` : ''}<br>` +
+        (p.se > 0 ? `<b>Estribos Ø6:</b> ${f2(k.mlNervio,3)} / ${f2(p.se)} = ${f2(k.nEst,2)} u/m² × ${f2(k.perEst,3)} m = <b>${f2(k.mlEst,3)} ml/m²</b>${m2 > 0 ? ` → ${f2(m2 * k.mlEst,1)} ml` : ''}<br>` : '<span style="color:var(--tx3);">Sin estribos en nervios</span><br>') +
+        `<b>Acero ≈ ${f2(k.kgM2,1)} kg/m²</b>${m2 > 0 ? ` · ${f2(m2 * k.kgM2,0)} kg en total` : ''}</div>`;
+    }
     const xh = xhLeer(pfx);
     if (xh.length) h += '<br><b>Hierros extra:</b><br>' + xhDesgloseLineas(xh, p.np || 1, 'paños').join('<br>');
     prev.innerHTML = h;
   }
   const res = document.getElementById(pfx + 'dim-res');
   if (res) res.value = m2 > 0 ? +m2.toFixed(2) : '';
-  const resumen = `casetón ${p.cas}x${p.cas} h ${p.h} + capa ${p.cc} · nervio ${p.b} · macizado ${p.mac}% · ${p.kg} kg/m²`;
+  const resumen = `${nervCasNom(p)} h ${p.h} + capa ${p.cc} · nervio ${p.b} · ${p.dir === '1' ? '1 sentido' : '2 sentidos'} · macizado ${p.mac}% · ` +
+    (p.ar === 'nv' ? `${p.ni} ${DIAM_LABEL[p.di] || ''} inf + ${p.ns} ${DIAM_LABEL[p.ds] || ''} sup${p.se > 0 ? ` · est. Ø6 c/${p.se}` : ''}` : `${p.kg} kg/m²`);
   return { m2, p, resumen };
 }
 
